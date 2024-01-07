@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "351611009444",
+    "project_id": "swiftlead-44444",
+    "storage_bucket": "swiftlead-44444.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:351611009444:android:3d53cd95bb957a7c356931",
+        "android_client_info": {
+          "package_name": "com.example.swiftlead"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAufWXdlLew9YhuWVZvm3J3kVWrWvdNUuE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
