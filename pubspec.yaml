@@ -36,6 +36,8 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
   firebase_core: ^2.24.2
+  firebase_database: ^10.4.0
+  firebase_auth: ^4.16.0
 
 dev_dependencies:
   flutter_test:
@@ -60,9 +62,10 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/img/landing_page.png
+    - assets/img/register_login.png
+    - assets/img/register_login1.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
@@ -75,7 +78,12 @@ flutter:
   # "family" key with the font family name, and a "fonts" key with a
   # list giving the asset and other descriptors for the font. For
   # example:
-  # fonts:
+  fonts:
+    - family: TT Norms
+      fonts:
+        - asset: assets/fonts/TTNorms/TTNorms-Regular.otf
+        - asset: assets/fonts/TTNorms/TTNorms-Medium.otf
+          weight: 500
   #   - family: Schyler
   #     fonts:
   #       - asset: fonts/Schyler-Regular.ttf
