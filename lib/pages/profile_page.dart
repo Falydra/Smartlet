@@ -1,75 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:swiftlead/shared/theme.dart';
-import 'package:swiftlead/components/grid_item.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
-
+class _ProfilePageState extends State<ProfilePage> {
+  int _currentIndex = 4;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Row(
-          children: [
-            Padding(
-              padding: EdgeInsets.only(left: 8.0),
-              child: Image(
-                image: AssetImage("assets/img/logo.png"),
-                width: 64.0,
-              ),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: IconButton(
-              icon: Icon(Icons.notifications_on_outlined, color: blue500),
-              onPressed: () {},
-            ),
-          ),
-        ],
+        title: const Text('Profile Page'),
       ),
-      body: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16.0),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16.0,
-          mainAxisSpacing: 16.0,
-          children: [
-            GridItem(
-              icon: Icons.bug_report_outlined,
-              title: 'Deteksi\nHama',
-              onTap: () {},
-            ),
-            GridItem(
-              icon: Icons.thermostat_outlined,
-              title: 'Suhu &\nKelembaban',
-              onTap: () {
-                Navigator.pushNamed(context, '/temp-page');
-              },
-            ),
-            GridItem(
-              icon: Icons.shield_outlined,
-              title: 'Sistem\nKeamanan',
-              onTap: () {},
-            ),
-            GridItem(
-              icon: Icons.analytics_outlined,
-              title: 'Analisis\nTerkini',
-              onTap: () {},
-            ),
-          ],
-        ),
+      body: const Center(
+        child: Text('Profile Page'),
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -107,6 +56,7 @@ class _HomePageState extends State<HomePage> {
                 currentIndex: _currentIndex,
                 itemIndex: 0,
                 onTap: () {
+                  Navigator.pushNamed(context, '/home-page');
                   setState(() {
                     _currentIndex = 0;
                   });

@@ -38,6 +38,10 @@ dependencies:
   firebase_core: ^2.24.2
   firebase_database: ^10.4.0
   firebase_auth: ^4.16.0
+  flutter_bloc: ^8.1.2
+  cloud_firestore: 4.14.0
+  get_storage: ^2.0.3
+  intl: ^0.18.0
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +70,7 @@ flutter:
     - assets/img/landing_page.png
     - assets/img/register_login.png
     - assets/img/register_login1.png
+    - assets/img/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

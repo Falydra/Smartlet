@@ -16,8 +16,8 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final FirebaseAuthService _auth = FirebaseAuthService();
 
-  TextEditingController _emailController = TextEditingController();
-  TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
@@ -30,6 +30,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffffffff),
@@ -122,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
                   //   'password': passwordController.text.toString(),
                   //   'id': DateTime.now().microsecond.toString(),
                   // });
-                }, child: Text("Masuk")),
+                }, child: const Text("Masuk")),
                 TextButton(
                         onPressed: () {
                           Navigator.push(context,
