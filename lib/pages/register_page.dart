@@ -199,7 +199,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       onPressed: () {
                         Navigator.push(context,
                             MaterialPageRoute(builder: (context) {
-                          return RegisterPage(
+                          return LoginPage(
                             controller: TextEditingController(),
                           );
                         }));

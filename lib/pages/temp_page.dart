@@ -104,23 +104,29 @@ class _TempPageState extends State<TempPage> {
                     ),
                   ),
                 ),
-                DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Tanggal')),
-                    DataColumn(label: Text('Suhu')),
-                  ],
-                  rows: documents.map((document) {
-                    Map<String, dynamic> data =
-                        document.data() as Map<String, dynamic>;
-                    int celcius = data['temp'];
-                    Timestamp dateTimestamp = data['date'];
-                    DateTime date = dateTimestamp.toDate();
-
-                    return DataRow(cells: [
-                      DataCell(Text(DateFormat('dd MMM yyyy').format(date))),
-                      DataCell(Text('$celcius °C')),
-                    ]);
-                  }).toList(),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Tanggal')),
+                          DataColumn(label: Text('Suhu')),
+                        ],
+                        rows: documents.map((document) {
+                          Map<String, dynamic> data =
+                              document.data() as Map<String, dynamic>;
+                          int celcius = data['temp'];
+                          Timestamp dateTimestamp = data['date'];
+                          DateTime date = dateTimestamp.toDate();
+                      
+                          return DataRow(cells: [
+                            DataCell(Text(DateFormat('dd MMM yyyy').format(date))),
+                            DataCell(Text('$celcius °C')),
+                          ]);
+                        }).toList(),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             );
