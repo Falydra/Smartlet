@@ -8,7 +8,7 @@ class CustomBottomNavigationItem extends StatelessWidget {
   final int itemIndex;
   final VoidCallback onTap;
 
-  const CustomBottomNavigationItem({
+  const CustomBottomNavigationItem({super.key, 
     required this.icon,
     required this.label,
     required this.currentIndex,
@@ -32,7 +32,7 @@ class CustomBottomNavigationItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, color: currentIndex == itemIndex ? blue500 : blue300),
-              SizedBox(
+              const SizedBox(
                 height: 4.0,
               ),
               Text(

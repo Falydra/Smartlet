@@ -15,11 +15,28 @@ class _CommunityPageState extends State<CommunityPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('Community Page'),
+        title: const Row(
+          children: [
+            Padding(
+              padding: EdgeInsets.only(left: 8.0),
+              child: Image(
+                image: AssetImage("assets/img/logo.png"),
+                width: 64.0,
+              ),
+            ),
+          ],
+        ),
       ),
       body: const Center(
-        child: Text('Community Page'),
-      ),
+          child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Coming soon'),
+          SizedBox(height: 8),
+          Text('Community Page',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        ],
+      )),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
@@ -27,26 +44,6 @@ class _CommunityPageState extends State<CommunityPage> {
           setState(() {
             _currentIndex = index;
           });
-
-          switch (_currentIndex) {
-            case 0:
-              Navigator.pushNamed(context, '/home-page');
-              break;
-            case 1:
-              Navigator.pushNamed(context, '/store-page');
-              break;
-            case 2:
-              Navigator.pushNamed(context, '/community-page');
-              break;
-            case 3:
-              Navigator.pushNamed(context, '/control-page');
-              break;
-            case 4:
-              Navigator.pushNamed(context, '/profile-page');
-              break;
-
-            default:
-          }
         },
         items: [
           BottomNavigationBarItem(
@@ -56,7 +53,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 0,
                 onTap: () {
-                  Navigator.pushNamed(context, '/home-page');
+                  Navigator.pushReplacementNamed(context, '/home-page');
                   setState(() {
                     _currentIndex = 0;
                   });
@@ -70,7 +67,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  Navigator.pushNamed(context, '/store-page');
+                  Navigator.pushReplacementNamed(context, '/store-page');
                   setState(() {
                     _currentIndex = 1;
                   });
@@ -84,7 +81,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 2,
                 onTap: () {
-                  Navigator.pushNamed(context, '/community-page');
+                  Navigator.pushReplacementNamed(context, '/community-page');
                   setState(() {
                     _currentIndex = 2;
                   });
@@ -98,7 +95,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushNamed(context, '/control-page');
+                  Navigator.pushReplacementNamed(context, '/control-page');
                   setState(() {
                     _currentIndex = 3;
                   });
@@ -112,7 +109,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 4,
                 onTap: () {
-                  Navigator.pushNamed(context, '/profile-page');
+                  Navigator.pushReplacementNamed(context, '/profile-page');
                   setState(() {
                     _currentIndex = 4;
                   });

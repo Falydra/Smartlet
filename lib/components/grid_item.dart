@@ -7,7 +7,7 @@ class GridItem extends StatelessWidget {
   final VoidCallback onTap;
 
   const GridItem(
-      {required this.icon, required this.title, required this.onTap});
+      {super.key, required this.icon, required this.title, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

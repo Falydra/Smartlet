@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:swiftlead/shared/theme.dart';
 
 class TempPage extends StatefulWidget {
   const TempPage({Key? key}) : super(key: key);
@@ -12,7 +15,7 @@ class TempPage extends StatefulWidget {
 
 class _TempPageState extends State<TempPage> {
   late FirebaseFirestore _firestore;
-  late Stream<DocumentSnapshot>? _temperatureStream;
+  late Stream<QuerySnapshot>? _temperatureStream;
 
   @override
   void initState() {
@@ -23,45 +26,103 @@ class _TempPageState extends State<TempPage> {
   Future<void> _initializeFirebase() async {
     await Firebase.initializeApp();
     _firestore = FirebaseFirestore.instance;
-    _temperatureStream =
-        _firestore.collection('temperatures').doc('atuy@gmail.com').snapshots();
-    setState(() {}); // Trigger a rebuild after initialization
+
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      String userId = user.uid;
+      print('User ID: $userId');
+
+      _temperatureStream = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('temperatures')
+          .orderBy('date', descending: true)
+          .snapshots();
+      setState(() {});
+    } else {
+      print('User not logged in');
+    }
+  }
+
+  List<BarChartGroupData> _getChartData(List<QueryDocumentSnapshot> documents) {
+    return documents.asMap().entries.map((entry) {
+      Map<String, dynamic> data = entry.value.data() as Map<String, dynamic>;
+      int celcius = data['temp'];
+      return BarChartGroupData(
+        x: entry.key,
+        barRods: [
+          BarChartRodData(toY: celcius.toDouble(), color: amber300),
+        ],
+      );
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_temperatureStream == null) {
-      // Stream is not initialized yet, return loading indicator or other widget
-      return CircularProgressIndicator();
+      return const CircularProgressIndicator();
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Temperature Page'),
+        title: const Text('Temperature Page'),
       ),
-      body: StreamBuilder<DocumentSnapshot>(
+      body: StreamBuilder<QuerySnapshot>(
         stream: _temperatureStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return CircularProgressIndicator();
+            return const CircularProgressIndicator();
           } else if (snapshot.hasError) {
             return Text('Error: ${snapshot.error}');
-          } else if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Text('Data not available');
+          } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Text('Data not available');
           } else {
-            int celcius = snapshot.data!.get('celcius');
-            Timestamp dateTimestamp = snapshot.data!.get('date');
-            DateTime date = dateTimestamp.toDate();
+            List<QueryDocumentSnapshot> documents = snapshot.data!.docs;
 
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Current Temperature: $celcius °C'),
-                  Text(
-                      'Date: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(date)}'),
-                ],
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.5,
+                  child: BarChart(
+                    BarChartData(
+                      barGroups: _getChartData(documents),
+                      borderData: FlBorderData(
+                        show: true,
+                        border: Border(
+                          left: BorderSide(
+                            color: const Color(0xff37434d),
+                            width: 1,
+                          ),
+                          bottom: BorderSide(
+                            color: const Color(0xff37434d),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      titlesData: FlTitlesData(),
+                    ),
+                  ),
+                ),
+                DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Tanggal')),
+                    DataColumn(label: Text('Suhu')),
+                  ],
+                  rows: documents.map((document) {
+                    Map<String, dynamic> data =
+                        document.data() as Map<String, dynamic>;
+                    int celcius = data['temp'];
+                    Timestamp dateTimestamp = data['date'];
+                    DateTime date = dateTimestamp.toDate();
+
+                    return DataRow(cells: [
+                      DataCell(Text(DateFormat('dd MMM yyyy').format(date))),
+                      DataCell(Text('$celcius °C')),
+                    ]);
+                  }).toList(),
+                ),
+              ],
             );
           }
         },
