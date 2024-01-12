@@ -35,28 +35,36 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffffffff),
-      body: Stack(
+      body: Column(
         children: [
           Container(
+            margin: EdgeInsets.only(top: width(context) * 0.25),
             // decoration: BoxDecoration(border: Border.all(width: 2)),
-            height: height(context),
-            padding: const EdgeInsets.symmetric(horizontal: 37),
-            margin: EdgeInsets.only(top: height(context) * 0.475),
-            child: Form(
-              child: ListView(
-              padding: EdgeInsets.zero,
+            width: width(context) * 0.375,
+            child: const Image(
+              image: AssetImage("assets/img/logo2.png"),
+              fit: BoxFit.cover,
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                  width(context) * 0.08, 5, width(context) * 0.08, 0),
               children: [
                 const Text(
-                  "Daftar",
+                  "Daftarkan Akun anda",
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 18, color: Color(0xff000744)),
+                ),
+                const SizedBox(
+                  height: 10,
                 ),
 
                 // email
                 const Text(
                   "Email",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
                 ),
                 TextFormField(
                   controller: _emailController,
@@ -83,12 +91,14 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 // email
-
+                const SizedBox(
+                  height: 10,
+                ),
                 // password
                 const Text(
                   "Password",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
                 ),
                 TextFormField(
                   controller: _passwordController,
@@ -116,14 +126,18 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 // password
-
                 // Konfirmasi password
+                const SizedBox(
+                  height: 10,
+                ),
+                // password
                 const Text(
                   "Konfirmasi Password",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
                 ),
                 TextFormField(
+                  // controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(
                     enabledBorder: OutlineInputBorder(
@@ -147,42 +161,62 @@ class _RegisterPageState extends State<RegisterPage> {
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-                // Konfirmasi password
-
-                ElevatedButton(onPressed: (){
-                  _signup();
-                  // databaseReference.child('users').set({
-                  //   'email': emailController.text.toString(),
-                  //   'password': passwordController.text.toString(),
-                  //   'id': DateTime.now().microsecond.toString(),
-                  // });
-                }, child: const Text("daftar")),
-                TextButton(
-                        onPressed: () {
-                          Navigator.push(context,
-                              MaterialPageRoute(builder: (context) {
-                            return LoginPage(controller: TextEditingController(),);
-                          }));
-                          // Navigator.pop(context);
-                        },
-                        style: TextButton.styleFrom(
-                            foregroundColor: const Color.fromRGBO(0, 0, 0, 0.27),
-                            padding: EdgeInsets.zero),
-                        child: const Text("Sign In",
-                            style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500)),
+                // password
+                SizedBox(
+                  height: 20,
+                ),
+                ElevatedButton(
+                    onPressed: () {
+                      _signup();
+                      // databaseReference.child('users').set({
+                      //   'email': emailController.text.toString(),
+                      //   'password': passwordController.text.toString(),
+                      //   'id': DateTime.now().microsecond.toString(),
+                      // });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.0),
                       ),
+                      backgroundColor:
+                          const Color(0xFF0010A2), // Background color
+                      foregroundColor: Colors.white, // Text color
+                    ),
+                    child: const Text(
+                      "Daftar",
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w500, fontFamily: "TT Norms"),
+                    )),
+                    SizedBox(
+                      height: 5,
+                    ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("Sudah punya akun? ", style: TextStyle(color: Color(0xff000744), fontSize: 16, fontWeight: FontWeight.w500),),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(context,
+                            MaterialPageRoute(builder: (context) {
+                          return RegisterPage(
+                            controller: TextEditingController(),
+                          );
+                        }));
+                        // Navigator.pop(context);
+                      },
+                      style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero),
+                      child: const Text("Klik Disini",
+                          style: TextStyle(
+                              color: Color(0xff545FC1),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500, fontFamily: "TT Norms")),
+                    ),
+                  ],
+                ),
               ],
-            )),
-          ),
-          Image(
-            image: const AssetImage("assets/img/register_login.png"),
-            height: height(context) / 1.75,
-            // height:200,
-            width: width(context),
-            fit: BoxFit.cover,
+            ),
           ),
         ],
       ),
