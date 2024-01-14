@@ -49,7 +49,9 @@ class _HomePageState extends State<HomePage> {
             GridItem(
               icon: Icons.bug_report_outlined,
               title: 'Deteksi\nHama',
-              onTap: () {},
+              onTap: () {
+                Navigator.pushNamed(context, '/pest-page');
+              },
             ),
             GridItem(
               icon: Icons.thermostat_outlined,
@@ -61,11 +63,13 @@ class _HomePageState extends State<HomePage> {
             GridItem(
               icon: Icons.shield_outlined,
               title: 'Sistem\nKeamanan',
-              onTap: () {},
+              onTap: () {
+                Navigator.pushNamed(context, '/security-page');
+              },
             ),
             GridItem(
               icon: Icons.analytics_outlined,
-              title: 'Analisis\nTerkini',
+              title: 'Analisis\nPanen',
               onTap: () {},
             ),
           ],

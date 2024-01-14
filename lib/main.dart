@@ -5,9 +5,11 @@ import 'package:swiftlead/firebase_options.dart';
 import 'package:swiftlead/pages/community_page.dart';
 import 'package:swiftlead/pages/control_page.dart';
 import 'package:swiftlead/pages/login_page.dart';
+import 'package:swiftlead/pages/pest_page.dart';
 import 'package:swiftlead/pages/profile_page.dart';
 import 'package:swiftlead/pages/register_page.dart';
 import 'package:swiftlead/pages/home_page.dart';
+import 'package:swiftlead/pages/security_page.dart';
 import 'package:swiftlead/pages/splash_screen.dart';
 import 'package:swiftlead/pages/store_page.dart';
 import 'package:swiftlead/pages/temp_page.dart';
@@ -48,6 +50,8 @@ class MyApp extends StatelessWidget {
         '/control-page': (context) => const ControlPage(),
         '/profile-page': (context) => const ProfilePage(),
         '/temp-page': (context) => const TempPage(),
+        '/pest-page': (context) => const PestPage(),
+        '/security-page': (context) => const SecurityPage(),
       },
     );
   }

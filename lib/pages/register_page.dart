@@ -162,7 +162,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 // password
-                SizedBox(
+                const SizedBox(
                   height: 20,
                 ),
                 ElevatedButton(
@@ -175,7 +175,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       // });
                     },
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10.0),
                       ),
@@ -188,13 +188,13 @@ class _RegisterPageState extends State<RegisterPage> {
                       style:
                           TextStyle(fontSize: 20, fontWeight: FontWeight.w500, fontFamily: "TT Norms"),
                     )),
-                    SizedBox(
+                    const SizedBox(
                       height: 5,
                     ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Sudah punya akun? ", style: TextStyle(color: Color(0xff000744), fontSize: 16, fontWeight: FontWeight.w500),),
+                    const Text("Sudah punya akun? ", style: TextStyle(color: Color(0xff000744), fontSize: 16, fontWeight: FontWeight.w500),),
                     TextButton(
                       onPressed: () {
                         Navigator.push(context,

@@ -1,23 +1,22 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:swiftlead/shared/theme.dart';
+import 'package:intl/intl.dart';
 
-class TempPage extends StatefulWidget {
-  const TempPage({Key? key}) : super(key: key);
+class SecurityPage extends StatefulWidget {
+  const SecurityPage({Key? key}) : super(key: key);
 
   @override
-  _TempPageState createState() => _TempPageState();
+  State<SecurityPage> createState() => _SecurityPageState();
 }
 
-class _TempPageState extends State<TempPage> {
+class _SecurityPageState extends State<SecurityPage> {
   late FirebaseFirestore _firestore;
-  late Stream<QuerySnapshot>? _temperatureStream;
+  late Stream<QuerySnapshot>? _pestStream;
 
   @override
   void initState() {
@@ -33,10 +32,10 @@ class _TempPageState extends State<TempPage> {
     if (user != null) {
       String userId = user.uid;
 
-      _temperatureStream = _firestore
+      _pestStream = _firestore
           .collection('users')
           .doc(userId)
-          .collection('temperatures')
+          .collection('security')
           .orderBy('date')
           .snapshots();
       setState(() {});
@@ -51,8 +50,8 @@ class _TempPageState extends State<TempPage> {
         spots: documents.asMap().entries.map((entry) {
           Map<String, dynamic> data =
               entry.value.data() as Map<String, dynamic>;
-          int celcius = data['temp'];
-          return FlSpot(entry.key.toDouble(), celcius.toDouble());
+          int percentage = data['percentage'];
+          return FlSpot(entry.key.toDouble(), percentage.toDouble());
         }).toList(),
         color: amber300,
         dotData: FlDotData(show: true),
@@ -63,16 +62,15 @@ class _TempPageState extends State<TempPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_temperatureStream == null) {
+    if (_pestStream == null) {
       return const CircularProgressIndicator();
     }
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Suhu dan Kelembaban'),
+        title: const Text('Deteksi Hama'),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _temperatureStream,
+        stream: _pestStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const CircularProgressIndicator();
@@ -142,8 +140,8 @@ class _TempPageState extends State<TempPage> {
                             documents.map((document) {
                                   Map<String, dynamic> data =
                                       document.data() as Map<String, dynamic>;
-                                  int celcius = data['temp'];
-                                  return celcius;
+                                  int percentage = data['percentage'];
+                                  return percentage;
                                 }).reduce(min) -
                                 1,
                             0),
@@ -151,8 +149,8 @@ class _TempPageState extends State<TempPage> {
                             documents.map((document) {
                                   Map<String, dynamic> data =
                                       document.data() as Map<String, dynamic>;
-                                  int celcius = data['temp'];
-                                  return celcius;
+                                  int percentage = data['percentage'];
+                                  return percentage;
                                 }).reduce(max) +
                                 1,
                             0),
@@ -167,21 +165,18 @@ class _TempPageState extends State<TempPage> {
                         columns: const [
                           DataColumn(label: Text('Tanggal')),
                           DataColumn(label: Text('Suhu')),
-                          DataColumn(label: Text('Kelembaban')),
                         ],
                         rows: documents.map((document) {
                           Map<String, dynamic> data =
                               document.data() as Map<String, dynamic>;
-                          int celcius = data['temp'];
+                          int percentage = data['percentage'];
                           Timestamp dateTimestamp = data['date'];
                           DateTime date = dateTimestamp.toDate();
-                          String humidity = data['humidity'];
 
                           return DataRow(cells: [
                             DataCell(
                                 Text(DateFormat('dd MMM yyyy').format(date))),
-                            DataCell(Text('$celcius °C')),
-                            DataCell(Text('$humidity')),
+                            DataCell(Text('$percentage °C')),
                           ]);
                         }).toList(),
                       ),
