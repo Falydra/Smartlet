@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:swiftlead/firebase_options.dart';
+import 'package:swiftlead/pages/analysis_page.dart';
 import 'package:swiftlead/pages/community_page.dart';
 import 'package:swiftlead/pages/control_page.dart';
 import 'package:swiftlead/pages/login_page.dart';
@@ -52,6 +53,7 @@ class MyApp extends StatelessWidget {
         '/temp-page': (context) => const TempPage(),
         '/pest-page': (context) => const PestPage(),
         '/security-page': (context) => const SecurityPage(),
+        '/analysis-page': (context) => const AnalysisPage(),
       },
     );
   }

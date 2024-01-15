@@ -70,7 +70,9 @@ class _HomePageState extends State<HomePage> {
             GridItem(
               icon: Icons.analytics_outlined,
               title: 'Analisis\nPanen',
-              onTap: () {},
+              onTap: () {
+                Navigator.pushNamed(context, '/analysis-page');
+              },
             ),
           ],
         ),
