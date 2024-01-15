@@ -69,7 +69,7 @@ class _TempPageState extends State<TempPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Suhu dan Kelembaban'),
+        title: const Text('Suhu & Kelembaban'),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _temperatureStream,

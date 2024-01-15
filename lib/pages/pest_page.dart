@@ -164,7 +164,7 @@ class _PestPageState extends State<PestPage> {
                       DataTable(
                         columns: const [
                           DataColumn(label: Text('Tanggal')),
-                          DataColumn(label: Text('Suhu')),
+                          DataColumn(label: Text('Hama Terdeteksi')),
                         ],
                         rows: documents.map((document) {
                           Map<String, dynamic> data =

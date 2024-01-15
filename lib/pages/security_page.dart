@@ -67,7 +67,7 @@ class _SecurityPageState extends State<SecurityPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Deteksi Hama'),
+        title: const Text('Sistem Keamanan'),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _pestStream,
@@ -164,7 +164,7 @@ class _SecurityPageState extends State<SecurityPage> {
                       DataTable(
                         columns: const [
                           DataColumn(label: Text('Tanggal')),
-                          DataColumn(label: Text('Suhu')),
+                          DataColumn(label: Text('Sistem Keamanan')),
                         ],
                         rows: documents.map((document) {
                           Map<String, dynamic> data =
