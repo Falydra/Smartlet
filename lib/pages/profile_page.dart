@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swiftlead/shared/theme.dart';
 
@@ -95,13 +93,13 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         Container(
-          padding: EdgeInsets.only(top: 60, left: 10, right: 10),
+          padding: const EdgeInsets.only(top: 60, left: 10, right: 10),
           alignment: Alignment.centerLeft,
           margin: EdgeInsets.only(top: height(context) * 0.35),
           width: width(context),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: const BorderRadius.only(
+            borderRadius: BorderRadius.only(
               topLeft: Radius.circular(20.0),
               topRight: Radius.circular(20.0),
             ),
@@ -111,77 +109,97 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               TextButton.icon(
                 onPressed: () {},
-                icon: Icon(Icons.shopping_bag_outlined),
-                label: Text(
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: const Text(
                   "Toko Saya",
                   style: TextStyle(color: Colors.black),
                 ),
                 style: TextButton.styleFrom(iconColor: Colors.black),
               ),
-
-              Divider(
+              const Divider(
                 color: Color(0xff767676),
-                height: 1,
+                height: 0.3,
               ),
-
               TextButton.icon(
                 onPressed: () {},
-                icon: Icon(Icons.money_outlined),
-                label: Text(
+                icon: const Icon(Icons.money_outlined),
+                label: const Text(
                   "Pendapatan",
                   style: TextStyle(color: Colors.black),
                 ),
                 style: TextButton.styleFrom(iconColor: Colors.black),
               ),
-
-              Divider(
+              const Divider(
                 color: Color(0xff767676),
-                height: 1,
+                height: 0.3,
               ),
-
               TextButton.icon(
                 onPressed: () {},
-                icon: Icon(Icons.supervisor_account_outlined),
-                label: Text(
+                icon: const Icon(Icons.supervisor_account_outlined),
+                label: const Text(
                   "Teman",
                   style: TextStyle(color: Colors.black),
                 ),
                 style: TextButton.styleFrom(iconColor: Colors.black),
               ),
-
-              Divider(
+              const Divider(
                 color: Color(0xff767676),
-                height: 1,
+                height: 0.3,
               ),
-
               TextButton.icon(
                 onPressed: () {},
-                icon: Icon(Icons.question_mark_outlined),
-                label: Text(
+                icon: const Icon(Icons.question_mark_outlined),
+                label: const Text(
                   "FAQ",
                   style: TextStyle(color: Colors.black),
                 ),
                 style: TextButton.styleFrom(iconColor: Colors.black),
               ),
-
-              Divider(
+              const Divider(
                 color: Color(0xff767676),
-                height: 1,
+                height: 0.3,
               ),
-
               TextButton.icon(
                 onPressed: () {},
-                icon: Icon(Icons.fact_check_outlined),
-                label: Text(
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text(
                   "Tentang",
                   style: TextStyle(color: Colors.black),
                 ),
                 style: TextButton.styleFrom(iconColor: Colors.black),
               ),
+              SizedBox(
+                height: height(context) * 0.1,
+              ),
+              Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Perform the logout action
+                    await FirebaseAuth.instance.signOut();
+                    Navigator.pushReplacementNamed(context, '/login-page');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.logout, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text('Logout', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              )
             ],
           ),
         ),
-
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15),
           child: Row(
@@ -198,8 +216,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.create_outlined, color: blue500,),
-                    Text("Edit Profil", style: TextStyle(color: blue500, fontWeight: FontWeight.w500),)
+                    Icon(
+                      Icons.create_outlined,
+                      color: blue500,
+                    ),
+                    Text(
+                      "Edit Profil",
+                      style: TextStyle(
+                          color: blue500, fontWeight: FontWeight.w500),
+                    )
                   ],
                 ),
               ),
@@ -214,8 +239,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.settings_outlined, color: blue500,),
-                    Text("Pengaturan", style: TextStyle(color: blue500, fontWeight: FontWeight.w500),)
+                    Icon(
+                      Icons.settings_outlined,
+                      color: blue500,
+                    ),
+                    Text(
+                      "Pengaturan",
+                      style: TextStyle(
+                          color: blue500, fontWeight: FontWeight.w500),
+                    )
                   ],
                 ),
               ),
@@ -230,28 +262,21 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.info_outline, color: blue500,),
-                    Text("Bantuan", style: TextStyle(color: blue500, fontWeight: FontWeight.w500),)
+                    Icon(
+                      Icons.info_outline,
+                      color: blue500,
+                    ),
+                    Text(
+                      "Bantuan",
+                      style: TextStyle(
+                          color: blue500, fontWeight: FontWeight.w500),
+                    )
                   ],
                 ),
               ),
             ],
           ),
         ),
-
-        Positioned(
-          top: 20,
-          right: 0,
-          child: IconButton(
-              icon: const Icon(Icons.logout),
-              color: Colors.red,
-              onPressed: () async {
-                // Perform the logout action
-                await FirebaseAuth.instance.signOut();
-                Navigator.pushReplacementNamed(context, '/login-page');
-              },
-            ),
-        )
       ]),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,

@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -55,7 +55,7 @@ class _TempPageState extends State<TempPage> {
           return FlSpot(entry.key.toDouble(), celcius.toDouble());
         }).toList(),
         color: amber300,
-        dotData: FlDotData(show: true),
+        dotData: const FlDotData(show: true),
         belowBarData: BarAreaData(show: false),
       ),
     ];
@@ -181,7 +181,7 @@ class _TempPageState extends State<TempPage> {
                             DataCell(
                                 Text(DateFormat('dd MMM yyyy').format(date))),
                             DataCell(Text('$celcius °C')),
-                            DataCell(Text('$humidity')),
+                            DataCell(Text(humidity)),
                           ]);
                         }).toList(),
                       ),

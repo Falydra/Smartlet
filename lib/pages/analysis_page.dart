@@ -36,7 +36,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
       DateTime yesterdayStart =
           DateTime.now().subtract(const Duration(days: 1));
-      DateTime yesterdayEnd = yesterdayStart.add(Duration(days: 1));
+      DateTime yesterdayEnd = yesterdayStart.add(const Duration(days: 1));
 
       _analysisStream = _firestore
           .collection('users')
@@ -67,7 +67,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: bowl,
-          color: Color(
+          color: const Color(
               0xff000B73), // Define a method getColor(index) to get colors
           title: '$bowl Kg', // You can customize the title as needed
           radius: 60,
@@ -81,7 +81,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: corner,
-          color: Color(
+          color: const Color(
               0xffB58A00), // Define a method getColor(index) to get colors
           title: '$corner Kg', // You can customize the title as needed
           radius: 60,
@@ -95,9 +95,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: oval,
-          color: Color(
+          color: const Color(
               0xff168AB5), // Define a method getColor(index) to get colors
-          title: '${oval} Kg', // You can customize the title as needed
+          title: '$oval Kg', // You can customize the title as needed
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 12,
@@ -109,9 +109,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: fault,
-          color: Color(
+          color: const Color(
               0xffC20000), // Define a method getColor(index) to get colors
-          title: '${fault} Kg', // You can customize the title as needed
+          title: '$fault Kg', // You can customize the title as needed
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 12,

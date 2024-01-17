@@ -54,7 +54,7 @@ class _SecurityPageState extends State<SecurityPage> {
           return FlSpot(entry.key.toDouble(), percentage.toDouble());
         }).toList(),
         color: amber300,
-        dotData: FlDotData(show: true),
+        dotData: const FlDotData(show: true),
         belowBarData: BarAreaData(show: false),
       ),
     ];
