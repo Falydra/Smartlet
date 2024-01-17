@@ -64,7 +64,7 @@ class _TempPageState extends State<TempPage> {
   @override
   Widget build(BuildContext context) {
     if (_temperatureStream == null) {
-      return const CircularProgressIndicator();
+      return const Center(child: CircularProgressIndicator());
     }
 
     return Scaffold(
@@ -75,7 +75,7 @@ class _TempPageState extends State<TempPage> {
         stream: _temperatureStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const CircularProgressIndicator();
+            return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Text('Error: ${snapshot.error}');
           } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {

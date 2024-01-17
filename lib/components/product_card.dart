@@ -31,13 +31,12 @@ class ProductCard extends StatelessWidget {
       return downloadURL;
     } catch (e) {
       print('Error: $e');
-      return ''; // Jika terjadi kesalahan, kembalikan string kosong
+      return ''; 
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final NumberFormat formatter = NumberFormat('#,##0', 'en_US');
     return Card(
       surfaceTintColor: white,
       shape: RoundedRectangleBorder(
