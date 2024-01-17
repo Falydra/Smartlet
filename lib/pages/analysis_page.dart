@@ -56,7 +56,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
   List<PieChartSectionData> _getChartData(
       List<QueryDocumentSnapshot> documents) {
     List<PieChartSectionData> sections = [];
-    int index = 0;
 
     for (QueryDocumentSnapshot document in documents) {
       Map<String, dynamic> data = document.data() as Map<String, dynamic>;
@@ -122,7 +121,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
         ),
       );
 
-      index++;
     }
 
     return sections;

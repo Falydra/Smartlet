@@ -5,6 +5,7 @@ double defaultRadius = 10.0;
 
 Color blue50 = const Color(0xffe6e7f6);
 Color blue300 = const Color(0xff545FC1);
+Color blue400 = const Color(0xff3340B5);
 Color blue500 = const Color(0xff0010A2);
 Color blue700 = const Color(0xff000B73);
 Color blue900 = const Color(0xff000744);
