@@ -93,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         Container(
-          padding: const EdgeInsets.only(top: 60, left: 10, right: 10),
+          padding: const EdgeInsets.only(top: 30, left: 10, right: 10),
           alignment: Alignment.centerLeft,
           margin: EdgeInsets.only(top: height(context) * 0.35),
           width: width(context),
@@ -104,8 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
               topRight: Radius.circular(20.0),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ListView(
             children: [
               TextButton.icon(
                 onPressed: () {},
@@ -114,7 +113,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   "Toko Saya",
                   style: TextStyle(color: Colors.black),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black),
+                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
               ),
               const Divider(
                 color: Color(0xff767676),
@@ -127,7 +126,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   "Pendapatan",
                   style: TextStyle(color: Colors.black),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black),
+                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
               ),
               const Divider(
                 color: Color(0xff767676),
@@ -140,7 +139,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   "Teman",
                   style: TextStyle(color: Colors.black),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black),
+                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
               ),
               const Divider(
                 color: Color(0xff767676),
@@ -153,7 +152,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   "FAQ",
                   style: TextStyle(color: Colors.black),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black),
+                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
               ),
               const Divider(
                 color: Color(0xff767676),
@@ -166,12 +165,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   "Tentang",
                   style: TextStyle(color: Colors.black),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black),
+                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
               ),
-              SizedBox(
-                height: height(context) * 0.1,
-              ),
-              Center(
+
+              Container(
+                alignment: Alignment.bottomCenter,
                 child: ElevatedButton(
                   onPressed: () async {
                     // Perform the logout action
