@@ -23,8 +23,10 @@ We are Swiftlead Indonesia is an IoT (Internet of Things) based Smart Farming Te
 Swiftlead is the leading solution for farmers and swallow business owners seeking increased productivity and operational efficiency. Swiftlead, designed as a comprehensive system management platform, effortlessly blends Internet of Things (IoT) technologies with directly linked apps to provide a seamless and real-time user experience.
 
 # Screenshoot Application
-![Image](https://i.ibb.co/nnzpY52/Untitled-design-14.png)
+![Image](https://i.ibb.co/XC7FkQx/Frame-73.png)
 &nbsp;
-![Image](https://i.ibb.co/Nxv1Hx1/Untitled-design-15.png)
+![Image](https://i.ibb.co/BrqRWWr/Frame-74.png)
 &nbsp;
-![Image](https://i.ibb.co/jDwr3H3/Untitled-design-16.png)
+![Image](https://i.ibb.co/hcdLKHB/Frame-75.png)
+&nbsp;
+![Image](https://i.ibb.co/tQq1Td3/Frame-76.png)
