@@ -3,8 +3,8 @@ import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:swiftlead/shared/theme.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 class PestPage extends StatefulWidget {
@@ -176,7 +176,7 @@ class _PestPageState extends State<PestPage> {
                           return DataRow(cells: [
                             DataCell(
                                 Text(DateFormat('dd MMM yyyy').format(date))),
-                            DataCell(Text('$percentage °C')),
+                            DataCell(Text('$percentage%')),
                           ]);
                         }).toList(),
                       ),

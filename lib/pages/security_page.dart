@@ -16,7 +16,7 @@ class SecurityPage extends StatefulWidget {
 
 class _SecurityPageState extends State<SecurityPage> {
   late FirebaseFirestore _firestore;
-  late Stream<QuerySnapshot>? _pestStream;
+  late Stream<QuerySnapshot>? _securityStream;
 
   @override
   void initState() {
@@ -32,7 +32,7 @@ class _SecurityPageState extends State<SecurityPage> {
     if (user != null) {
       String userId = user.uid;
 
-      _pestStream = _firestore
+      _securityStream = _firestore
           .collection('users')
           .doc(userId)
           .collection('security')
@@ -62,18 +62,18 @@ class _SecurityPageState extends State<SecurityPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_pestStream == null) {
-      return const Center(child: CircularProgressIndicator());
+    if (_securityStream == null) {
+      return const CircularProgressIndicator();
     }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sistem Keamanan'),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _pestStream,
+        stream: _securityStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const CircularProgressIndicator();
           } else if (snapshot.hasError) {
             return Text('Error: ${snapshot.error}');
           } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -176,7 +176,7 @@ class _SecurityPageState extends State<SecurityPage> {
                           return DataRow(cells: [
                             DataCell(
                                 Text(DateFormat('dd MMM yyyy').format(date))),
-                            DataCell(Text('$percentage °C')),
+                            DataCell(Text('$percentage%')),
                           ]);
                         }).toList(),
                       ),
