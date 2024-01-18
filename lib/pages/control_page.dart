@@ -216,19 +216,25 @@ class _ControlPageState extends State<ControlPage> {
   }
 }
 
-class CircleWidget extends StatelessWidget {
+class ResponsiveCircleWidget extends StatelessWidget {
   final String label;
   final String value;
 
-  const CircleWidget({required this.label, required this.value});
+  const ResponsiveCircleWidget({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
+    // Dapatkan lebar layar perangkat
+    double screenWidth = MediaQuery.of(context).size.width;
+
+    // Hitung nilai width dan height berdasarkan persentase
+    double circleSize = screenWidth * 0.2;
+
     return Column(
       children: [
         Container(
-          width: 80,
-          height: 80,
+          width: circleSize,
+          height: circleSize,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: amber50,
@@ -236,8 +242,10 @@ class CircleWidget extends StatelessWidget {
           child: Center(
             child: Text(
               value,
-              style:
-                  TextStyle(color: amber700, fontSize: 16.0, fontWeight: bold),
+              style: TextStyle(
+                  color: amber700,
+                  fontSize: circleSize * 0.2,
+                  fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -260,14 +268,16 @@ class CircleInfoWidget extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          CircleWidget(label: 'Hama', value: deviceData['pest'].toString()),
+          ResponsiveCircleWidget(
+              label: 'Hama', value: deviceData['pest'].toString()),
           const SizedBox(height: 8.0),
-          CircleWidget(label: 'Suhu', value: deviceData['temp'].toString()),
+          ResponsiveCircleWidget(
+              label: 'Suhu', value: deviceData['temp'].toString()),
           const SizedBox(height: 8.0),
-          CircleWidget(
+          ResponsiveCircleWidget(
               label: 'Kelembaban', value: deviceData['humidity'].toString()),
           const SizedBox(height: 8.0),
-          CircleWidget(
+          ResponsiveCircleWidget(
               label: 'Keamanan', value: deviceData['security'].toString()),
           const SizedBox(height: 8.0),
         ],
