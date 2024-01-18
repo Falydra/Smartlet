@@ -50,7 +50,7 @@ class ProductCard extends StatelessWidget {
             if (snapshot.hasData) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8.0),
