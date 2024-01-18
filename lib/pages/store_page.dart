@@ -97,7 +97,7 @@ class _StorePageState extends State<StorePage> {
                           crossAxisSpacing: 16.0,
                           mainAxisSpacing: 16.0,
                           childAspectRatio:
-                              0.6, // Sesuaikan dengan rasio yang diinginkan
+                              0.5, // Sesuaikan dengan rasio yang diinginkan
                         ),
                         itemBuilder: (context, index) {
                           // Extract data from each document
