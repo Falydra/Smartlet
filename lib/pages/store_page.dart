@@ -94,11 +94,12 @@ class _StorePageState extends State<StorePage> {
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          crossAxisSpacing: 16.0,
-                          mainAxisSpacing: 16.0,
-                          childAspectRatio:
-                              0.5, // Sesuaikan dengan rasio yang diinginkan
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.57,
                         ),
+                        scrollDirection: Axis.vertical,
+                        shrinkWrap: true,
                         itemBuilder: (context, index) {
                           // Extract data from each document
                           String title = documents[index]['title'] ?? '';

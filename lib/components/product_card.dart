@@ -10,7 +10,8 @@ class ProductCard extends StatelessWidget {
   final String storageUrl;
   final String imagePath;
 
-  const ProductCard({super.key, 
+  const ProductCard({
+    super.key,
     required this.title,
     required this.description,
     required this.price,
@@ -31,7 +32,7 @@ class ProductCard extends StatelessWidget {
       return downloadURL;
     } catch (e) {
       print('Error: $e');
-      return ''; 
+      return '';
     }
   }
 
@@ -49,6 +50,7 @@ class ProductCard extends StatelessWidget {
             if (snapshot.hasData) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8.0),
