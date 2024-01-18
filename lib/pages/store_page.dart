@@ -99,7 +99,7 @@ class _StorePageState extends State<StorePage> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
-                          childAspectRatio: 0.54,
+                          childAspectRatio: 0.52,
                         ),
                         scrollDirection: Axis.vertical,
                         shrinkWrap: true,
