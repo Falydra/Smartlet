@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -16,6 +18,11 @@ class _ControlPageState extends State<ControlPage> {
   late FirebaseFirestore _firestore;
   late Stream<QuerySnapshot>? _controlStream;
   String? _selectedDocumentId;
+
+  bool isPlaying = false;
+  bool isLoading = true;
+  double progress = 1.0;
+  int remainingTime = 600;
 
   @override
   void initState() {
@@ -81,7 +88,7 @@ class _ControlPageState extends State<ControlPage> {
                         .doc(_selectedDocumentId)
                         .get(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting && isLoading) {
                         return const CircularProgressIndicator();
                       } else if (snapshot.hasError) {
                         return Text('Error: ${snapshot.error}');
@@ -107,6 +114,7 @@ class _ControlPageState extends State<ControlPage> {
                         margin: const EdgeInsets.symmetric(
                             horizontal: 16.0, vertical: 8.0),
                         child: ListTile(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10),
                           title: Text(
                             'Perangkat $deviceId',
                             style: TextStyle(fontSize: 18, fontWeight: bold),
@@ -118,9 +126,47 @@ class _ControlPageState extends State<ControlPage> {
                           ),
                           onTap: () {
                             setState(() {
+                              isLoading = true;
                               _selectedDocumentId = documents[index].id;
                             });
                           },
+                          trailing: SizedBox(
+                            width: 125,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  isLoading = false;
+                                  _selectedDocumentId = documents[index].id;
+                                  if (isPlaying) {
+                                    isPlaying = false;
+                                    remainingTime = 600;
+                                    progress = 1.0;
+                                  } else {
+                                    isPlaying = true;
+                                    startTimer();
+                                  }
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding: EdgeInsets.all(5),
+                                backgroundColor: blue500,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5.0),
+                                ),
+                              ),
+                              icon: Icon(
+                                isPlaying && isActive
+                                    ? Icons.multitrack_audio
+                                    : Icons.play_arrow,
+                                color: Colors.white,
+                              ),
+                              label: Text(
+                                isPlaying && isActive
+                                    ? '${(remainingTime ~/ 60).toString().padLeft(2, '0')}:${(remainingTime % 60).toString().padLeft(2, '0')}'
+                                    : 'Play Sound', style: TextStyle(color: Colors.white, fontSize: 12),
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -213,6 +259,27 @@ class _ControlPageState extends State<ControlPage> {
         ],
       ),
     );
+  }
+
+  void startTimer() {
+    const duration = Duration(seconds: 1);
+    Timer.periodic(duration, (timer) {
+      if (!isPlaying) {
+        timer.cancel();
+      } else if (remainingTime > 0) {
+        setState(() {
+          progress = remainingTime / 600;
+        });
+        remainingTime--;
+      } else {
+        setState(() {
+          isPlaying = false;
+          progress = 1.0;
+          remainingTime = 600;
+        });
+        timer.cancel();
+      }
+    });
   }
 }
 
