@@ -41,6 +41,9 @@ class _StorePageState extends State<StorePage> {
   int _currentIndex = 1;
   @override
   Widget build(BuildContext context) {
+    double width(BuildContext context) => MediaQuery.of(context).size.width;
+    double height(BuildContext context) => MediaQuery.of(context).size.height;
+
     if (_storeStream == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -92,11 +95,11 @@ class _StorePageState extends State<StorePage> {
                       padding: const EdgeInsets.all(16.0),
                       child: GridView.builder(
                         gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
+                         SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
-                          childAspectRatio: 0.57,
+                          childAspectRatio: width(context) / (height(context)),
                         ),
                         scrollDirection: Axis.vertical,
                         shrinkWrap: true,
