@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "351611009444",
+    "firebase_url": "https://swiftlead-44444-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "swiftlead-44444",
     "storage_bucket": "swiftlead-44444.appspot.com"
   },
@@ -9,10 +10,23 @@
       "client_info": {
         "mobilesdk_app_id": "1:351611009444:android:3d53cd95bb957a7c356931",
         "android_client_info": {
-          "package_name": "com.example.swiftlead"
+          "package_name": "com.swiftlead"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "351611009444-2nh3q706ecmer4b5sqi42qat37o6oq1d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.swiftlead",
+            "certificate_hash": "8cefcd2437d8233a1c1ab86c5024e39eacf524ae"
+          }
+        },
+        {
+          "client_id": "351611009444-odm1cfodvmmjof091g9q30ve35dcqam0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAufWXdlLew9YhuWVZvm3J3kVWrWvdNUuE"
@@ -20,7 +34,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "351611009444-odm1cfodvmmjof091g9q30ve35dcqam0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "351611009444-1avoivavablhgogf3eng2jpner4pfn12.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.swiftlead"
+              }
+            }
+          ]
         }
       }
     }

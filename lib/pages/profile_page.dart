@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swiftlead/shared/theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -21,261 +22,191 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   automaticallyImplyLeading: false,
-      //   title: Row(
-      //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      //     children: [
-      //       const Padding(
-      //         padding: EdgeInsets.only(left: 8.0),
-      //         child: Image(
-      //           image: AssetImage("assets/img/logo.png"),
-      //           width: 64.0,
-      //         ),
-      //       ),
-      //       IconButton(
-      //         icon: const Icon(Icons.logout),
-      //         onPressed: () async {
-      //           // Perform the logout action
-      //           await FirebaseAuth.instance.signOut();
-      //           Navigator.pushReplacementNamed(context, '/login-page');
-      //         },
-      //       ),
-      //     ],
-      //   ),
-      // ),
       backgroundColor: blue400,
-      body: Stack(children: [
-        SizedBox(
-          width: width(context),
-          height: height(context) * 0.35,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 96,
-                height: 96,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  image: DecorationImage(
-                    image: AssetImage("assets/img/profile.jpg"),
-                    fit: BoxFit.cover,
+      body: Stack(
+        children: [
+          SizedBox(
+            width: width(context),
+            height: height(context) * 0.35,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 96,
+                  height: 96,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    image: DecorationImage(
+                      image: AssetImage("assets/img/profile.jpg"),
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 10.0),
-              // const Text(
-              //   'Faishal',
-              //   style: TextStyle(
-              //     fontSize: 24.0,
-              //     fontWeight: FontWeight.bold,
-              //   ),
-              // ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 5.0,
-                  horizontal: 20.0,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18.0),
-                  color: blue300,
-                ),
-                child: Text(
-                  '${_auth.currentUser!.email}',
-                  style: const TextStyle(
-                    fontSize: 16.0,
-                    color: Colors.white,
+                const SizedBox(height: 10.0),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 5.0,
+                    horizontal: 20.0,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18.0),
+                    color: blue300,
+                  ),
+                  child: Text(
+                    '${_auth.currentUser!.email}',
+                    style: const TextStyle(
+                      fontSize: 16.0,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.only(top: 30, left: 10, right: 10),
-          alignment: Alignment.centerLeft,
-          margin: EdgeInsets.only(top: height(context) * 0.35),
-          width: width(context),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20.0),
-              topRight: Radius.circular(20.0),
+              ],
             ),
           ),
-          child: ListView(
-            children: [
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.shopping_bag_outlined),
-                label: const Text(
-                  "Toko Saya",
-                  style: TextStyle(color: Colors.black),
+          Container(
+            padding: const EdgeInsets.only(top: 30, left: 10, right: 10),
+            alignment: Alignment.centerLeft,
+            margin: EdgeInsets.only(top: height(context) * 0.35),
+            width: width(context),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20.0),
+                topRight: Radius.circular(20.0),
+              ),
+            ),
+            child: ListView(
+              children: [
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.shopping_bag_outlined),
+                  label: const Text(
+                    "Toko Saya",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-              ),
-              const Divider(
-                color: Color(0xff767676),
-                height: 0.3,
-              ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.money_outlined),
-                label: const Text(
-                  "Pendapatan",
-                  style: TextStyle(color: Colors.black),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-              ),
-              const Divider(
-                color: Color(0xff767676),
-                height: 0.3,
-              ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.supervisor_account_outlined),
-                label: const Text(
-                  "Teman",
-                  style: TextStyle(color: Colors.black),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.money_outlined),
+                  label: const Text(
+                    "Pendapatan",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-              ),
-              const Divider(
-                color: Color(0xff767676),
-                height: 0.3,
-              ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.question_mark_outlined),
-                label: const Text(
-                  "FAQ",
-                  style: TextStyle(color: Colors.black),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-              ),
-              const Divider(
-                color: Color(0xff767676),
-                height: 0.3,
-              ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.fact_check_outlined),
-                label: const Text(
-                  "Tentang",
-                  style: TextStyle(color: Colors.black),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.supervisor_account_outlined),
+                  label: const Text(
+                    "Teman",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
                 ),
-                style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-              ),
-
-              Container(
-                alignment: Alignment.bottomCenter,
-                child: ElevatedButton(
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
+                ),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.question_mark_outlined),
+                  label: const Text(
+                    "FAQ",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
+                ),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
+                ),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text(
+                    "Tentang",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
+                ),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
+                ),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.info_outline),
+                  label: const Text(
+                    "Bantuan",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
+                ),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
+                ),
+                TextButton.icon(
                   onPressed: () async {
-                    // Perform the logout action
-                    await FirebaseAuth.instance.signOut();
-                    Navigator.pushReplacementNamed(context, '/login-page');
+                    // Navigate to the edit profile page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => EditProfilePage()),
+                    );
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  icon: const Icon(Icons.edit),
+                  label: const Text(
+                    "Edit Profil",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
+                ),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
+                ),
+                Container(
+                  alignment: Alignment.bottomCenter,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      // Perform the logout action
+                      await FirebaseAuth.instance.signOut();
+                      Navigator.pushReplacementNamed(context, '/login-page');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.logout, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text('Logout', style: TextStyle(color: Colors.white)),
+                        ],
+                      ),
                     ),
                   ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.logout, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text('Logout', style: TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            ],
+                )
+              ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                margin: EdgeInsets.only(top: height(context) * 0.3),
-                decoration: BoxDecoration(
-                  color: sky50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                width: width(context) / 3.5,
-                height: 80,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.create_outlined,
-                      color: blue500,
-                    ),
-                    Text(
-                      "Edit Profil",
-                      style: TextStyle(
-                          color: blue500, fontWeight: FontWeight.w500),
-                    )
-                  ],
-                ),
-              ),
-              Container(
-                margin: EdgeInsets.only(top: height(context) * 0.3),
-                decoration: BoxDecoration(
-                  color: sky50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                width: width(context) / 3.5,
-                height: 80,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.settings_outlined,
-                      color: blue500,
-                    ),
-                    Text(
-                      "Pengaturan",
-                      style: TextStyle(
-                          color: blue500, fontWeight: FontWeight.w500),
-                    )
-                  ],
-                ),
-              ),
-              Container(
-                margin: EdgeInsets.only(top: height(context) * 0.3),
-                decoration: BoxDecoration(
-                  color: sky50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                width: width(context) / 3.5,
-                height: 80,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: blue500,
-                    ),
-                    Text(
-                      "Bantuan",
-                      style: TextStyle(
-                          color: blue500, fontWeight: FontWeight.w500),
-                    )
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ]),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
@@ -356,6 +287,83 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               label: ''),
         ],
+      ),
+    );
+  }
+}
+
+class EditProfilePage extends StatefulWidget {
+  const EditProfilePage({super.key});
+
+  @override
+  State<EditProfilePage> createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        setState(() {
+          _nameController.text = userDoc['name'];
+          _emailController.text = user.email ?? '';
+        });
+      }
+    }
+  }
+
+  Future<void> _updateProfile() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      await _firestore.collection('users').doc(user.uid).update({
+        'name': _nameController.text,
+        'email': _emailController.text,
+      });
+      user.updateEmail(_emailController.text);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Edit Profile'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(labelText: 'Name'),
+            ),
+            TextField(
+              controller: _emailController,
+              decoration: InputDecoration(labelText: 'Email'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                await _updateProfile();
+                Navigator.pop(context);
+              },
+              child: Text('Save Changes'),
+            ),
+          ],
+        ),
       ),
     );
   }

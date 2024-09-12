@@ -1,4 +1,4 @@
-package com.example.swiftlead
+package com.swiftlead
 
 import io.flutter.embedding.android.FlutterActivity
 

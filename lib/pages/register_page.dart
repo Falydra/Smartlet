@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/auth/firebase_auth_services.dart';
 import 'package:swiftlead/pages/login_page.dart';
 
+
 class RegisterPage extends StatefulWidget {
   final TextEditingController? controller;
 
@@ -20,11 +21,12 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   @override
-  // Menghindari memomi bocor
+  // Menghindari memori bocor
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -181,7 +183,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       backgroundColor:
                           const Color(0xFF0010A2), // Background color
-                      foregroundColor: Colors.white, // Text color
+                      foregroundColor: Colors.white,
+                      minimumSize: Size(width(context) * 0.75, height(context
+                        ) * 0.075) // Text color
                     ),
                     child: const Text(
                       "Daftar",

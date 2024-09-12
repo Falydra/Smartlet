@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,7 +17,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   late FirebaseFirestore _firestore;
-  late Stream<QuerySnapshot>? _analysisStream;
+  Stream<QuerySnapshot>? _analysisStream;
 
   @override
   void initState() {
@@ -36,7 +35,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
       DateTime yesterdayStart =
           DateTime.now().subtract(const Duration(days: 1));
-      DateTime yesterdayEnd = yesterdayStart.add(const Duration(days: 1));
+      DateTime yesterdayEnd = DateTime.now();
 
       _analysisStream = _firestore
           .collection('users')
@@ -44,7 +43,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
           .collection('analysis')
           .where('date', isGreaterThanOrEqualTo: yesterdayStart)
           .where('date', isLessThan: yesterdayEnd)
-          .limit(1) // Limit the result to one document
+          .limit(1)
           .snapshots();
 
       setState(() {});
@@ -59,17 +58,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     for (QueryDocumentSnapshot document in documents) {
       Map<String, dynamic> data = document.data() as Map<String, dynamic>;
-      double bowl = data['bowl'];
-      double corner = data['corner'];
-      double oval = data['oval'];
-      double fault = data['fault'];
+      double bowl = data['bowl'] ?? 0.0;
+      double corner = data['corner'] ?? 0.0;
+      double oval = data['oval'] ?? 0.0;
+      double fault = data['fault'] ?? 0.0;
 
       sections.add(
         PieChartSectionData(
           value: bowl,
-          color: const Color(
-              0xff000B73), // Define a method getColor(index) to get colors
-          title: '$bowl Kg', // You can customize the title as needed
+          color: const Color(0xff000B73),
+          title: '$bowl Kg',
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 12,
@@ -81,9 +79,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: corner,
-          color: const Color(
-              0xffB58A00), // Define a method getColor(index) to get colors
-          title: '$corner Kg', // You can customize the title as needed
+          color: const Color(0xffB58A00),
+          title: '$corner Kg',
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 12,
@@ -95,9 +92,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: oval,
-          color: const Color(
-              0xff168AB5), // Define a method getColor(index) to get colors
-          title: '$oval Kg', // You can customize the title as needed
+          color: const Color(0xff168AB5),
+          title: '$oval Kg',
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 12,
@@ -109,9 +105,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       sections.add(
         PieChartSectionData(
           value: fault,
-          color: const Color(
-              0xffC20000), // Define a method getColor(index) to get colors
-          title: '$fault Kg', // You can customize the title as needed
+          color: const Color(0xffC20000),
+          title: '$fault Kg',
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 12,
@@ -120,7 +115,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
           ),
         ),
       );
-
     }
 
     return sections;
@@ -135,21 +129,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _analysisStream,
         builder: (context, snapshot) {
-          // return const Text("dapet");
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Text('Error: ${snapshot.error}');
           } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Text('Data not available');
+            return const Center(child: Text('Data not available'));
           } else {
-            // return const Text('Data ada');
             List<QueryDocumentSnapshot> documents = snapshot.data!.docs;
             List data = documents.map((document) {
-                                  Map<String, dynamic> data =
-                                      document.data() as Map<String, dynamic>;
-                                  return data;
-                                }).toList();
+              Map<String, dynamic> data =
+                  document.data() as Map<String, dynamic>;
+              return data;
+            }).toList();
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -193,23 +185,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                               height: 100,
                               width: width(context) / 2.5,
                               decoration: BoxDecoration(
-                                color: amber50,
+                                color: Colors.amber,
                                 shape: BoxShape.rectangle,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Column(
+                              child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
                                     "Panen Diterima",
                                     style: TextStyle(
-                                        fontSize: 14,
-                                        color: blue300),
+                                        fontSize: 14, color: Colors.blue),
                                   ),
-                                  Text("0.0 Kg", style: TextStyle(
+                                  Text(
+                                    "0.0 Kg",
+                                    style: TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.bold,
-                                        color: blue500),)
+                                        color: Colors.blue),
+                                  )
                                 ],
                               ),
                             ),
@@ -221,90 +215,107 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 shape: BoxShape.rectangle,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Column(
+                              child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
                                     "Panen Diterima",
                                     style: TextStyle(
-                                        fontSize: 14,
-                                        color: blue300),
+                                        fontSize: 14, color: Colors.blue),
                                   ),
-                                  Text("0.0 Kg", style: TextStyle(
+                                  Text(
+                                    "0.0 Kg",
+                                    style: TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.bold,
-                                        color: blue500),)
+                                        color: Colors.blue),
+                                  )
                                 ],
                               ),
                             ),
-
-                            // const SizedBox(width: 10),
-                            // const Text(
-                            //   'Bowl',
-                            //   style: TextStyle(
-                            //     fontSize: 16,
-                            //     fontWeight: FontWeight.bold,
-                            //   ),
-                            // ),
                           ],
                         ),
                         const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Mangkok", style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: blue700),),
-                            Text('${data[0]['bowl'].toString()} Kg', style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: blue700),),
+                            const Text(
+                              "Mangkok",
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.blue),
+                            ),
+                            Text(
+                              '${data[0]['bowl'].toString()} Kg',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.blue),
+                            ),
                           ],
                         ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Sudut", style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: amber700),),
-                            Text('${data[0]['corner'].toString()} Kg', style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: amber700),),
+                            const Text(
+                              "Sudut",
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.amber),
+                            ),
+                            Text(
+                              '${data[0]['corner'].toString()} Kg',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.amber),
+                            ),
                           ],
                         ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Oval", style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 16,
-                                        color: sky700),),
-                            Text('${data[0]['oval'].toString()} Kg', style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 16,
-                                        color: sky700),),
+                            const Text(
+                              "Oval",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                  color: Colors.blue),
+                            ),
+                            Text(
+                              '${data[0]['oval'].toString()} Kg',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                  color: Colors.blue),
+                            ),
                           ],
                         ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Fault", style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 16,
-                                        color: red),),
-                            Text('${data[0]['fault'].toString()} Kg', style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 16,
-                                        color: red),),
+                            const Text(
+                              "Fault",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                  color: Colors.red),
+                            ),
+                            Text(
+                              '${data[0]['fault'].toString()} Kg',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                  color: Colors.red),
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                ),
+                )
               ],
             );
           }

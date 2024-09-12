@@ -14,11 +14,14 @@ import 'package:swiftlead/pages/security_page.dart';
 import 'package:swiftlead/pages/splash_screen.dart';
 import 'package:swiftlead/pages/store_page.dart';
 import 'package:swiftlead/pages/temp_page.dart';
+import 'package:swiftlead/pages/landing_page.dart';
+import 'package:swiftlead/pages/blog_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp])
+  
       .then((_) => runApp(const MyApp()));
 }
 
@@ -27,7 +30,7 @@ class MyApp extends StatelessWidget {
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
-  @override
+  @override   
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowMaterialGrid: false,
@@ -39,6 +42,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       routes: {
         '/': (context) => const SplashScreen(),
+  
+        '/landing-page': (context) => const LandingPage(),
         '/login-page': (context) => LoginPage(
               controller: TextEditingController(),
             ),
@@ -46,6 +51,7 @@ class MyApp extends StatelessWidget {
               controller: TextEditingController(),
             ),
         '/home-page': (context) => const HomePage(),
+        '/blog-page': (context) => const BlogPage(),
         '/store-page': (context) => const StorePage(),
         '/community-page': (context) => const CommunityPage(),
         '/control-page': (context) => const ControlPage(),
