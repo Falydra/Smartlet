@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:swiftlead/auth/firebase_auth_services.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/pages/register_page.dart';
+import 'package:swiftlead/pages/farmer_setup_page.dart';
 
 class LoginPage extends StatefulWidget {
   final TextEditingController? controller;
@@ -59,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
                 const Text(
                   "Selamat Datang di Swiftlead",
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Color(0xff000744)),
+                  style: TextStyle(fontSize: 18, color: Color(0xff245C4C)),
                 ),
                 const SizedBox(
                   height: 10,
@@ -67,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
                 const Text(
                   "Login / Daftarkan Dirimu Sekarang Juga!",
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Color(0xff000744)),
+                  style: TextStyle(fontSize: 18, color: Color(0xff245C4C)),
                 ),
                 const SizedBox(
                   height: 10,
@@ -78,24 +79,22 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xff0010A2)),
+                      color: Color(0xff204941)),
                 ),
                 TextField(
                   controller: _emailController,
                   decoration: InputDecoration(
                     enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xff0010A2))),
+                        borderSide: const BorderSide(color: Color(0xff204941))),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xff0010A2))),
+                        borderSide: const BorderSide(color: Color(0xff204941))),
                     hintText: 'Email',
                     hintStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
-                        color: Color(0xff545FC1)),
+                        color: Color(0xff245C4C)),
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 15, horizontal: 18),
                   ),
@@ -109,7 +108,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xff0010A2)),
+                      color: Color(0xff204941)),
                 ),
                 TextField(
                   controller: _passwordController,
@@ -117,17 +116,15 @@ class _LoginPageState extends State<LoginPage> {
                   decoration: InputDecoration(
                     enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xff0010A2))),
+                        borderSide: const BorderSide(color: Color(0xff204941))),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xff0010A2))),
+                        borderSide: const BorderSide(color: Color(0xff204941))),
                     hintText: 'Password',
                     hintStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
-                        color: Color(0xff545FC1)),
+                        color: Color(0xff245C4C)),
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 15, horizontal: 18),
                     suffixIcon: IconButton(
@@ -155,7 +152,7 @@ class _LoginPageState extends State<LoginPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10.0),
                         ),
-                        backgroundColor: const Color(0xFF0010A2),
+                        backgroundColor: const Color(0xFF204941),
                         foregroundColor: Colors.white,
                         minimumSize: Size(
                             width(context) * 0.75, height(context) * 0.075)),
@@ -178,11 +175,12 @@ class _LoginPageState extends State<LoginPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF0010A2),
+                      foregroundColor: const Color(0xFF204941),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      minimumSize: Size(width(context) * 0.75, height(context) * 0.075),
+                      minimumSize:
+                          Size(width(context) * 0.75, height(context) * 0.075),
                     ),
                     icon: Image.asset(
                       'assets/img/Google__G__logo.png', // Google logo path
@@ -201,7 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                     const Text(
                       "Belum punya akun? ",
                       style: TextStyle(
-                          color: Color(0xff000744),
+                          color: Color(0xff245C4C),
                           fontSize: 16,
                           fontWeight: FontWeight.w500),
                     ),
@@ -217,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextButton.styleFrom(padding: EdgeInsets.zero),
                       child: const Text("Klik Disini",
                           style: TextStyle(
-                              color: Color(0xff545FC1),
+                              color: Color(0xff245C4C),
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                               fontFamily: "TT Norms")),
@@ -239,10 +237,13 @@ class _LoginPageState extends State<LoginPage> {
 
     User? user = await _auth.signInWithEmailAndPassword(email, password);
 
+    if (!mounted) return;
+    
     if (user != null) {
       print("User Sign in");
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (context) => const HomePage()));
+        context, MaterialPageRoute(builder: (context) => const FarmerSetupPage())
+);
     } else {
       print("Sign-in error");
     }
@@ -252,7 +253,8 @@ class _LoginPageState extends State<LoginPage> {
   void _googleSignIn() async {
     try {
       GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: "615110452085-bl7rokvu2evs57846dosjpf1qd5ati2c.apps.googleusercontent.com", // Pass your web client ID here
+        clientId:
+            "615110452085-bl7rokvu2evs57846dosjpf1qd5ati2c.apps.googleusercontent.com", // Pass your web client ID here
       );
       GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
@@ -278,7 +280,4 @@ class _LoginPageState extends State<LoginPage> {
       print("Error during Google Sign-In: $e");
     }
   }
-  
-
-
 }

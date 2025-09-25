@@ -12,7 +12,8 @@ class AnalysisPageAlternate extends StatefulWidget {
 
 class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
   final TextEditingController _numFloorsController = TextEditingController();
-  final TextEditingController _numRoomsController = TextEditingController(); // Second input
+  final TextEditingController _numRoomsController =
+      TextEditingController(); // Second input
   final Map<int, TextEditingController> _floorControllers = {};
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
@@ -23,8 +24,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
   Map<int, double> _remainingBirds = {};
 
   int _numFloors = 0;
-  int _numRooms = 0; // Variable for the second input
-  int _currentIndex = 0;
+
   bool _showForm = false; // New state variable to show form
   bool _analysisDone = false; // New state variable for analysis done
 
@@ -93,20 +93,36 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
           return "Patahan";
       }
     }
+
     return _pieData.entries.map((entry) {
       return Padding(
-        padding: EdgeInsets.only(top: height(context) * 0.01, left: width(context) * 0.045, right: width(context) * 0.045),
+        padding: EdgeInsets.only(
+            top: height(context) * 0.01,
+            left: width(context) * 0.045,
+            right: width(context) * 0.045),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Text('${_getBelong(entry.key)}', style: TextStyle(color: _getColorForKey(entry.key), fontWeight: FontWeight.w500, fontSize: 18), ),
+                Text(
+                  '${_getBelong(entry.key)}',
+                  style: TextStyle(
+                      color: _getColorForKey(entry.key),
+                      fontWeight: FontWeight.w500,
+                      fontSize: 18),
+                ),
               ],
             ),
-            Row(children: [
-              Text('${entry.value.toStringAsFixed(1)}', style: TextStyle(color: _getColorForKey(entry.key), fontWeight: FontWeight.w500, fontSize: 18)),
-            ],)
+            Row(
+              children: [
+                Text('${entry.value.toStringAsFixed(1)}',
+                    style: TextStyle(
+                        color: _getColorForKey(entry.key),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 18)),
+              ],
+            )
           ],
         ),
       );
@@ -148,11 +164,14 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                     icon: const Icon(Icons.add),
                     label: const Text("Tambah Analisis Panen"),
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: height(context) * 0.02, horizontal: width(context) * 0.05),
+                      padding: EdgeInsets.symmetric(
+                          vertical: height(context) * 0.02,
+                          horizontal: width(context) * 0.05),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10.0),
                       ),
-                      backgroundColor: const Color(0xFF0010A2), // Background color
+                      backgroundColor:
+                          const Color(0xFF0010A2), // Background color
                       foregroundColor: Colors.white, // Text color
                     ),
                   ),
@@ -174,18 +193,6 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                     },
                   ),
                   const SizedBox(height: 10),
-                  TextField(
-                    controller: _numRoomsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Masukkan Jumlah Ruangan', // Second input field
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() {
-                        _numRooms = int.tryParse(value) ?? 0; // Handle second input
-                      });
-                    },
-                  ),
                   const SizedBox(height: 10),
                   ..._floorControllers.entries.map((entry) {
                     return Padding(
@@ -193,7 +200,8 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                       child: TextField(
                         controller: entry.value,
                         decoration: InputDecoration(
-                          labelText: 'Masukkan Jumlah burung di lantai ${entry.key}',
+                          labelText:
+                              'Masukkan Jumlah burung di lantai ${entry.key}',
                         ),
                         keyboardType: TextInputType.number,
                       ),
@@ -205,13 +213,16 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                       _analyzeData();
                     },
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: height(context) * 0.015),
+                      padding: EdgeInsets.symmetric(
+                          vertical: height(context) * 0.015),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10.0),
                       ),
-                      backgroundColor: const Color(0xFF0010A2), // Background color
+                      backgroundColor:
+                          const Color(0xFF0010A2), // Background color
                       foregroundColor: Colors.white, // Text color
-                      minimumSize: Size(width(context) * 0.25, height(context) * 0.07),
+                      minimumSize:
+                          Size(width(context) * 0.25, height(context) * 0.07),
                     ),
                     child: const Text(
                       "Analisis",
@@ -265,8 +276,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                                           color: blue700,
                                           fontWeight: FontWeight.w500,
                                           fontSize: 14)),
-                                  Text(
-                                      '${_getTotalSavedBirds() * 0.75}',
+                                  Text('${_getTotalSavedBirds() * 0.75}',
                                       style: TextStyle(
                                           color: blue700,
                                           fontWeight: FontWeight.w500,
@@ -321,7 +331,9 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                       },
                       marks: [
                         graphic.IntervalMark(
-                          color: graphic.ColorEncode(variable: 'floor', values: [blue700, amber700, red]),
+                          color: graphic.ColorEncode(
+                              variable: 'floor',
+                              values: [blue700, amber700, red]),
                           elevation: graphic.ElevationEncode(value: 0),
                         )
                       ],

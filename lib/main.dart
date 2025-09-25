@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
 import 'package:swiftlead/firebase_options.dart';
 import 'package:swiftlead/pages/analysis_page.dart';
 import 'package:swiftlead/pages/community_page.dart';
@@ -16,21 +17,38 @@ import 'package:swiftlead/pages/store_page.dart';
 import 'package:swiftlead/pages/temp_page.dart';
 import 'package:swiftlead/pages/landing_page.dart';
 import 'package:swiftlead/pages/blog_page.dart';
+import 'package:swiftlead/pages/monitoring_system.dart';
+import 'package:swiftlead/pages/farmer_setup_page.dart';
+import 'package:swiftlead/pages/cage_data_page.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp])
-  
-      .then((_) => runApp(const MyApp()));
+
+  FirebaseApp secondaryApp = await Firebase.initializeApp(
+      name: 'SecondaryApp',
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyB6YN9zOkiwF2J2wDDeT4w3KJuz86dXqDM",
+        appId: "1:112142783708:android:3f09c9faf311025c8a1019",
+        messagingSenderId: "112142783708",
+        projectId: "swiftlead-monitoring",
+        databaseURL: "https://swiftlead-monitoring-default-rtdb.firebaseio.com",
+      ));
+
+  FirebaseDatabase secondaryDatabase =
+      FirebaseDatabase.instanceFor(app: secondaryApp);
+
+  runApp(MyApp(secondaryDatabase: secondaryDatabase));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final FirebaseDatabase secondaryDatabase;
+
+  const MyApp({Key? key, required this.secondaryDatabase}) : super(key: key);
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
-  @override   
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowMaterialGrid: false,
@@ -42,7 +60,6 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       routes: {
         '/': (context) => const SplashScreen(),
-  
         '/landing-page': (context) => const LandingPage(),
         '/login-page': (context) => LoginPage(
               controller: TextEditingController(),
@@ -50,9 +67,13 @@ class MyApp extends StatelessWidget {
         '/register-page': (context) => RegisterPage(
               controller: TextEditingController(),
             ),
+        '/farmer-setup': (context) => const FarmerSetupPage(),
+        '/cage-data': (context) => const CageDataPage(),
         '/home-page': (context) => const HomePage(),
         '/blog-page': (context) => const BlogPage(),
         '/store-page': (context) => const StorePage(),
+        '/monitoring-page': (context) =>
+            Monitoring(secondaryDatabase: secondaryDatabase),
         '/community-page': (context) => const CommunityPage(),
         '/control-page': (context) => const ControlPage(),
         '/profile-page': (context) => const ProfilePage(),
