@@ -1,353 +1,705 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:graphic/graphic.dart' as graphic;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:swiftlead/pages/cage_selection_page.dart';
+import 'package:swiftlead/pages/add_harvest_page.dart';
+import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/shared/theme.dart';
 
 class AnalysisPageAlternate extends StatefulWidget {
-  const AnalysisPageAlternate({super.key});
+  final String? selectedCageId;
+
+  const AnalysisPageAlternate({Key? key, this.selectedCageId})
+      : super(key: key);
 
   @override
   State<AnalysisPageAlternate> createState() => _AnalysisPageAlternateState();
 }
 
 class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
-  final TextEditingController _numFloorsController = TextEditingController();
-  final TextEditingController _numRoomsController =
-      TextEditingController(); // Second input
-  final Map<int, TextEditingController> _floorControllers = {};
-
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
-  Map<int, int> _floorBirds = {};
-  Map<int, double> _pieData = {};
-  Map<int, double> _remainingBirds = {};
+  int _currentIndex = 2;
 
-  int _numFloors = 0;
+  // Date selection
+  int _selectedMonth = DateTime.now().month;
+  int _selectedYear = DateTime.now().year;
+  
+  final List<String> _months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
-  bool _showForm = false; // New state variable to show form
-  bool _analysisDone = false; // New state variable for analysis done
+  // Default empty data template for harvest analysis
+  Map<String, dynamic> _harvestData = {
+    'mangkok': 0.0,
+    'sudut': 0.0,
+    'oval': 0.0,
+    'patahan': 0.0,
+  };
 
-  void _generateFloorInputs(int numFloors) {
-    _floorControllers.clear();
-    for (int i = 1; i <= numFloors; i++) {
-      _floorControllers[i] = TextEditingController();
+  // Cage data
+  String _selectedCageName = "Kandang 1";
+  int _selectedCageFloors = 3;
+
+  // Floor data template
+  late List<Map<String, dynamic>> _floorData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCageData();
+    _initializeFloorData();
+    _loadHarvestData();
+  }
+
+  Future<void> _loadCageData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedFloors = prefs.getInt('cage_floors') ?? 3;
+
+      setState(() {
+        _selectedCageFloors = savedFloors;
+        _selectedCageName = "Kandang $savedFloors Lantai";
+      });
+
+      _initializeFloorData();
+    } catch (e) {
+      print('Error loading cage data: $e');
     }
   }
 
-  void _analyzeData() {
-    setState(() {
-      _floorBirds = _floorControllers.map((key, controller) {
-        return MapEntry(key, int.parse(controller.text.trim()));
-      });
-
-      _pieData = _floorBirds.map((key, value) {
-        double savedBirds = value * 0.75;
-        _remainingBirds[key] = value * 0.25;
-        return MapEntry(key, savedBirds);
-      });
-
-      _analysisDone = true; // Set analysis done to true
+  void _initializeFloorData() {
+    _floorData = List.generate(_selectedCageFloors, (index) => {
+      'floor': index + 1,
+      'mangkok': '0.0',
+      'sudut': '0.0',
+      'oval': '0.0',
+      'patahan': '0.0',
     });
   }
 
-  List<PieChartSectionData> _getPieSections() {
-    return _pieData.entries.map((entry) {
-      return PieChartSectionData(
-        value: entry.value,
-        title: '${entry.value.toStringAsFixed(1)}',
-        color: _getColorForKey(entry.key), // Custom color function
-        radius: 50,
-        titleStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.white, // Text color
-        ),
-      );
-    }).toList();
-  }
+  Future<void> _loadHarvestData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
+      
+      // Load total harvest data for the month/year
+      final mangkok = prefs.getDouble('${key}_mangkok') ?? 0.0;
+      final sudut = prefs.getDouble('${key}_sudut') ?? 0.0;
+      final oval = prefs.getDouble('${key}_oval') ?? 0.0;
+      final patahan = prefs.getDouble('${key}_patahan') ?? 0.0;
 
-  Color _getColorForKey(int key) {
-    switch (key) {
-      case 1:
-        return blue700;
-      case 2:
-        return sky700;
-      case 3:
-        return amber700;
-      default:
-        return red;
-    }
-  }
+      // Load floor data
+      List<Map<String, dynamic>> floorData = [];
+      for (int i = 0; i < _selectedCageFloors; i++) {
+        final floorMangkok = prefs.getDouble('${key}_floor_${i + 1}_mangkok') ?? 0.0;
+        final floorSudut = prefs.getDouble('${key}_floor_${i + 1}_sudut') ?? 0.0;
+        final floorOval = prefs.getDouble('${key}_floor_${i + 1}_oval') ?? 0.0;
+        final floorPatahan = prefs.getDouble('${key}_floor_${i + 1}_patahan') ?? 0.0;
 
-  List<Widget> _buildLegend() {
-    String _getBelong(int key) {
-      switch (key) {
-        case 1:
-          return "Mangkok";
-        case 2:
-          return "Sudut";
-        case 3:
-          return "Oval";
-        default:
-          return "Patahan";
+        floorData.add({
+          'floor': i + 1,
+          'mangkok': floorMangkok.toStringAsFixed(1),
+          'sudut': floorSudut.toStringAsFixed(1),
+          'oval': floorOval.toStringAsFixed(1),
+          'patahan': floorPatahan.toStringAsFixed(1),
+        });
       }
+
+      setState(() {
+        _harvestData = {
+          'mangkok': mangkok,
+          'sudut': sudut,
+          'oval': oval,
+          'patahan': patahan,
+        };
+        _floorData = floorData;
+      });
+    } catch (e) {
+      print('Error loading harvest data: $e');
+    }
+  }
+
+  double get _totalHarvest {
+    return _harvestData.values.fold(0.0, (sum, value) => sum + value);
+  }
+
+  String get _totalIncome {
+    double income = _totalHarvest * 50000;
+    return 'Rp ${income.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+  }
+
+  List<PieChartSectionData> _getChartData() {
+    if (_totalHarvest == 0) {
+      return [
+        PieChartSectionData(
+          value: 1,
+          color: Colors.grey[300]!,
+          title: 'No Data',
+          radius: 60,
+          titleStyle: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
+      ];
     }
 
-    return _pieData.entries.map((entry) {
-      return Padding(
-        padding: EdgeInsets.only(
-            top: height(context) * 0.01,
-            left: width(context) * 0.045,
-            right: width(context) * 0.045),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '${_getBelong(entry.key)}',
-                  style: TextStyle(
-                      color: _getColorForKey(entry.key),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 18),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text('${entry.value.toStringAsFixed(1)}',
-                    style: TextStyle(
-                        color: _getColorForKey(entry.key),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 18)),
-              ],
-            )
-          ],
+    return [
+      PieChartSectionData(
+        value: _harvestData['mangkok'],
+        color: const Color(0xFF245C4C),
+        title: '${_harvestData['mangkok']} Kg',
+        radius: 60,
+        titleStyle: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
         ),
-      );
-    }).toList();
+      ),
+      PieChartSectionData(
+        value: _harvestData['sudut'],
+        color: const Color(0xFFffc200),
+        title: '${_harvestData['sudut']} Kg',
+        radius: 60,
+        titleStyle: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+      PieChartSectionData(
+        value: _harvestData['oval'],
+        color: const Color(0xFF168AB5),
+        title: '${_harvestData['oval']} Kg',
+        radius: 60,
+        titleStyle: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+      PieChartSectionData(
+        value: _harvestData['patahan'],
+        color: const Color(0xFFC20000),
+        title: '${_harvestData['patahan']} Kg',
+        radius: 60,
+        titleStyle: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    ].where((section) => section.value > 0).toList();
   }
 
-  double _getTotalSavedBirds() {
-    return _pieData.values.fold(0.0, (sum, value) => sum + value);
-  }
-
-  List<Map<String, dynamic>> _getChartData() {
-    return _pieData.entries.map((entry) {
-      return {
-        'floor': 'Lantai ${entry.key}',
-        'savedBirds': entry.value,
-      };
-    }).toList();
+  void _showDatePicker() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Pilih Bulan dan Tahun'),
+        content: Container(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: _selectedMonth,
+                decoration: InputDecoration(
+                  labelText: 'Bulan',
+                  border: OutlineInputBorder(),
+                ),
+                items: List.generate(12, (index) {
+                  return DropdownMenuItem(
+                    value: index + 1,
+                    child: Text(_months[index]),
+                  );
+                }),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedMonth = value!;
+                  });
+                },
+              ),
+              SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: _selectedYear,
+                decoration: InputDecoration(
+                  labelText: 'Tahun',
+                  border: OutlineInputBorder(),
+                ),
+                items: List.generate(10, (index) {
+                  int year = DateTime.now().year - 5 + index;
+                  return DropdownMenuItem(
+                    value: year,
+                    child: Text(year.toString()),
+                  );
+                }),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedYear = value!;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _loadHarvestData();
+            },
+            child: Text('OK'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF245C4C),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Analysis Page'),
+        title: Text('Analisis Panen - $_selectedCageName'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Color(0xFF245C4C),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withOpacity(0.9),
+                Colors.white.withOpacity(0.7),
+              ],
+            ),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              if (!_showForm) ...[
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _showForm = true;
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text("Tambah Analisis Panen"),
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(
-                          vertical: height(context) * 0.02,
-                          horizontal: width(context) * 0.05),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
+        padding: EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date Selection Button
+            Center(
+              child: Container(
+                margin: EdgeInsets.only(bottom: 16),
+                child: ElevatedButton.icon(
+                  onPressed: _showDatePicker,
+                  icon: Icon(Icons.calendar_month, size: 18),
+                  label: Text(
+                    '${_months[_selectedMonth - 1]} $_selectedYear',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFFF7CA),
+                    foregroundColor: Color(0xFF245C4C),
+                    elevation: 2,
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: Color(0xFFffc200)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // First Section: Pie Chart and Legend
+            Container(
+              height: height(context) * 0.32,
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 2,
+                    blurRadius: 5,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Pie Chart
+                  Expanded(
+                    flex: 3,
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: PieChart(
+                        PieChartData(
+                          sections: _getChartData(),
+                          centerSpaceRadius: 30,
+                          sectionsSpace: 2,
+                        ),
                       ),
-                      backgroundColor:
-                          const Color(0xFF0010A2), // Background color
-                      foregroundColor: Colors.white, // Text color
+                    ),
+                  ),
+
+                  // Legend
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLegendItem('Mangkok',
+                            '${_harvestData['mangkok']} Kg', Color(0xFF245C4C)),
+                        SizedBox(height: 8),
+                        _buildLegendItem('Sudut', '${_harvestData['sudut']} Kg',
+                            Color(0xFFffc200)),
+                        SizedBox(height: 8),
+                        _buildLegendItem('Oval', '${_harvestData['oval']} Kg',
+                            Color(0xFF168AB5)),
+                        SizedBox(height: 8),
+                        _buildLegendItem('Patahan',
+                            '${_harvestData['patahan']} Kg', Color(0xFFC20000)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 16),
+
+            // Second Section: Cycle and Income (Same Width)
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFFFF7CA),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Color(0xFFffc200)),
+                    ),
+                    child: const Text(
+                      'Siklus Panen\n40-45 Hari',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF245C4C),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFFFF7CA),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Color(0xFFffc200)),
+                    ),
+                    child: Text(
+                      'Rekap Pendapatan\n$_totalIncome',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF245C4C),
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
               ],
-              if (_showForm) ...[
-                if (!_analysisDone) ...[
-                  TextField(
-                    controller: _numFloorsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Masukkan Jumlah Lantai ',
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() {
-                        _numFloors = int.tryParse(value) ?? 0;
-                        _generateFloorInputs(_numFloors);
-                      });
-                    },
+            ),
+
+            SizedBox(height: 16),
+
+            // Time Selection for Table
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Data Panen ${_months[_selectedMonth - 1]} $_selectedYear',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF245C4C),
                   ),
-                  const SizedBox(height: 10),
-                  const SizedBox(height: 10),
-                  ..._floorControllers.entries.map((entry) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5.0),
-                      child: TextField(
-                        controller: entry.value,
-                        decoration: InputDecoration(
-                          labelText:
-                              'Masukkan Jumlah burung di lantai ${entry.key}',
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                    );
-                  }).toList(),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      _analyzeData();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(
-                          vertical: height(context) * 0.015),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      backgroundColor:
-                          const Color(0xFF0010A2), // Background color
-                      foregroundColor: Colors.white, // Text color
-                      minimumSize:
-                          Size(width(context) * 0.25, height(context) * 0.07),
+                ),
+              ],
+            ),
+
+            SizedBox(height: 8),
+
+            // Third Section: Total and Floor Table (Same Width)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
-                    child: const Text(
-                      "Analisis",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                        fontFamily: "TT Norms",
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                if (_pieData.isNotEmpty)
-                  SizedBox(
-                    height: 200,
-                    child: PieChart(
-                      PieChartData(
-                        sections: _getPieSections(),
-                        centerSpaceRadius: 40,
-                        sectionsSpace: 4,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                if (_pieData.isNotEmpty)
-                  Column(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: height(context) * 0.03,
-                          bottom: height(context) * 0.015,
-                          left: width(context) * 0.045,
-                          right: width(context) * 0.045,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total Sarang Dipetik',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF245C4C),
+                          ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              alignment: Alignment.center,
-                              width: width(context) * 0.3,
-                              height: height(context) * 0.1,
-                              decoration: BoxDecoration(
-                                color: amber50,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text('Panen Diterima',
-                                      style: TextStyle(
-                                          color: blue700,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 14)),
-                                  Text('${_getTotalSavedBirds() * 0.75}',
-                                      style: TextStyle(
-                                          color: blue700,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 18)),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              alignment: Alignment.center,
-                              width: width(context) * 0.3,
-                              height: height(context) * 0.1,
-                              decoration: BoxDecoration(
-                                color: sky50,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text('Sisa burung',
-                                      style: TextStyle(
-                                          color: amber700,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 14)),
-                                  Text('${_getTotalSavedBirds()}',
-                                      style: TextStyle(
-                                          color: amber700,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 18)),
-                                ],
-                              ),
-                            ),
-                          ],
+                        SizedBox(height: 6),
+                        Text(
+                          '${_totalHarvest.toStringAsFixed(1)} Kg',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFffc200),
+                          ),
                         ),
-                      ),
-                      ..._buildLegend(),
-                    ],
-                  ),
-                const SizedBox(height: 40),
-                if (_pieData.isNotEmpty)
-                  SizedBox(
-                    width: width(context) * 0.9,
-                    height: 300,
-                    child: graphic.Chart(
-                      data: _getChartData(),
-                      variables: {
-                        'floor': graphic.Variable(
-                          accessor: (Map map) => map['floor'] as String,
-                        ),
-                        'savedBirds': graphic.Variable(
-                          accessor: (Map map) => map['savedBirds'] as num,
-                        ),
-                      },
-                      marks: [
-                        graphic.IntervalMark(
-                          color: graphic.ColorEncode(
-                              variable: 'floor',
-                              values: [blue700, amber700, red]),
-                          elevation: graphic.ElevationEncode(value: 0),
-                        )
-                      ],
-                      axes: [
-                        graphic.Defaults.horizontalAxis,
-                        graphic.Defaults.verticalAxis,
                       ],
                     ),
                   ),
-              ]
+                ),
+
+                SizedBox(width: 12),
+
+                // Floor Table
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      children: [
+                        // Table Header
+                        Container(
+                          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF245C4C),
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(7),
+                              topRight: Radius.circular(7),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Lantai',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              Expanded(child: Text('M', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
+                              Expanded(child: Text('S', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
+                              Expanded(child: Text('O', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
+                              Expanded(child: Text('P', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
+                            ],
+                          ),
+                        ),
+
+                        // Table Rows
+                        ..._floorData.map((floor) => Container(
+                          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[200]!),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Lt ${floor['floor']}',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                              Expanded(child: Text('${floor['mangkok']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
+                              Expanded(child: Text('${floor['sudut']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
+                              Expanded(child: Text('${floor['oval']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
+                              Expanded(child: Text('${floor['patahan']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
+                            ],
+                          ),
+                        )).toList(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            SizedBox(height: 20),
+
+            // Add Harvest Button
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddHarvestPage(
+                        cageName: _selectedCageName,
+                        floors: _selectedCageFloors,
+                      ),
+                    ),
+                  ).then((_) {
+                    // Reload data when returning from add harvest page
+                    _loadHarvestData();
+                  });
+                },
+                icon: Icon(Icons.add, color: Colors.white, size: 20),
+                label: Text(
+                  'Tambah Panen',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF245C4C),
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+            SizedBox(height: 80),
+          ],
+        ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: [
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.home,
+                label: 'Beranda',
+                currentIndex: _currentIndex,
+                itemIndex: 0,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/home-page');
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.store,
+                label: 'Kontrol',
+                currentIndex: _currentIndex,
+                itemIndex: 1,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/monitoring-page');
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.chat_sharp,
+                label: 'Panen',
+                currentIndex: _currentIndex,
+                itemIndex: 2,
+                onTap: () {},
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.dataset_sharp,
+                label: 'Jual',
+                currentIndex: _currentIndex,
+                itemIndex: 3,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/control-page');
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.person,
+                label: 'Profil',
+                currentIndex: _currentIndex,
+                itemIndex: 4,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/profile-page');
+                },
+              ),
+              label: ''),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

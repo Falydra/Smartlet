@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/shared/theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CageDataPage extends StatefulWidget {
   const CageDataPage({Key? key}) : super(key: key);
@@ -149,19 +150,27 @@ class _CageDataPageState extends State<CageDataPage> {
   }
 
   Future<void> _saveData() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
+  if (!_formKey.currentState!.validate()) {
+    return;
+  }
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  // Simulate saving data
+  await Future.delayed(const Duration(seconds: 2));
+
+  try {
+    // Save data to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cage_address', _addressController.text);
+    await prefs.setInt('cage_floors', int.parse(_floorController.text));
+    if (_selectedImage != null) {
+      await prefs.setString('cage_image', _selectedImage!.path);
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Simulate saving data (in real app, you would save to database)
-    await Future.delayed(const Duration(seconds: 2));
-
     // Here you would typically save the data to your database
-    // For now, we'll just simulate it with dummy data
     final cageData = {
       'image': _selectedImage?.path,
       'address': _addressController.text,
@@ -170,26 +179,29 @@ class _CageDataPageState extends State<CageDataPage> {
     };
 
     print('Cage data saved: $cageData');
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Data kandang berhasil disimpan!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // Navigate to home page
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const HomePage()),
-      (route) => false,
-    );
+  } catch (e) {
+    print('Error saving cage data: $e');
   }
+
+  setState(() {
+    _isLoading = false;
+  });
+
+  // Show success message
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Data kandang berhasil disimpan!'),
+      backgroundColor: Colors.green,
+    ),
+  );
+
+  // Navigate to home page
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (context) => const HomePage()),
+    (route) => false,
+  );
+}
 
   @override
   void dispose() {

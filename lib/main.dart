@@ -20,6 +20,7 @@ import 'package:swiftlead/pages/blog_page.dart';
 import 'package:swiftlead/pages/monitoring_system.dart';
 import 'package:swiftlead/pages/farmer_setup_page.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
+import 'package:swiftlead/pages/cage_selection_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,6 +70,7 @@ class MyApp extends StatelessWidget {
             ),
         '/farmer-setup': (context) => const FarmerSetupPage(),
         '/cage-data': (context) => const CageDataPage(),
+        '/cage-selection': (context) => const CageSelectionPage(),
         '/home-page': (context) => const HomePage(),
         '/blog-page': (context) => const BlogPage(),
         '/store-page': (context) => const StorePage(),

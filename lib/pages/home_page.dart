@@ -6,6 +6,7 @@ import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/pages/blog_page.dart';
 import 'package:swiftlead/pages/blog_menu.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -19,6 +20,59 @@ class _HomePageState extends State<HomePage> {
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   int _currentIndex = 0;
+
+  // Static device data template
+  final Map<String, dynamic> _deviceData = {
+    'temperature': 28.5,
+    'humidity': 75.2,
+    'ammonia': 12.1,
+    'twitter': 'Active', // Active / Not Active
+  };
+
+  // Cage/Farm data
+  String _cageAddress = "Jl Jawa No 23, Semarang";
+  String _cageName = "Kandang 1";
+
+  // Harvest cycle data
+  final List<Map<String, dynamic>> _harvestCycle = [
+    {'month': 'Jan', 'status': 'Complete', 'yield': '12kg'},
+    {'month': 'Feb', 'status': 'Complete', 'yield': '15kg'},
+    {'month': 'Mar', 'status': 'Complete', 'yield': '18kg'},
+    {'month': 'Apr', 'status': 'In Progress', 'yield': '-'},
+    {'month': 'May', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Jun', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Jul', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Aug', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Sep', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Oct', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Nov', 'status': 'Planned', 'yield': '-'},
+    {'month': 'Dec', 'status': 'Planned', 'yield': '-'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCageData();
+  }
+
+  Future<void> _loadCageData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedAddress = prefs.getString('cage_address');
+      final savedFloors = prefs.getInt('cage_floors');
+
+      if (savedAddress != null && savedAddress.isNotEmpty) {
+        setState(() {
+          _cageAddress = savedAddress;
+          if (savedFloors != null) {
+            _cageName = "Kandang $savedFloors Lantai";
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading cage data: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +111,7 @@ class _HomePageState extends State<HomePage> {
                   padding: EdgeInsets.only(top: 16),
                   alignment: Alignment.center,
                   width: width(context) * 0.85,
-                  height: height(context) * 0.45,
+                  height: height(context) * 0.45, // Increased height for table
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: Color(0xFFffc200),
@@ -67,34 +121,39 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Column(
                     children: [
+                      // Header with cage info
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(left: 16.0),
-                            child: const Text("Q1 Jan    - Mar"),
+                            child: Text(
+                              _cageName,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF245C4C),
+                              ),
+                            ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 16.0),
-                            child: const Text("26 July 2024"),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 16.0),
+                              child: Text(
+                                _cageAddress,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                ),
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           )
                         ],
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16.0, top: 16),
-                            child: const Text(
-                              "Rp -/kg",
-                              style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF245C4C)),
-                            ),
-                          ),
-                        ],
-                      ),
+
+                      // Statistics label
                       Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
@@ -108,108 +167,76 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
+
+                      // Device statistics with icons and data
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Container(
-                              width: width(context) * 0.15,
-                              height: height(context) * 0.07,
-                              decoration: BoxDecoration(
-                                  color: Color(0xFFFFF7CA),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Text(
-                                    "Hama",
-                                    style: TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          _buildStatCard(
+                            "Temp",
+                            "${_deviceData['temperature']}°C",
+                            Icons.thermostat,
+                            Colors.orange,
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Container(
-                              width: width(context) * 0.15,
-                              height: height(context) * 0.07,
-                              decoration: BoxDecoration(
-                                  color: Color(0xFFFFF7CA),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Text(
-                                    "Suhu",
-                                    style: TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          _buildStatCard(
+                            "Humidity",
+                            "${_deviceData['humidity']}%",
+                            Icons.water_drop,
+                            Colors.blue,
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Container(
-                              width: width(context) * 0.15,
-                              height: height(context) * 0.07,
-                              decoration: BoxDecoration(
-                                  color: Color(0xFFFFF7CA),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Text(
-                                    "Kelembaban",
-                                    style: TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          _buildStatCard(
+                            "Ammonia",
+                            "${_deviceData['ammonia']}ppm",
+                            Icons.air,
+                            Colors.purple,
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Container(
-                              width: width(context) * 0.15,
-                              height: height(context) * 0.07,
-                              decoration: BoxDecoration(
-                                  color: Color(0xFFFFF7CA),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    "Keamanan",
-                                    style: TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          _buildStatCard(
+                            "Twitter",
+                            _deviceData['twitter'],
+                            _deviceData['twitter'] == 'Active'
+                                ? Icons.check_circle
+                                : Icons.cancel,
+                            _deviceData['twitter'] == 'Active'
+                                ? Colors.green
+                                : Colors.red,
                           ),
                         ],
                       ),
+
+                      // Harvest Cycle Table
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            top: 16.0, left: 16.0, right: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Siklus Panen 2024",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF245C4C),
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            _buildHarvestTable(),
+                          ],
+                        ),
+                      ),
+
+                      // Analysis button
                       Padding(
                         padding: const EdgeInsets.only(top: 16.0),
                         child: ElevatedButton(
                             onPressed: () {
                               Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          AnalysisPageAlternate()));
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AnalysisPageAlternate(
+                                    selectedCageId: 'cage_1', // Pass a default cage ID
+                                  ),
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                                 padding:
@@ -217,15 +244,14 @@ class _HomePageState extends State<HomePage> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10.0),
                                 ),
-                                backgroundColor:
-                                    const Color(0xFF245C4C), // Background color
-                                foregroundColor: Colors.white, // Text color
+                                backgroundColor: const Color(0xFF245C4C),
+                                foregroundColor: Colors.white,
                                 minimumSize: Size(width(context) * 0.75,
-                                    height(context) * 0.075)),
+                                    height(context) * 0.055)),
                             child: const Text(
                               "Lihat Analisis Panen",
                               style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                   fontFamily: "TT Norms"),
                             )),
@@ -235,6 +261,8 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
+
+            // News section
             Column(
               children: [
                 Padding(
@@ -247,7 +275,6 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       TextButton(
                         onPressed: () {
-                          //to blog menu
                           Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -278,6 +305,8 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
+
+                // News cards (existing code)
                 Padding(
                   padding: EdgeInsets.only(bottom: height(context) * 0.0001),
                   child: GestureDetector(
@@ -382,6 +411,8 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
+
+                // Second news card (existing code)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24.0, top: 24),
                   child: Container(
@@ -465,7 +496,7 @@ class _HomePageState extends State<HomePage> {
                                 color: Color(0xffe9f9ff),
                               ),
                               child: const Text(
-                                "Cara Melakukan Budidaya Burung Walet",
+                                "Tips Meningkatkan Kualitas Sarang Walet",
                                 style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.black,
@@ -564,6 +595,127 @@ class _HomePageState extends State<HomePage> {
               label: ''),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Container(
+        width: width(context) * 0.15,
+        height: height(context) * 0.09,
+        decoration: BoxDecoration(
+            color: Color(0xFFFFF7CA), borderRadius: BorderRadius.circular(8)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 16,
+            ),
+            SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                  fontSize: 8,
+                  color: Colors.black,
+                  fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHarvestTable() {
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.grey[300]!)),
+      child: Column(
+        children: [
+          // First row: Jan-Jun
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: _harvestCycle
+                  .take(6)
+                  .map((month) => _buildMonthCell(month))
+                  .toList(),
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey[300]),
+          // Second row: Jul-Dec
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: _harvestCycle
+                  .skip(6)
+                  .take(6)
+                  .map((month) => _buildMonthCell(month))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonthCell(Map<String, dynamic> monthData) {
+    Color statusColor;
+    switch (monthData['status']) {
+      case 'Complete':
+        statusColor = Colors.green;
+        break;
+      case 'In Progress':
+        statusColor = Colors.orange;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    return Column(
+      children: [
+        Text(
+          monthData['month'],
+          style: TextStyle(
+            fontSize: 8,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF245C4C),
+          ),
+        ),
+        SizedBox(height: 2),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: statusColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+        if (monthData['yield'] != '-')
+          Text(
+            monthData['yield'],
+            style: TextStyle(
+              fontSize: 6,
+              color: Colors.grey[600],
+            ),
+          ),
+      ],
     );
   }
 }
