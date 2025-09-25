@@ -25,42 +25,54 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
   }
 
   Future<void> _loadCages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    List<Map<String, dynamic>> cageList = [];
+    
+    // Get kandang count
+    int kandangCount = prefs.getInt('kandang_count') ?? 0;
+    
+    if (kandangCount > 0) {
+      // Load all kandang from new format
+      for (int i = 1; i <= kandangCount; i++) {
+        final address = prefs.getString('kandang_${i}_address');
+        final floors = prefs.getInt('kandang_${i}_floors');
+        final image = prefs.getString('kandang_${i}_image');
+        
+        if (address != null && address.isNotEmpty && floors != null) {
+          cageList.add({
+            'id': 'kandang_$i',
+            'name': 'Kandang $floors Lantai',
+            'address': address,
+            'floors': floors,
+            'image': image,
+          });
+        }
+      }
+    } else {
+      // Check for legacy single kandang data
       final savedAddress = prefs.getString('cage_address');
       final savedFloors = prefs.getInt('cage_floors');
-      
-      // Add saved cage if exists
+      final savedImage = prefs.getString('cage_image');
+
       if (savedAddress != null && savedAddress.isNotEmpty && savedFloors != null) {
-        _cageList.add({
+        cageList.add({
           'id': 'cage_1',
           'name': 'Kandang $savedFloors Lantai',
           'address': savedAddress,
           'floors': savedFloors,
+          'image': savedImage,
         });
       }
-      
-      // Add dummy cages for demonstration
-      _cageList.addAll([
-        {
-          'id': 'cage_2',
-          'name': 'Kandang 2 Lantai',
-          'address': 'Jl. Semarang No. 45, Semarang',
-          'floors': 2,
-        },
-        {
-          'id': 'cage_3',
-          'name': 'Kandang 4 Lantai',
-          'address': 'Jl. Solo No. 12, Yogyakarta',
-          'floors': 4,
-        },
-      ]);
-      
-      setState(() {});
-    } catch (e) {
-      print('Error loading cages: $e');
     }
+
+    setState(() {
+      _cageList = cageList;
+    });
+  } catch (e) {
+    print('Error loading cages: $e');
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -83,9 +95,9 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                 color: Color(0xFF245C4C),
               ),
             ),
-            
+
             SizedBox(height: 24),
-            
+
             Expanded(
               child: _cageList.isEmpty
                   ? Center(
@@ -142,12 +154,11 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                       size: 32,
                                     ),
                                   ),
-                                  
                                   SizedBox(width: 16),
-                                  
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           cage['name'],
@@ -179,7 +190,6 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                       ],
                                     ),
                                   ),
-                                  
                                   Icon(
                                     Icons.arrow_forward_ios,
                                     color: Colors.grey[400],
@@ -193,7 +203,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                       },
                     ),
             ),
-            
+
             // Add Cage Button
             SizedBox(
               width: double.infinity,
@@ -237,65 +247,60 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         },
         items: [
           BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.home,
-              label: 'Beranda',
-              currentIndex: _currentIndex,
-              itemIndex: 0,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/home-page');
-              },
-            ),
-            label: ''
-          ),
+              icon: CustomBottomNavigationItem(
+                icon: Icons.home,
+                label: 'Beranda',
+                currentIndex: _currentIndex,
+                itemIndex: 0,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/home-page');
+                },
+              ),
+              label: ''),
           BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.store,
-              label: 'Kontrol',
-              currentIndex: _currentIndex,
-              itemIndex: 1,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/monitoring-page');
-              },
-            ),
-            label: ''
-          ),
+              icon: CustomBottomNavigationItem(
+                icon: Icons.store,
+                label: 'Kontrol',
+                currentIndex: _currentIndex,
+                itemIndex: 1,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/monitoring-page');
+                },
+              ),
+              label: ''),
           BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.chat_sharp,
-              label: 'Panen',
-              currentIndex: _currentIndex,
-              itemIndex: 2,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/community-page');
-              },
-            ),
-            label: ''
-          ),
+              icon: CustomBottomNavigationItem(
+                icon: Icons.chat_sharp,
+                label: 'Panen',
+                currentIndex: _currentIndex,
+                itemIndex: 2,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/community-page');
+                },
+              ),
+              label: ''),
           BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.dataset_sharp,
-              label: 'Jual',
-              currentIndex: _currentIndex,
-              itemIndex: 3,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/control-page');
-              },
-            ),
-            label: ''
-          ),
+              icon: CustomBottomNavigationItem(
+                icon: Icons.dataset_sharp,
+                label: 'Jual',
+                currentIndex: _currentIndex,
+                itemIndex: 3,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/control-page');
+                },
+              ),
+              label: ''),
           BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.person,
-              label: 'Profil',
-              currentIndex: _currentIndex,
-              itemIndex: 4,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/profile-page');
-              },
-            ),
-            label: ''
-          ),
+              icon: CustomBottomNavigationItem(
+                icon: Icons.person,
+                label: 'Profil',
+                currentIndex: _currentIndex,
+                itemIndex: 4,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/profile-page');
+                },
+              ),
+              label: ''),
         ],
       ),
     );

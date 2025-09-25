@@ -162,15 +162,31 @@ class _CageDataPageState extends State<CageDataPage> {
   await Future.delayed(const Duration(seconds: 2));
 
   try {
-    // Save data to SharedPreferences
     final prefs = await SharedPreferences.getInstance();
+    
+    // Get current kandang count
+    int kandangCount = prefs.getInt('kandang_count') ?? 0;
+    
+    // Increment count for new kandang
+    kandangCount++;
+    
+    // Save new kandang data
+    await prefs.setString('kandang_${kandangCount}_address', _addressController.text);
+    await prefs.setInt('kandang_${kandangCount}_floors', int.parse(_floorController.text));
+    if (_selectedImage != null) {
+      await prefs.setString('kandang_${kandangCount}_image', _selectedImage!.path);
+    }
+    
+    // Update kandang count
+    await prefs.setInt('kandang_count', kandangCount);
+
+    // Also save in legacy format for backward compatibility
     await prefs.setString('cage_address', _addressController.text);
     await prefs.setInt('cage_floors', int.parse(_floorController.text));
     if (_selectedImage != null) {
       await prefs.setString('cage_image', _selectedImage!.path);
     }
 
-    // Here you would typically save the data to your database
     final cageData = {
       'image': _selectedImage?.path,
       'address': _addressController.text,

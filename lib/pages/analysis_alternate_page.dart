@@ -25,10 +25,20 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
   // Date selection
   int _selectedMonth = DateTime.now().month;
   int _selectedYear = DateTime.now().year;
-  
+
   final List<String> _months = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember'
   ];
 
   // Default empty data template for harvest analysis
@@ -56,13 +66,23 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
 
   Future<void> _loadCageData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedFloors = prefs.getInt('cage_floors') ?? 3;
+      // Try SharedPreferences first, fallback to static data
+      SharedPreferences? prefs;
+      try {
+        prefs = await SharedPreferences.getInstance();
+        final savedFloors = prefs.getInt('cage_floors') ?? 3;
 
-      setState(() {
-        _selectedCageFloors = savedFloors;
-        _selectedCageName = "Kandang $savedFloors Lantai";
-      });
+        setState(() {
+          _selectedCageFloors = savedFloors;
+          _selectedCageName = "Kandang $savedFloors Lantai";
+        });
+      } catch (e) {
+        print('SharedPreferences not available, using default values: $e');
+        setState(() {
+          _selectedCageFloors = 3;
+          _selectedCageName = "Kandang 3 Lantai";
+        });
+      }
 
       _initializeFloorData();
     } catch (e) {
@@ -71,33 +91,86 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
   }
 
   void _initializeFloorData() {
-    _floorData = List.generate(_selectedCageFloors, (index) => {
-      'floor': index + 1,
-      'mangkok': '0.0',
-      'sudut': '0.0',
-      'oval': '0.0',
-      'patahan': '0.0',
-    });
+    _floorData = List.generate(
+        _selectedCageFloors,
+        (index) => {
+              'floor': index + 1,
+              'mangkok': '0.0',
+              'sudut': '0.0',
+              'oval': '0.0',
+              'patahan': '0.0',
+            });
   }
 
   Future<void> _loadHarvestData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
-      
-      // Load total harvest data for the month/year
-      final mangkok = prefs.getDouble('${key}_mangkok') ?? 0.0;
-      final sudut = prefs.getDouble('${key}_sudut') ?? 0.0;
-      final oval = prefs.getDouble('${key}_oval') ?? 0.0;
-      final patahan = prefs.getDouble('${key}_patahan') ?? 0.0;
+      final key =
+          'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
+
+      double mangkok = 0.0, sudut = 0.0, oval = 0.0, patahan = 0.0;
+
+      // Try SharedPreferences first
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        mangkok = prefs.getDouble('${key}_mangkok') ?? 0.0;
+        sudut = prefs.getDouble('${key}_sudut') ?? 0.0;
+        oval = prefs.getDouble('${key}_oval') ?? 0.0;
+        patahan = prefs.getDouble('${key}_patahan') ?? 0.0;
+        print('Loaded data from SharedPreferences');
+      } catch (e) {
+        print('SharedPreferences failed, using static storage: $e');
+        // Fallback to static storage from AddHarvestPage
+        try {
+          final staticData = AddHarvestPage.getStoredData();
+          mangkok = (staticData['${key}_mangkok'] as num?)?.toDouble() ?? 0.0;
+          sudut = (staticData['${key}_sudut'] as num?)?.toDouble() ?? 0.0;
+          oval = (staticData['${key}_oval'] as num?)?.toDouble() ?? 0.0;
+          patahan = (staticData['${key}_patahan'] as num?)?.toDouble() ?? 0.0;
+          print('Loaded data from static storage');
+        } catch (staticError) {
+          print('Static storage also failed: $staticError');
+          // Use default values (already set to 0.0)
+        }
+      }
 
       // Load floor data
       List<Map<String, dynamic>> floorData = [];
       for (int i = 0; i < _selectedCageFloors; i++) {
-        final floorMangkok = prefs.getDouble('${key}_floor_${i + 1}_mangkok') ?? 0.0;
-        final floorSudut = prefs.getDouble('${key}_floor_${i + 1}_sudut') ?? 0.0;
-        final floorOval = prefs.getDouble('${key}_floor_${i + 1}_oval') ?? 0.0;
-        final floorPatahan = prefs.getDouble('${key}_floor_${i + 1}_patahan') ?? 0.0;
+        double floorMangkok = 0.0,
+            floorSudut = 0.0,
+            floorOval = 0.0,
+            floorPatahan = 0.0;
+
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          floorMangkok =
+              prefs.getDouble('${key}_floor_${i + 1}_mangkok') ?? 0.0;
+          floorSudut = prefs.getDouble('${key}_floor_${i + 1}_sudut') ?? 0.0;
+          floorOval = prefs.getDouble('${key}_floor_${i + 1}_oval') ?? 0.0;
+          floorPatahan =
+              prefs.getDouble('${key}_floor_${i + 1}_patahan') ?? 0.0;
+        } catch (e) {
+          // Fallback to static storage
+          try {
+            //getStoreddata
+            final staticData = AddHarvestPage.getStoredData();
+            floorMangkok = (staticData['${key}_floor_${i + 1}_mangkok'] as num?)
+                    ?.toDouble() ??
+                0.0;
+            floorSudut = (staticData['${key}_floor_${i + 1}_sudut'] as num?)
+                    ?.toDouble() ??
+                0.0;
+            floorOval = (staticData['${key}_floor_${i + 1}_oval'] as num?)
+                    ?.toDouble() ??
+                0.0;
+            floorPatahan = (staticData['${key}_floor_${i + 1}_patahan'] as num?)
+                    ?.toDouble() ??
+                0.0;
+          } catch (staticError) {
+            print('Static storage failed for floor ${i + 1}: $staticError');
+            // Use default values (already set to 0.0)
+          }
+        }
 
         floorData.add({
           'floor': i + 1,
@@ -117,8 +190,20 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
         };
         _floorData = floorData;
       });
+
+      print('Analysis data loaded: $_harvestData');
     } catch (e) {
       print('Error loading harvest data: $e');
+      // Set default zero data on error
+      setState(() {
+        _harvestData = {
+          'mangkok': 0.0,
+          'sudut': 0.0,
+          'oval': 0.0,
+          'patahan': 0.0,
+        };
+        _initializeFloorData();
+      });
     }
   }
 
@@ -148,8 +233,10 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
       ];
     }
 
-    return [
-      PieChartSectionData(
+    List<PieChartSectionData> sections = [];
+
+    if (_harvestData['mangkok'] > 0) {
+      sections.add(PieChartSectionData(
         value: _harvestData['mangkok'],
         color: const Color(0xFF245C4C),
         title: '${_harvestData['mangkok']} Kg',
@@ -159,8 +246,11 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
-      ),
-      PieChartSectionData(
+      ));
+    }
+
+    if (_harvestData['sudut'] > 0) {
+      sections.add(PieChartSectionData(
         value: _harvestData['sudut'],
         color: const Color(0xFFffc200),
         title: '${_harvestData['sudut']} Kg',
@@ -170,8 +260,11 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
-      ),
-      PieChartSectionData(
+      ));
+    }
+
+    if (_harvestData['oval'] > 0) {
+      sections.add(PieChartSectionData(
         value: _harvestData['oval'],
         color: const Color(0xFF168AB5),
         title: '${_harvestData['oval']} Kg',
@@ -181,8 +274,11 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
-      ),
-      PieChartSectionData(
+      ));
+    }
+
+    if (_harvestData['patahan'] > 0) {
+      sections.add(PieChartSectionData(
         value: _harvestData['patahan'],
         color: const Color(0xFFC20000),
         title: '${_harvestData['patahan']} Kg',
@@ -192,8 +288,25 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
-      ),
-    ].where((section) => section.value > 0).toList();
+      ));
+    }
+
+    // Return the "No Data" chart if no sections have data
+    return sections.isEmpty
+        ? [
+            PieChartSectionData(
+              value: 1,
+              color: Colors.grey[300]!,
+              title: 'No Data',
+              radius: 60,
+              titleStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ]
+        : sections;
   }
 
   void _showDatePicker() {
@@ -495,7 +608,8 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                       children: [
                         // Table Header
                         Container(
-                          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                          padding:
+                              EdgeInsets.symmetric(vertical: 6, horizontal: 8),
                           decoration: BoxDecoration(
                             color: Color(0xFF245C4C),
                             borderRadius: BorderRadius.only(
@@ -516,38 +630,80 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                                   ),
                                 ),
                               ),
-                              Expanded(child: Text('M', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
-                              Expanded(child: Text('S', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
-                              Expanded(child: Text('O', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
-                              Expanded(child: Text('P', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center)),
+                              Expanded(
+                                  child: Text('M',
+                                      style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                      textAlign: TextAlign.center)),
+                              Expanded(
+                                  child: Text('S',
+                                      style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                      textAlign: TextAlign.center)),
+                              Expanded(
+                                  child: Text('O',
+                                      style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                      textAlign: TextAlign.center)),
+                              Expanded(
+                                  child: Text('P',
+                                      style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                      textAlign: TextAlign.center)),
                             ],
                           ),
                         ),
 
                         // Table Rows
-                        ..._floorData.map((floor) => Container(
-                          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(color: Colors.grey[200]!),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  'Lt ${floor['floor']}',
-                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                              Expanded(child: Text('${floor['mangkok']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
-                              Expanded(child: Text('${floor['sudut']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
-                              Expanded(child: Text('${floor['oval']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
-                              Expanded(child: Text('${floor['patahan']}', style: TextStyle(fontSize: 8), textAlign: TextAlign.center)),
-                            ],
-                          ),
-                        )).toList(),
+                        ..._floorData
+                            .map((floor) => Container(
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: 6, horizontal: 8),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom:
+                                          BorderSide(color: Colors.grey[200]!),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          'Lt ${floor['floor']}',
+                                          style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w500),
+                                        ),
+                                      ),
+                                      Expanded(
+                                          child: Text('${floor['mangkok']}',
+                                              style: TextStyle(fontSize: 8),
+                                              textAlign: TextAlign.center)),
+                                      Expanded(
+                                          child: Text('${floor['sudut']}',
+                                              style: TextStyle(fontSize: 8),
+                                              textAlign: TextAlign.center)),
+                                      Expanded(
+                                          child: Text('${floor['oval']}',
+                                              style: TextStyle(fontSize: 8),
+                                              textAlign: TextAlign.center)),
+                                      Expanded(
+                                          child: Text('${floor['patahan']}',
+                                              style: TextStyle(fontSize: 8),
+                                              textAlign: TextAlign.center)),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
                       ],
                     ),
                   ),
@@ -569,9 +725,11 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> {
                         floors: _selectedCageFloors,
                       ),
                     ),
-                  ).then((_) {
+                  ).then((result) {
                     // Reload data when returning from add harvest page
-                    _loadHarvestData();
+                    if (result == true) {
+                      _loadHarvestData();
+                    }
                   });
                 },
                 icon: Icon(Icons.add, color: Colors.white, size: 20),

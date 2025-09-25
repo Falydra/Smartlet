@@ -12,6 +12,19 @@ class AddHarvestPage extends StatefulWidget {
     required this.floors,
   }) : super(key: key);
 
+  static Map<String, dynamic> getStoredData() {
+    return Map<String, dynamic>.from(_AddHarvestPageState._staticStorage);
+  }
+
+  static void clearStoredData() {
+    _AddHarvestPageState._staticStorage.clear();
+  }
+
+  static bool hasDataForPeriod(int year, int month) {
+    final key = 'harvest_${year}_${month.toString().padLeft(2, '0')}';
+    return _AddHarvestPageState._staticStorage.containsKey('${key}_mangkok');
+  }
+
   @override
   State<AddHarvestPage> createState() => _AddHarvestPageState();
 }
@@ -219,50 +232,101 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
         harvestData['${key}_oval'] = totalOval;
         harvestData['${key}_patahan'] = totalPatahan;
 
-        // Try to save with SharedPreferences first
-        bool savedWithPrefs = false;
+        // Always save to static storage first (as primary storage)
+        _staticStorage.addAll(harvestData);
+        print('Data saved to static storage successfully');
+
+        // Try to save with SharedPreferences as backup
         try {
           final prefs = await SharedPreferences.getInstance();
           for (String dataKey in harvestData.keys) {
             await prefs.setDouble(dataKey, harvestData[dataKey]!);
           }
-          savedWithPrefs = true;
-          print('Data saved with SharedPreferences');
+          print('Data also saved to SharedPreferences successfully');
         } catch (prefsError) {
-          print('SharedPreferences failed: $prefsError');
-          // Fallback to static storage
-          _staticStorage.addAll(harvestData);
-          print('Data saved with static storage');
+          print(
+              'SharedPreferences save failed (using static storage): $prefsError');
+          // This is fine, static storage is working
         }
 
         print(
             'Harvest data saved for ${_months[_selectedMonth - 1]} $_selectedYear');
+        print('Saved data: $harvestData');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Data panen ${_months[_selectedMonth - 1]} $_selectedYear berhasil disimpan!${!savedWithPrefs ? ' (Local storage)' : ''}'),
+                'Data panen ${_months[_selectedMonth - 1]} $_selectedYear berhasil disimpan!'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
+
+        // Wait a moment to show the success message
+        await Future.delayed(Duration(milliseconds: 500));
 
         Navigator.pop(context, true); // Return true to indicate successful save
       } catch (e) {
         print('Error saving harvest data: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menyimpan data panen: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+
+        // Even if there's an error, still save to static storage
+        try {
+          final key =
+              'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
+          double totalMangkok = 0,
+              totalSudut = 0,
+              totalOval = 0,
+              totalPatahan = 0;
+          Map<String, double> harvestData = {};
+
+          for (int floor = 0; floor < widget.floors; floor++) {
+            final mangkok = double.tryParse(_controllers[floor][0].text) ?? 0.0;
+            final sudut = double.tryParse(_controllers[floor][1].text) ?? 0.0;
+            final oval = double.tryParse(_controllers[floor][2].text) ?? 0.0;
+            final patahan = double.tryParse(_controllers[floor][3].text) ?? 0.0;
+
+            harvestData['${key}_floor_${floor + 1}_mangkok'] = mangkok;
+            harvestData['${key}_floor_${floor + 1}_sudut'] = sudut;
+            harvestData['${key}_floor_${floor + 1}_oval'] = oval;
+            harvestData['${key}_floor_${floor + 1}_patahan'] = patahan;
+
+            totalMangkok += mangkok;
+            totalSudut += sudut;
+            totalOval += oval;
+            totalPatahan += patahan;
+          }
+
+          harvestData['${key}_mangkok'] = totalMangkok;
+          harvestData['${key}_sudut'] = totalSudut;
+          harvestData['${key}_oval'] = totalOval;
+          harvestData['${key}_patahan'] = totalPatahan;
+
+          _staticStorage.addAll(harvestData);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Data panen ${_months[_selectedMonth - 1]} $_selectedYear berhasil disimpan! (Lokal)'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          await Future.delayed(Duration(milliseconds: 500));
+          Navigator.pop(context, true);
+        } catch (fallbackError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Terjadi kesalahan saat menyimpan data'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
 
   // Static method to get stored data (for analysis page)
-  static Map<String, dynamic> getStoredData() {
-    return _staticStorage;
-  }
 
   @override
   Widget build(BuildContext context) {

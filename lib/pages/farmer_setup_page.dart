@@ -22,7 +22,7 @@ class FarmerSetupPage extends StatelessWidget {
             children: [
               // Logo
               Container(
-                margin: EdgeInsets.only(bottom: height(context) * 0.05),
+                margin: EdgeInsets.only(bottom: height(context) * 0.01),
                 child: Image.asset(
                   'assets/img/logo2.png',
                   width: 160,
