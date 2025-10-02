@@ -5,6 +5,8 @@ import 'package:swiftlead/auth/firebase_auth_services.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/pages/register_page.dart';
 import 'package:swiftlead/pages/farmer_setup_page.dart';
+import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/utils/token_manager.dart';
 
 class LoginPage extends StatefulWidget {
   final TextEditingController? controller;
@@ -17,8 +19,10 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final FirebaseAuthService _auth = FirebaseAuthService();
+  final AuthService _apiAuth = AuthService();
 
   bool showPassword = false;
+  bool _isLoading = false;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -144,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                   height: 20,
                 ),
                 ElevatedButton(
-                    onPressed: () {
+                    onPressed: _isLoading ? null : () {
                       _signin();
                     },
                     style: ElevatedButton.styleFrom(
@@ -156,13 +160,15 @@ class _LoginPageState extends State<LoginPage> {
                         foregroundColor: Colors.white,
                         minimumSize: Size(
                             width(context) * 0.75, height(context) * 0.075)),
-                    child: const Text(
-                      "Masuk",
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: "TT Norms"),
-                    )),
+                    child: _isLoading 
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            "Masuk",
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: "TT Norms"),
+                          )),
                 const SizedBox(
                   height: 5,
                 ),
@@ -230,23 +236,104 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Email/Password Sign-In
+  // Email/Password Sign-In with API Integration
   void _signin() async {
-    String email = _emailController.text;
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showErrorDialog("Email dan password tidak boleh kosong");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    String email = _emailController.text.trim();
     String password = _passwordController.text;
 
-    User? user = await _auth.signInWithEmailAndPassword(email, password);
+    try {
+      // Try API login first
+      final apiResponse = await _apiAuth.login(email, password);
+      
+      if (apiResponse['success'] == true && apiResponse['data'] != null) {
+        // API login successful
+        final userData = apiResponse['data'];
+        final token = userData['token'];
+        final user = userData['user'];
+        
+        // Save authentication data
+        await TokenManager.saveAuthData(
+          token: token,
+          userId: user['id'].toString(),
+          userName: user['name'] ?? '',
+          userEmail: user['email'] ?? email,
+        );
+        
+        if (!mounted) return;
+        
+        print("API Login successful");
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => const FarmerSetupPage())
+        );
+        return;
+      }
+    } catch (e) {
+      print("API Login failed: $e");
+      // Continue to Firebase fallback
+    }
 
+    try {
+      // Fallback to Firebase authentication
+      User? user = await _auth.signInWithEmailAndPassword(email, password);
+
+      if (!mounted) return;
+      
+      if (user != null) {
+        print("Firebase Login successful");
+        
+        // Save basic user data for Firebase users
+        await TokenManager.saveAuthData(
+          token: 'firebase_user', // Placeholder token for Firebase users
+          userId: user.uid,
+          userName: user.displayName ?? '',
+          userEmail: user.email ?? email,
+        );
+        
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => const FarmerSetupPage())
+        );
+      } else {
+        _showErrorDialog("Email atau password salah");
+      }
+    } catch (e) {
+      print("Firebase Login failed: $e");
+      _showErrorDialog("Gagal masuk. Periksa koneksi internet dan coba lagi.");
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showErrorDialog(String message) {
     if (!mounted) return;
     
-    if (user != null) {
-      print("User Sign in");
-      Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (context) => const FarmerSetupPage())
-);
-    } else {
-      print("Sign-in error");
-    }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Error"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   // Google Sign-In

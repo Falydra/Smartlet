@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:swiftlead/pages/home_page.dart';
-import 'package:swiftlead/shared/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:swiftlead/services/house_services.dart';
+import 'package:swiftlead/services/file_services.dart';
+import 'package:swiftlead/utils/token_manager.dart';
 
 class CageDataPage extends StatefulWidget {
   const CageDataPage({Key? key}) : super(key: key);
@@ -14,8 +16,10 @@ class CageDataPage extends StatefulWidget {
 
 class _CageDataPageState extends State<CageDataPage> {
   final _formKey = GlobalKey<FormState>();
-  final _addressController = TextEditingController();
-  final _floorController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _floorCountController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
@@ -150,18 +154,144 @@ class _CageDataPageState extends State<CageDataPage> {
   }
 
   Future<void> _saveData() async {
-  if (!_formKey.currentState!.validate()) {
-    return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Get authentication token
+      final token = await TokenManager.getToken();
+      
+      if (token != null) {
+        String? imageUrl;
+        
+        // Upload image first if selected
+        if (_selectedImage != null) {
+          try {
+            final fileService = FileService();
+            final imageUploadResponse = await fileService.uploadFile(
+              token, 
+              _selectedImage!,
+              category: 'swiftlet_house',
+              description: 'Kandang ${_nameController.text}',
+            );
+            
+            if (imageUploadResponse['success'] == true) {
+              imageUrl = imageUploadResponse['data']['file_url'];
+            }
+          } catch (e) {
+            print('Error uploading image: $e');
+            // Continue without image
+          }
+        }
+        
+        // Create house via API
+        final houseService = HouseService();
+        final payload = {
+          'name': _nameController.text,
+          'location': _locationController.text,
+          'floor_count': int.parse(_floorCountController.text),
+          'description': _descriptionController.text,
+        };
+        
+        // Add image URL if uploaded successfully
+        if (imageUrl != null) {
+          payload['image_url'] = imageUrl;
+        }
+        
+        final apiResponse = await houseService.create(token, payload);
+        print('House created via API: $apiResponse');
+        
+        // If API successful, also save locally for offline support
+        if (apiResponse['success'] == true || apiResponse['data'] != null) {
+          await _saveToLocalStorage();
+          
+          setState(() {
+            _isLoading = false;
+          });
+
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data kandang berhasil disimpan!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navigate to home page
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+            (route) => false,
+          );
+          return;
+        }
+      }
+      
+      // Fallback to local storage only
+      await _saveToLocalStorage();
+      
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data kandang disimpan secara lokal!'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+
+      // Navigate to home page
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()),
+        (route) => false,
+      );
+      
+    } catch (e) {
+      print('Error saving cage data: $e');
+      
+      // Fallback to local storage on API error
+      try {
+        await _saveToLocalStorage();
+        
+        setState(() {
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data kandang disimpan secara lokal!'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
+        );
+      } catch (localError) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan data: $localError'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
-  setState(() {
-    _isLoading = true;
-  });
-
-  // Simulate saving data
-  await Future.delayed(const Duration(seconds: 2));
-
-  try {
+  Future<void> _saveToLocalStorage() async {
     final prefs = await SharedPreferences.getInstance();
     
     // Get current kandang count
@@ -171,8 +301,10 @@ class _CageDataPageState extends State<CageDataPage> {
     kandangCount++;
     
     // Save new kandang data
-    await prefs.setString('kandang_${kandangCount}_address', _addressController.text);
-    await prefs.setInt('kandang_${kandangCount}_floors', int.parse(_floorController.text));
+    await prefs.setString('kandang_${kandangCount}_name', _nameController.text);
+    await prefs.setString('kandang_${kandangCount}_address', _locationController.text);
+    await prefs.setInt('kandang_${kandangCount}_floors', int.parse(_floorCountController.text));
+    await prefs.setString('kandang_${kandangCount}_description', _descriptionController.text);
     if (_selectedImage != null) {
       await prefs.setString('kandang_${kandangCount}_image', _selectedImage!.path);
     }
@@ -181,48 +313,70 @@ class _CageDataPageState extends State<CageDataPage> {
     await prefs.setInt('kandang_count', kandangCount);
 
     // Also save in legacy format for backward compatibility
-    await prefs.setString('cage_address', _addressController.text);
-    await prefs.setInt('cage_floors', int.parse(_floorController.text));
+    await prefs.setString('cage_address', _locationController.text);
+    await prefs.setInt('cage_floors', int.parse(_floorCountController.text));
     if (_selectedImage != null) {
       await prefs.setString('cage_image', _selectedImage!.path);
     }
 
-    final cageData = {
-      'image': _selectedImage?.path,
-      'address': _addressController.text,
-      'floors': int.parse(_floorController.text),
-      'createdAt': DateTime.now().toIso8601String(),
-    };
-
-    print('Cage data saved: $cageData');
-  } catch (e) {
-    print('Error saving cage data: $e');
+    print('Cage data saved locally');
   }
 
-  setState(() {
-    _isLoading = false;
-  });
+  Future<void> _skipForNow() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  // Show success message
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Data kandang berhasil disimpan!'),
-      backgroundColor: Colors.green,
-    ),
-  );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get current kandang count
+      int kandangCount = prefs.getInt('kandang_count') ?? 0;
+      
+      // Increment count for new empty kandang
+      kandangCount++;
+      
+      // Save empty kandang data (empty name indicates incomplete data)
+      await prefs.setString('kandang_${kandangCount}_name', '');
+      await prefs.setString('kandang_${kandangCount}_address', '');
+      await prefs.setInt('kandang_${kandangCount}_floors', 3); // Default floors
+      await prefs.setString('kandang_${kandangCount}_description', '');
+      // Don't save image path
+      
+      // Update kandang count
+      await prefs.setInt('kandang_count', kandangCount);
 
-  // Navigate to home page
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (context) => const HomePage()),
-    (route) => false,
-  );
-}
+      print('Empty cage data saved for kandang_$kandangCount');
+      
+      // Show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data kandang dapat dilengkapi nanti'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('Error saving empty cage data: $e');
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    // Navigate to home page
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const HomePage()),
+      (route) => false,
+    );
+  }
 
   @override
   void dispose() {
-    _addressController.dispose();
-    _floorController.dispose();
+    _nameController.dispose();
+    _locationController.dispose();
+    _floorCountController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -323,9 +477,9 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 24),
 
-              // Address Field
+              // Name Field
               Text(
-                'Alamat Kandang',
+                'Nama Kandang',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -336,7 +490,52 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 12),
 
               TextFormField(
-                controller: _addressController,
+                controller: _nameController,
+                decoration: InputDecoration(
+                  hintText: 'Masukkan nama kandang (contoh: Kandang Walet Utara)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  suffixIcon: Icon(Icons.home_work, color: Colors.grey[400]),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Nama kandang tidak boleh kosong';
+                  }
+                  if (value.trim().length < 3) {
+                    return 'Nama terlalu pendek (minimal 3 karakter)';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Location Field
+              Text(
+                'Lokasi Kandang',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _locationController,
                 maxLines: 3,
                 decoration: InputDecoration(
                   hintText: 'Masukkan alamat lengkap kandang...',
@@ -354,13 +553,14 @@ class _CageDataPageState extends State<CageDataPage> {
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
+                  suffixIcon: Icon(Icons.location_on, color: Colors.grey[400]),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Alamat kandang tidak boleh kosong';
+                    return 'Lokasi kandang tidak boleh kosong';
                   }
                   if (value.trim().length < 10) {
-                    return 'Alamat terlalu pendek (minimal 10 karakter)';
+                    return 'Lokasi terlalu pendek (minimal 10 karakter)';
                   }
                   return null;
                 },
@@ -381,7 +581,7 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 12),
 
               TextFormField(
-                controller: _floorController,
+                controller: _floorCountController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   hintText: 'Masukkan jumlah lantai kandang',
@@ -415,6 +615,47 @@ class _CageDataPageState extends State<CageDataPage> {
                   if (number > 20) {
                     return 'Jumlah lantai maksimal 20';
                   }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Description Field
+              Text(
+                'Deskripsi Kandang',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: 'Deskripsi kandang (opsional): ukuran, fitur khusus, dll...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  suffixIcon: Icon(Icons.description, color: Colors.grey[400]),
+                ),
+                validator: (value) {
+                  // Description is optional, so no validation required
                   return null;
                 },
               ),
@@ -463,14 +704,7 @@ class _CageDataPageState extends State<CageDataPage> {
                 child: TextButton(
                   onPressed: _isLoading
                       ? null
-                      : () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const HomePage(),
-                            ),
-                          );
-                        },
+                      : _skipForNow,
                   style: TextButton.styleFrom(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

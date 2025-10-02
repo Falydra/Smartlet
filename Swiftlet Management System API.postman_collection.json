@@ -1,0 +1,2499 @@
+{
+	"info": {
+		"_postman_id": "8c5c4730-09d7-4e0a-8f3b-373ca82a15a8",
+		"name": "Swiftlet Management System API",
+		"description": "Complete API collection for Swiftlet Management System backend deployed at api.fuadfakhruz.id",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "37063543",
+		"_collection_link": "https://yes444-8564.postman.co/workspace/sbd~1c2806db-80dd-434c-9987-8ce93d7d2d32/collection/37063543-8c5c4730-09d7-4e0a-8f3b-373ca82a15a8?action=share&source=collection_link&creator=37063543"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Login-specific post-response script",
+									"pm.test('Login should return 200 status', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    ",
+									"    pm.test('Login response should be successful', function () {",
+									"        pm.expect(responseJson.success).to.be.true;",
+									"    });",
+									"    ",
+									"    pm.test('Login response should contain token', function () {",
+									"        pm.expect(responseJson.data).to.have.property('token');",
+									"        pm.expect(responseJson.data.token).to.not.be.empty;",
+									"    });",
+									"    ",
+									"    pm.test('Login response should contain user data', function () {",
+									"        pm.expect(responseJson.data).to.have.property('user');",
+									"        pm.expect(responseJson.data.user).to.have.property('id');",
+									"        pm.expect(responseJson.data.user).to.have.property('email');",
+									"    });",
+									"    ",
+									"    // Store authentication data",
+									"    if (responseJson.success && responseJson.data.token) {",
+									"        pm.environment.set('token', responseJson.data.token);",
+									"        pm.collectionVariables.set('token', responseJson.data.token);",
+									"        console.log('🔑 Login successful - Token stored');",
+									"        ",
+									"        // Store user information",
+									"        if (responseJson.data.user) {",
+									"            pm.environment.set('user_id', responseJson.data.user.id);",
+									"            pm.environment.set('user_email', responseJson.data.user.email);",
+									"            pm.environment.set('user_name', responseJson.data.user.name);",
+									"            pm.environment.set('user_role', responseJson.data.user.role);",
+									"            console.log('👤 User info stored: ' + responseJson.data.user.email);",
+									"        }",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"name@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Register-specific post-response script",
+									"pm.test('Register should return 201 status', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    const responseJson = pm.response.json();",
+									"    ",
+									"    pm.test('Register response should be successful', function () {",
+									"        pm.expect(responseJson.success).to.be.true;",
+									"    });",
+									"    ",
+									"    pm.test('Register response should contain user data', function () {",
+									"        pm.expect(responseJson.data).to.have.property('user');",
+									"        pm.expect(responseJson.data.user).to.have.property('id');",
+									"        pm.expect(responseJson.data.user).to.have.property('email');",
+									"    });",
+									"    ",
+									"    console.log('✅ Registration successful for: ' + responseJson.data.user.email);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"newuser@example.com\",\n  \"name\": \"New User\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/profile",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Name\",\n  \"location\": \"Jakarta, Indonesia\",\n  \"no_telp\": \"+62123456789\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/profile",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"current_password\": \"oldpassword123\",\n  \"new_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/change-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"change-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/validate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"validate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Readiness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ready",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ready"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Liveness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/live",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"live"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Swiftlet Houses",
+			"item": [
+				{
+					"name": "Get All Swiftlet Houses",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/swiftlet-houses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"swiftlet-houses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Swiftlet House by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/swiftlet-houses/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"swiftlet-houses",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Swiftlet House",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Swiftlet House 1\",\n  \"location\": \"Jakarta, Indonesia\",\n  \"latitude\": -6.2088,\n  \"longitude\": 106.8456,\n  \"description\": \"Main swiftlet house in Jakarta\",\n  \"floor_count\": 3\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/swiftlet-houses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"swiftlet-houses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Swiftlet House",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Swiftlet House\",\n  \"location\": \"Bandung, Indonesia\",\n  \"latitude\": -6.9175,\n  \"longitude\": 107.6191,\n  \"description\": \"Updated description\",\n  \"floor_count\": 4\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/swiftlet-houses/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"swiftlet-houses",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Swiftlet House",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/swiftlet-houses/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"swiftlet-houses",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Swiftlet House with Devices",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/swiftlet-houses/1/devices",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"swiftlet-houses",
+								"1",
+								"devices"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "IoT Devices",
+			"item": [
+				{
+					"name": "Get All IoT Devices",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/iot-devices",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"iot-devices"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get IoT Device by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/iot-devices/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"iot-devices",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create IoT Device",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"install_code\": \"ESP32_YGY_001_L1\",\n  \"swiftlet_house_id\": 1,\n  \"floor\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/iot-devices",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"iot-devices"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update IoT Device",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"device_name\": \"Updated Sensor Name\",\n  \"device_type\": \"ESP32_SENSOR\",\n  \"floor\": 2,\n  \"status\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/iot-devices/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"iot-devices",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Device Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/iot-devices/1/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"iot-devices",
+								"1",
+								"status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete IoT Device",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/iot-devices/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"iot-devices",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Sensor Data",
+			"item": [
+				{
+					"name": "Get Sensor Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sensors/data?install_code=ESP32_YGY_001_L1&limit=50&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sensors",
+								"data"
+							],
+							"query": [
+								{
+									"key": "install_code",
+									"value": "ESP32_YGY_001_L1"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sensor Data by Date Range",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sensors/data?install_code=ESP32-001&start_date=2025-09-20&end_date=2025-09-23",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sensors",
+								"data"
+							],
+							"query": [
+								{
+									"key": "install_code",
+									"value": "ESP32-001"
+								},
+								{
+									"key": "start_date",
+									"value": "2025-09-20"
+								},
+								{
+									"key": "end_date",
+									"value": "2025-09-23"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Latest Sensor Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sensors/latest",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sensors",
+								"latest"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sensor Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sensors/statistics",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sensors",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Sensor Data",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"install_code\": \"ESP32-001\",\n  \"suhu\": 26.5,\n  \"kelembaban\": 75.2,\n  \"amonia\": 12.8\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/sensors/data",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sensors",
+								"data"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Sensor Data",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sensors/data/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sensors",
+								"data",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Harvests",
+			"item": [
+				{
+					"name": "Get All Harvests",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests?limit=50&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Harvest by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Harvest",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id_swiftlet_house\": 1,\n  \"lantai\": 1,\n  \"bowl_weight\": 150.5,\n  \"bowl_pieces\": 25,\n  \"oval_weight\": 200.0,\n  \"oval_pieces\": 30,\n  \"corner_weight\": 75.5,\n  \"corner_pieces\": 15,\n  \"broken_weight\": 50.0,\n  \"broken_pieces\": 20,\n  \"img_url\": \"https://minio.fuadfakhruz.id/swiftlet/harvest-images/harvest1.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Harvest",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"lantai\": 2,\n  \"bowl_weight\": 175.0,\n  \"bowl_pieces\": 28,\n  \"oval_weight\": 220.0,\n  \"oval_pieces\": 35\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Harvest",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Recent Harvests",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests/recent",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests",
+								"recent"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Harvest Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/harvests/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"harvests",
+								"summary"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Market Data",
+			"item": [
+				{
+					"name": "Weekly Prices",
+					"item": [
+						{
+							"name": "Get Weekly Prices",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/weekly-prices?limit=50&offset=0",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"weekly-prices"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "50"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Latest Weekly Prices",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/weekly-prices/latest",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"weekly-prices",
+										"latest"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Weekly Price by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/weekly-prices/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"weekly-prices",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Weekly Price",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"province\": \"Jakarta\",\n  \"week_of\": \"2025-09-23\",\n  \"bowl_price\": 5500000,\n  \"oval_price\": 5200000,\n  \"corner_price\": 4800000,\n  \"broken_price\": 4200000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/weekly-prices",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"weekly-prices"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Weekly Price",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"bowl_price\": 5600000,\n  \"oval_price\": 5300000,\n  \"corner_price\": 4900000,\n  \"broken_price\": 4300000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/weekly-prices/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"weekly-prices",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Weekly Price",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/weekly-prices/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"weekly-prices",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Harvest Sales",
+					"item": [
+						{
+							"name": "Get Harvest Sales",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales?limit=50&offset=0",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "50"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Harvest Sales by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Harvest Sales",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id_harvest\": 1,\n  \"province\": \"Jakarta\",\n  \"bowl_weight\": 150.5,\n  \"bowl_pieces\": 25,\n  \"bowl_price\": 5500000,\n  \"oval_weight\": 200.0,\n  \"oval_pieces\": 30,\n  \"oval_price\": 5200000,\n  \"corner_weight\": 75.5,\n  \"corner_pieces\": 15,\n  \"corner_price\": 4800000,\n  \"broken_weight\": 50.0,\n  \"broken_pieces\": 20,\n  \"broken_price\": 4200000,\n  \"total_amount\": 2375000000,\n  \"buyer_name\": \"PT Sarang Burung Jaya\",\n  \"buyer_contact\": \"+62123456789\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Harvest Sales",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"buyer_name\": \"Updated Buyer Name\",\n  \"buyer_contact\": \"+62987654321\",\n  \"total_amount\": 2400000000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Harvest Sales Status",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": 1\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales/1/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales",
+										"1",
+										"status"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Harvest Sales",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Sales by Province",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales/analytics/province",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales",
+										"analytics",
+										"province"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get User Sales Total",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/harvest-sales/analytics/user-total",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"harvest-sales",
+										"analytics",
+										"user-total"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Service Requests",
+			"item": [
+				{
+					"name": "Installation Requests",
+					"item": [
+						{
+							"name": "Get Installation Requests",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/installation-requests?limit=50&offset=0",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"installation-requests"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "50"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Installation Request by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/installation-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"installation-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Installation Request",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id_swiftlet_house\": 1,\n  \"floors\": \"1,2,3\",\n  \"sensor_count\": 3,\n  \"appointment_date\": \"2025-09-25T10:00:00Z\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/installation-requests",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"installation-requests"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Installation Request",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"floors\": \"1,2\",\n  \"sensor_count\": 2,\n  \"appointment_date\": \"2025-09-26T14:00:00Z\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/installation-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"installation-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Installation Request Status",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": 1\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/installation-requests/1/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"installation-requests",
+										"1",
+										"status"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Installation Request",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/installation-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"installation-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Maintenance Requests",
+					"item": [
+						{
+							"name": "Get Maintenance Requests",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/maintenance-requests?limit=50&offset=0",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"maintenance-requests"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "50"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Maintenance Request by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/maintenance-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"maintenance-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Maintenance Request",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id_device\": 1,\n  \"reason\": \"Temperature sensor giving inconsistent readings\",\n  \"appointment_date\": \"2025-09-24T09:00:00Z\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/maintenance-requests",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"maintenance-requests"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Maintenance Request",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"reason\": \"Updated issue description\",\n  \"appointment_date\": \"2025-09-25T11:00:00Z\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/maintenance-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"maintenance-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Maintenance Request Status",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": 2\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/maintenance-requests/1/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"maintenance-requests",
+										"1",
+										"status"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Maintenance Request",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/maintenance-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"maintenance-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Uninstallation Requests",
+					"item": [
+						{
+							"name": "Get Uninstallation Requests",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/uninstallation-requests?limit=50&offset=0",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"uninstallation-requests"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "50"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Uninstallation Request by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/uninstallation-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"uninstallation-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Uninstallation Request",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"id_device\": 1,\n  \"reason\": \"Device no longer needed due to house renovation\",\n  \"appointment_date\": \"2025-09-28T13:00:00Z\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/uninstallation-requests",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"uninstallation-requests"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Uninstallation Request",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"reason\": \"Updated reason for device removal\",\n  \"appointment_date\": \"2025-09-29T15:00:00Z\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/uninstallation-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"uninstallation-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Uninstallation Request Status",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": 3\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/uninstallation-requests/1/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"uninstallation-requests",
+										"1",
+										"status"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Uninstallation Request",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/uninstallation-requests/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"uninstallation-requests",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Request Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/analytics",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"requests",
+								"analytics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Technician Workload",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/technician-workload/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"requests",
+								"technician-workload",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "File Management",
+			"item": [
+				{
+					"name": "Upload Profile Image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/profile-image",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"files",
+								"profile-image"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Harvest Image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "harvest_id",
+									"value": "1",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/harvest-image",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"files",
+								"harvest-image"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Generic File",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "folder",
+									"value": "documents",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"files",
+								"upload"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete File",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"file_url\": \"https://minio.fuadfakhruz.id/swiftlet/profile-images/uuid-filename.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/delete",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"files",
+								"delete"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Presigned URL",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/presigned-url?object_name=profile-images/example.jpg&expires=3600",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"files",
+								"presigned-url"
+							],
+							"query": [
+								{
+									"key": "object_name",
+									"value": "profile-images/example.jpg"
+								},
+								{
+									"key": "expires",
+									"value": "3600"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Pre-request script for all requests",
+					"console.log('🚀 Executing request: ' + request.name);",
+					"",
+					"// Log current environment variables",
+					"console.log('🌐 Base URL: ' + pm.variables.get('base_url'));",
+					"",
+					"// Check if token is required and available",
+					"const authHeader = pm.request.headers.find(h => h.key.toLowerCase() === 'authorization');",
+					"if (authHeader && !authHeader.disabled) {",
+					"    const token = pm.variables.get('token');",
+					"    if (!token || token === '') {",
+					"        console.warn('⚠️  Authentication token is required but not set. Please login first.');",
+					"    } else {",
+					"        console.log('🔐 Using authentication token');",
+					"    }",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global post-response script for all requests",
+					"console.log('📥 Response received from: ' + pm.info.requestName);",
+					"console.log('📊 Status Code: ' + pm.response.code);",
+					"console.log('⏱️  Response Time: ' + pm.response.responseTime + 'ms');",
+					"",
+					"// Basic response validation",
+					"pm.test('Response status should be successful', function () {",
+					"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+					"});",
+					"",
+					"pm.test('Response time should be reasonable', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(10000);",
+					"});",
+					"",
+					"// Parse JSON response if available",
+					"let responseJson;",
+					"try {",
+					"    responseJson = pm.response.json();",
+					"    console.log('✅ Valid JSON response');",
+					"} catch (e) {",
+					"    console.log('ℹ️  Non-JSON response (might be expected for some endpoints)');",
+					"    return;",
+					"}",
+					"",
+					"// Validate standard API response structure",
+					"if (responseJson && typeof responseJson === 'object') {",
+					"    if (responseJson.hasOwnProperty('success')) {",
+					"        pm.test('API response should have success field', function () {",
+					"            pm.expect(responseJson).to.have.property('success');",
+					"        });",
+					"        ",
+					"        if (responseJson.success) {",
+					"            console.log('✅ API call successful');",
+					"        } else {",
+					"            console.log('❌ API call failed: ' + (responseJson.message || 'Unknown error'));",
+					"        }",
+					"    }",
+					"    ",
+					"    // Extract and store authentication token from login response",
+					"    if (pm.info.requestName.toLowerCase().includes('login') && responseJson.data && responseJson.data.token) {",
+					"        pm.environment.set('token', responseJson.data.token);",
+					"        pm.collectionVariables.set('token', responseJson.data.token);",
+					"        console.log('🔑 Authentication token extracted and stored');",
+					"        ",
+					"        // Also store user info if available",
+					"        if (responseJson.data.user) {",
+					"            pm.environment.set('user_id', responseJson.data.user.id);",
+					"            pm.environment.set('user_email', responseJson.data.user.email);",
+					"            pm.environment.set('user_name', responseJson.data.user.name);",
+					"            console.log('👤 User information stored');",
+					"        }",
+					"    }",
+					"    ",
+					"    // Store IDs from create operations for subsequent tests",
+					"    if (pm.info.requestName.toLowerCase().includes('create') && responseJson.data && responseJson.data.id) {",
+					"        const resourceType = pm.info.requestName.toLowerCase();",
+					"        if (resourceType.includes('swiftlet')) {",
+					"            pm.environment.set('last_swiftlet_house_id', responseJson.data.id);",
+					"            console.log('🏠 Swiftlet house ID stored: ' + responseJson.data.id);",
+					"        } else if (resourceType.includes('iot') || resourceType.includes('device')) {",
+					"            pm.environment.set('last_iot_device_id', responseJson.data.id);",
+					"            console.log('📡 IoT device ID stored: ' + responseJson.data.id);",
+					"        } else if (resourceType.includes('harvest')) {",
+					"            pm.environment.set('last_harvest_id', responseJson.data.id);",
+					"            console.log('🌾 Harvest ID stored: ' + responseJson.data.id);",
+					"        } else if (resourceType.includes('request')) {",
+					"            pm.environment.set('last_request_id', responseJson.data.id);",
+					"            console.log('📋 Request ID stored: ' + responseJson.data.id);",
+					"        }",
+					"    }",
+					"}",
+					"",
+					"// Log response data for debugging (truncated for large responses)",
+					"if (responseJson) {",
+					"    const responseStr = JSON.stringify(responseJson, null, 2);",
+					"    if (responseStr.length > 1000) {",
+					"        console.log('📄 Response data (truncated): ' + responseStr.substring(0, 1000) + '...');",
+					"    } else {",
+					"        console.log('📄 Response data: ' + responseStr);",
+					"    }",
+					"}",
+					"",
+					"// Clear token on logout",
+					"if (pm.info.requestName.toLowerCase().includes('logout')) {",
+					"    pm.environment.unset('token');",
+					"    pm.collectionVariables.set('token', '');",
+					"    pm.environment.unset('user_id');",
+					"    pm.environment.unset('user_email');",
+					"    pm.environment.unset('user_name');",
+					"    console.log('🚪 Token and user info cleared after logout');",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://api.fuadfakhruz.id",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

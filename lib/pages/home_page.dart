@@ -8,6 +8,13 @@ import 'package:swiftlead/pages/blog_menu.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/pages/cage_selection_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:swiftlead/services/house_services.dart';
+import 'package:swiftlead/services/devices.services.dart';
+import 'package:swiftlead/services/device_installation_service.dart';
+import 'package:swiftlead/services/sensor_services.dart';
+import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/pages/device_installation_page.dart';
+import 'dart:async';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -24,8 +31,21 @@ class _HomePageState extends State<HomePage> {
   PageController _pageController = PageController();
   int _currentKandangIndex = 0;
 
+  // API Services
+  final HouseService _houseService = HouseService();
+  final DeviceService _deviceService = DeviceService();
+  final DeviceInstallationService _installationService = DeviceInstallationService();
+  final SensorService _sensorService = SensorService();
+
+  // State management
+  bool _isLoading = true;
+  String? _authToken;
+
   // List of kandang (cages)
   List<Map<String, dynamic>> _kandangList = [];
+
+  // Real-time sensor data
+  Timer? _refreshTimer;
 
   // Static device data template
   final Map<String, dynamic> _deviceData = {
@@ -54,11 +74,166 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadKandangData();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+    
+    try {
+      // Get authentication token
+      _authToken = await TokenManager.getToken();
+      
+      if (_authToken != null) {
+        // Try to load from API first
+        await _loadKandangFromAPI();
+      }
+      
+      // If API failed or no token, fallback to local data
+      if (_kandangList.isEmpty) {
+        await _loadKandangData();
+      }
+    } catch (e) {
+      print('Error initializing data: $e');
+      // Fallback to local data
+      await _loadKandangData();
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadKandangFromAPI() async {
+    try {
+      final houses = await _houseService.getAll(_authToken!);
+      
+      List<Map<String, dynamic>> kandangList = [];
+      for (var house in houses) {
+        // Load device data for this house
+        Map<String, dynamic> deviceData = Map<String, dynamic>.from(_deviceData); // Default device data
+        try {
+          final devices = await _deviceService.getAll(_authToken!);
+          // Find devices for this house (you might need to filter by house_id)
+          if (devices.isNotEmpty) {
+            // Use the first device data or filter by house ID
+            var houseDevice = devices.firstWhere(
+              (device) => device['house_id'] == house['id'],
+              orElse: () => devices.first,
+            );
+            deviceData = {
+              'temperature': houseDevice['temperature']?.toDouble() ?? 28.5,
+              'humidity': houseDevice['humidity']?.toDouble() ?? 75.2,
+              'ammonia': houseDevice['ammonia']?.toDouble() ?? 12.1,
+              'twitter': houseDevice['status'] ?? 'Active',
+            };
+          }
+        } catch (e) {
+          print('Failed to load device data for house ${house['id']}: $e');
+          // Use default device data
+        }
+
+        // Check device installation status
+        bool hasDeviceInstalled = false;
+        List<String> installationCodes = [];
+        try {
+          final installCheck = await _installationService.checkDeviceInstallation(_authToken!, house['id']);
+          hasDeviceInstalled = installCheck['hasDevices'] ?? false;
+          installationCodes = List<String>.from(installCheck['installationCodes'] ?? []);
+        } catch (e) {
+          print('Failed to check device installation for house ${house['id']}: $e');
+        }
+
+        // Load real sensor data if device is installed
+        if (hasDeviceInstalled && installationCodes.isNotEmpty) {
+          try {
+            final sensorData = await _loadSensorDataForHouse(installationCodes.first);
+            if (sensorData != null) {
+              deviceData = {
+                'temperature': sensorData['suhu'] ?? _deviceData['temperature'],
+                'humidity': sensorData['kelembaban'] ?? _deviceData['humidity'],
+                'ammonia': sensorData['amonia'] ?? _deviceData['ammonia'],
+                'twitter': 'Active', // Keep this as is
+              };
+            }
+          } catch (e) {
+            print('Failed to load sensor data for house ${house['id']}: $e');
+          }
+        }
+
+        kandangList.add({
+          'id': 'house_${house['id']}',
+          'apiId': house['id'],
+          'name': house['name'] ?? 'Kandang ${house['floor_count'] ?? 1} Lantai',
+          'address': house['location'] ?? 'Lokasi tidak tersedia',
+          'floors': house['floor_count'] ?? 3,
+          'description': house['description'] ?? '',
+          'image': house['image_url'],
+          'isEmpty': false,
+          'deviceData': deviceData,
+          'harvestCycle': _defaultHarvestCycle
+              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+              .toList(),
+          'isFromAPI': true,
+          'hasDeviceInstalled': hasDeviceInstalled,
+          'installationCodes': installationCodes,
+        });
+      }
+      
+      if (mounted) {
+        setState(() {
+          _kandangList = kandangList;
+        });
+      }
+      
+      // Start periodic refresh for real-time sensor data
+      _startPeriodicRefresh();
+      
+      print('Loaded ${kandangList.length} kandang from API');
+    } catch (e) {
+      print('Error loading kandang from API: $e');
+      // Don't throw, let it fallback to local data
+    }
+  }
+
+  Future<Map<String, dynamic>?> _loadSensorDataForHouse(String installCode) async {
+    try {
+      final response = await _sensorService.getDataByInstallCode(_authToken!, installCode, limit: 1);
+      if (response['success'] == true && response['data'] != null && response['data'].isNotEmpty) {
+        return response['data'][0];
+      }
+    } catch (e) {
+      print('Error loading sensor data for install code $installCode: $e');
+    }
+    return null;
+  }
+
+  void _startPeriodicRefresh() {
+    // Cancel existing timer if any
+    _refreshTimer?.cancel();
+
+    // Refresh sensor data every 5 minutes
+    _refreshTimer = Timer.periodic(Duration(minutes: 5), (timer) async {
+      if (_authToken != null && mounted) {
+        await _loadKandangFromAPI();
+      }
+    });
+  }
+
+  void _stopPeriodicRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
   }
 
   @override
   void dispose() {
+    _stopPeriodicRefresh();
     _pageController.dispose();
     super.dispose();
   }
@@ -102,63 +277,62 @@ class _HomePageState extends State<HomePage> {
         for (int i = 1; i <= kandangCount; i++) {
           try {
             // Load individual preferences for each kandang
+            final name = prefs.getString('kandang_${i}_name') ?? '';
             final address = prefs.getString('kandang_${i}_address') ?? '';
             final floors = prefs.getInt('kandang_${i}_floors') ?? 3;
+            final description = prefs.getString('kandang_${i}_description') ?? '';
             final image = prefs.getString('kandang_${i}_image');
 
-            if (address.isNotEmpty) {
-              kandangList.add({
-                'id': 'kandang_$i',
-                'name': 'Kandang $floors Lantai',
-                'address': address,
-                'floors': floors,
-                'image': image,
-                'harvestCycle': _defaultHarvestCycle
-                    .map<Map<String, dynamic>>(
-                        (e) => Map<String, dynamic>.from(e))
-                    .toList(),
-              });
-            }
+            // Check if data is complete
+            final isEmpty = name.isEmpty || address.isEmpty;
+
+            // Always add kandang entry, even if incomplete
+            kandangList.add({
+              'id': 'kandang_$i',
+              'name': isEmpty ? 'Empty' : name,
+              'address': isEmpty ? 'Data belum lengkap' : address,
+              'floors': floors,
+              'description': description,
+              'image': image,
+              'isEmpty': isEmpty, // Flag to identify incomplete data
+              'harvestCycle': _defaultHarvestCycle
+                  .map<Map<String, dynamic>>(
+                      (e) => Map<String, dynamic>.from(e))
+                  .toList(),
+            });
           } catch (e) {
             print('Error loading kandang $i: $e');
           }
         }
       }
 
-      // Add default kandang if no kandang exists
-      if (kandangList.isEmpty) {
-        kandangList.add({
-          'id': 'kandang_default',
-          'name': 'Kandang Demo',
-          'address': 'Jl Jawa No 23, Semarang',
-          'floors': 3,
-          'image': null,
-          'harvestCycle': _defaultHarvestCycle
-              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-              .toList(),
+      // Don't add default kandang - let the empty state show
+      // if (kandangList.isEmpty) {
+      //   kandangList.add({
+      //     'id': 'kandang_default',
+      //     'name': 'Kandang Demo',
+      //     'address': 'Jl Jawa No 23, Semarang',
+      //     'floors': 3,
+      //     'image': null,
+      //     'harvestCycle': _defaultHarvestCycle
+      //         .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+      //         .toList(),
+      //   });
+      // }
+
+      if (mounted) {
+        setState(() {
+          _kandangList = kandangList;
         });
       }
-
-      setState(() {
-        _kandangList = kandangList;
-      });
     } catch (e) {
       print('Error loading kandang data: $e');
-      // Set default kandang on error
-      setState(() {
-        _kandangList = [
-          {
-            'id': 'kandang_default',
-            'name': 'Kandang Demo',
-            'address': 'Jl Jawa No 23, Semarang',
-            'floors': 3,
-            'image': null,
-            'harvestCycle': _defaultHarvestCycle
-                .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-                .toList(),
-          }
-        ];
-      });
+      // Set empty kandang list on error - let the empty state show
+      if (mounted) {
+        setState(() {
+          _kandangList = [];
+        });
+      }
     }
   }
 
@@ -175,8 +349,12 @@ class _HomePageState extends State<HomePage> {
         final index = i + 1;
 
         await prefs.setString(
+            'kandang_${index}_name', kandang['name'] ?? '');
+        await prefs.setString(
             'kandang_${index}_address', kandang['address'] ?? '');
         await prefs.setInt('kandang_${index}_floors', kandang['floors'] ?? 3);
+        await prefs.setString(
+            'kandang_${index}_description', kandang['description'] ?? '');
         if (kandang['image'] != null) {
           await prefs.setString('kandang_${index}_image', kandang['image']);
         }
@@ -186,11 +364,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Map<String, dynamic> get _currentKandang {
-    if (_kandangList.isEmpty) return {};
-    if (_currentKandangIndex >= _kandangList.length) return _kandangList.first;
-    return _kandangList[_currentKandangIndex];
-  }
+
 
   void _navigateToKandangManagement() {
     Navigator.push(
@@ -202,18 +376,31 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _navigateToAnalysis() {
-    if (_kandangList.isNotEmpty) {
+  void _navigateToDeviceInstallation(Map<String, dynamic> kandang) {
+    if (kandang['apiId'] != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => AnalysisPageAlternate(
-            selectedCageId: _currentKandang['id'] ?? 'kandang_default',
+          builder: (context) => DeviceInstallationPage(
+            houseId: kandang['apiId'],
+            houseName: kandang['name'],
           ),
+        ),
+      ).then((_) {
+        // Reload kandang data when returning
+        _initializeData();
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Kandang harus disimpan ke database terlebih dahulu'),
+          backgroundColor: Colors.orange,
         ),
       );
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -241,17 +428,28 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Kandang Carousel Section
-            Container(
-              height: height(context) * 0.45,
-              child: _kandangList.isEmpty
-                  ? _buildEmptyKandangCard()
-                  : _buildKandangCarousel(),
+      body: _isLoading 
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: Color(0xFF245C4C)),
+                SizedBox(height: 16),
+                Text('Memuat data kandang...', style: TextStyle(color: Color(0xFF245C4C))),
+              ],
             ),
+          )
+        : SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Kandang Carousel Section
+                Container(
+                  height: height(context) * 0.45,
+                  child: _kandangList.isEmpty
+                      ? _buildEmptyKandangCard()
+                      : _buildKandangCarousel(),
+                ),
 
             // News section
             Column(
@@ -411,7 +609,7 @@ class _HomePageState extends State<HomePage> {
                     width: width(context) * 0.8,
                     height: height(context) * 0.25,
                     decoration: BoxDecoration(
-                      color: Color(0xFFFFF7CA),
+                      color: Color.fromARGB(255, 73, 164, 118),
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: List<BoxShadow>.from([
                         BoxShadow(
@@ -530,12 +728,12 @@ class _HomePageState extends State<HomePage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.store,
+                icon: Icons.pest_control,
                 label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/monitoring-page');
+                  Navigator.pushReplacementNamed(context, '/control-page');
                   setState(() {
                     _currentIndex = 1;
                   });
@@ -544,12 +742,12 @@ class _HomePageState extends State<HomePage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.chat_sharp,
+                icon: Icons.agriculture,
                 label: 'Panen',
                 currentIndex: _currentIndex,
                 itemIndex: 2,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/community-page');
+                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
                   setState(() {
                     _currentIndex = 2;
                   });
@@ -558,12 +756,12 @@ class _HomePageState extends State<HomePage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.dataset_sharp,
+                icon: Icons.sell,
                 label: 'Jual',
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
+                  Navigator.pushReplacementNamed(context, '/store-page');
                   setState(() {
                     _currentIndex = 3;
                   });
@@ -655,22 +853,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildKandangCard(Map<String, dynamic> kandang) {
+    // Check if kandang data is empty/incomplete
+    bool isEmpty = kandang['isEmpty'] == true;
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      
       children: [
         Container(
           padding: EdgeInsets.only(top: 16),
-          alignment: Alignment.center,
           width: width(context) * 0.85,
-          height: height(context) * 0.40,
+          height: height(context) * 0.35,
           decoration: BoxDecoration(
             border: Border.all(
-              color: Color(0xFFffc200),
+              color: isEmpty ? Colors.grey[300]! : Color(0xFFffc200),
             ),
-            color: Color(0xFFfffcee),
+            color: isEmpty ? Colors.grey[50] : Color(0xFFfffcee),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
+          child: isEmpty ? _buildEmptyKandangContent(kandang) : SingleChildScrollView(
+            child: Column(
             children: [
               // Header with kandang info
               Row(
@@ -705,80 +907,200 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
 
+              // Device Installation Status
+              Padding(
+                padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          (kandang['hasDeviceInstalled'] ?? false) 
+                            ? Icons.sensors 
+                            : Icons.sensors_off,
+                          size: 16,
+                          color: (kandang['hasDeviceInstalled'] ?? false) 
+                            ? Colors.green 
+                            : Colors.red,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          (kandang['hasDeviceInstalled'] ?? false) 
+                            ? 'Device Installed' 
+                            : 'Device Not Installed',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: (kandang['hasDeviceInstalled'] ?? false) 
+                              ? Colors.green 
+                              : Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!(kandang['hasDeviceInstalled'] ?? false))
+                      GestureDetector(
+                        onTap: () => _navigateToDeviceInstallation(kandang),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Install',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
               // Statistics label
               Row(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(left: 16.0, top: 16),
-                    child: const Text(
-                      "Rata-rata statistik perangkat",
-                      style: TextStyle(fontSize: 12, color: Colors.black),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Device statistics with icons and data
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatCard(
-                    "Temp",
-                    "${_deviceData['temperature']}°C",
-                    Icons.thermostat,
-                    Colors.orange,
-                  ),
-                  _buildStatCard(
-                    "Humidity",
-                    "${_deviceData['humidity']}%",
-                    Icons.water_drop,
-                    Colors.blue,
-                  ),
-                  _buildStatCard(
-                    "Ammonia",
-                    "${_deviceData['ammonia']}ppm",
-                    Icons.air,
-                    Colors.purple,
-                  ),
-                  _buildStatCard(
-                    "Twitter",
-                    _deviceData['twitter']?.toString() ?? 'Not Active',
-                    _deviceData['twitter'] == 'Active'
-                        ? Icons.check_circle
-                        : Icons.cancel,
-                    _deviceData['twitter'] == 'Active'
-                        ? Colors.green
-                        : Colors.red,
-                  ),
-                ],
-              ),
-
-              // Harvest Cycle Table
-              Padding(
-                padding:
-                    const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Siklus Panen 2024",
+                    padding: const EdgeInsets.only(left: 16.0, top: 12),
+                    child: Text(
+                      (kandang['hasDeviceInstalled'] ?? false) 
+                        ? "Rata-rata statistik perangkat" 
+                        : "Control Device / Sensor not installed",
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF245C4C),
+                        fontSize: 12, 
+                        color: (kandang['hasDeviceInstalled'] ?? false) 
+                          ? Colors.black 
+                          : Colors.red
                       ),
                     ),
-                    SizedBox(height: 8),
-                    _buildHarvestTable(
-                        kandang['harvestCycle'] as List<Map<String, dynamic>>?),
-                  ],
-                ),
+                  ),
+                ],
               ),
+
+              // Device statistics with icons and data or installation prompt
+              if (kandang['hasDeviceInstalled'] ?? false)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatCard(
+                      "Temp",
+                      "${kandang['deviceData']?['temperature'] ?? _deviceData['temperature']}°C",
+                      Icons.thermostat,
+                      Colors.orange,
+                    ),
+                    _buildStatCard(
+                      "Humidity",
+                      "${kandang['deviceData']?['humidity'] ?? _deviceData['humidity']}%",
+                      Icons.water_drop,
+                      Colors.blue,
+                    ),
+                    _buildStatCard(
+                      "Ammonia",
+                      "${kandang['deviceData']?['ammonia'] ?? _deviceData['ammonia']}ppm",
+                      Icons.air,
+                      Colors.purple,
+                    ),
+                    _buildStatCard(
+                      "Twitter",
+                      kandang['deviceData']?['twitter']?.toString() ?? _deviceData['twitter']?.toString() ?? 'Not Active',
+                      (kandang['deviceData']?['twitter'] ?? _deviceData['twitter']) == 'Active'
+                          ? Icons.check_circle
+                          : Icons.cancel,
+                      (kandang['deviceData']?['twitter'] ?? _deviceData['twitter']) == 'Active'
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                  ],
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+                  child: Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red[200]!),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.sensors_off,
+                          size: 48,
+                          color: Colors.red[400],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'No sensors installed',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red[700],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Install devices to monitor your kandang',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red[600],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => _navigateToDeviceInstallation(kandang),
+                          icon: Icon(Icons.add_circle, size: 16, color: Colors.white),
+                          label: Text(
+                            'Request Installation',
+                            style: TextStyle(fontSize: 12, color: Colors.white),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Harvest Cycle Table
+              // Padding(
+              //   padding:
+              //       const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+              //   child: Column(
+              //     crossAxisAlignment: CrossAxisAlignment.start,
+              //     children: [
+              //       Text(
+              //         "Siklus Panen 2024",
+              //         style: TextStyle(
+              //           fontSize: 12,
+              //           fontWeight: FontWeight.w600,
+              //           color: Color(0xFF245C4C),
+              //         ),
+              //       ),
+              //       SizedBox(height: 8),
+              //       _buildHarvestTable(
+              //           kandang['harvestCycle'] as List<Map<String, dynamic>>?),
+              //     ],
+              //   ),
+              // ),
 
               // Analysis button
               Padding(
-                padding: const EdgeInsets.only(top: 16.0),
+                padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
+              
                 child: ElevatedButton(
                     onPressed: () {
                       Navigator.push(
@@ -792,7 +1114,7 @@ class _HomePageState extends State<HomePage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10.0),
                         ),
@@ -809,6 +1131,62 @@ class _HomePageState extends State<HomePage> {
                     )),
               )
             ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyKandangContent(Map<String, dynamic> kandang) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.warning_amber_outlined,
+          size: 64,
+          color: Colors.orange[400],
+        ),
+        SizedBox(height: 16),
+        Text(
+          'Empty',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.orange[600],
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Data kandang belum lengkap',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 4),
+        Text(
+          'Silakan lengkapi data kandang\nuntuk menggunakan fitur analisis',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[500],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 20),
+        ElevatedButton.icon(
+          onPressed: _navigateToKandangManagement,
+          icon: Icon(Icons.edit, color: Colors.white),
+          label: Text(
+            'Lengkapi Data',
+            style: TextStyle(color: Colors.white),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange[600],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
       ],
@@ -823,10 +1201,7 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(24),
           alignment: Alignment.center,
           width: width(context) * 0.85,
-          constraints: BoxConstraints(
-            minHeight: height(context) * 0.60,
-            maxHeight: height(context) * 0.60,
-          ),
+          height: height( context) * 0.8 ,
           decoration: BoxDecoration(
             border: Border.all(
               color: Colors.grey[300]!,
@@ -923,91 +1298,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildHarvestTable(List<Map<String, dynamic>>? harvestCycle) {
-    // Safely handle null harvestCycle
-    final List<Map<String, dynamic>> cycle = harvestCycle ??
-        _defaultHarvestCycle
-            .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-            .toList();
 
-    return Container(
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey[300]!)),
-      child: Column(
-        children: [
-          // First row: Jan-Jun
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children:
-                  cycle.take(6).map((month) => _buildMonthCell(month)).toList(),
-            ),
-          ),
-          Divider(height: 1, color: Colors.grey[300]),
-          // Second row: Jul-Dec
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: cycle
-                  .skip(6)
-                  .take(6)
-                  .map((month) => _buildMonthCell(month))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildMonthCell(Map<String, dynamic> monthData) {
-    Color statusColor;
-    // Safely access the status with null checking
-    final status = monthData['status']?.toString() ?? 'Planned';
-
-    switch (status) {
-      case 'Complete':
-        statusColor = Colors.green;
-        break;
-      case 'In Progress':
-        statusColor = Colors.orange;
-        break;
-      default:
-        statusColor = Colors.grey;
-    }
-
-    return Column(
-      children: [
-        Text(
-          monthData['month']?.toString() ?? '',
-          style: TextStyle(
-            fontSize: 8,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF245C4C),
-          ),
-        ),
-        SizedBox(height: 2),
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: statusColor,
-            shape: BoxShape.circle,
-          ),
-        ),
-        if (monthData['yield']?.toString() != '-' && monthData['yield'] != null)
-          Text(
-            monthData['yield'].toString(),
-            style: TextStyle(
-              fontSize: 6,
-              color: Colors.grey[600],
-            ),
-          ),
-      ],
-    );
-  }
 }

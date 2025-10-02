@@ -3,6 +3,8 @@ import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swiftlead/shared/theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/utils/token_manager.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,11 +15,128 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final AuthService _apiAuth = AuthService();
 
   int _currentIndex = 4;
+  String? _userName;
+  String? _userEmail;
+  bool _isLoading = true;
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      // Try to get user data from TokenManager first
+      final token = await TokenManager.getToken();
+      if (token != null && token != 'firebase_user') {
+        // API user
+        final response = await _apiAuth.profile(token);
+        if (response['success'] == true && response['data'] != null) {
+          setState(() {
+            _userName = response['data']['name'];
+            _userEmail = response['data']['email'];
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      print("Failed to load API user data: $e");
+    }
+
+    // Fallback to Firebase or TokenManager stored data
+    final userName = await TokenManager.getUserName();
+    final userEmail = await TokenManager.getUserEmail();
+    final currentUser = _auth.currentUser;
+    
+    if (mounted) {
+      setState(() {
+        _userName = userName ?? currentUser?.displayName ?? 'User';
+        _userEmail = userEmail ?? currentUser?.email ?? 'No email';
+        _isLoading = false;
+      });
+
+    }
+  }
+
+  Future<void> _logout() async {
+    bool confirmLogout = await _showLogoutConfirmDialog();
+    if (!confirmLogout) return;
+
+    try {
+      // Try API logout first if user has API token
+      final token = await TokenManager.getToken();
+      if (token != null && token != 'firebase_user') {
+        try {
+          await _apiAuth.logout(token);
+          print("API logout successful");
+        } catch (e) {
+          print("API logout failed: $e");
+          // Continue with local logout even if API fails
+        }
+      }
+
+      // Firebase logout
+      await FirebaseAuth.instance.signOut();
+      
+      // Clear local storage
+      await TokenManager.clearAuthData();
+      
+      if (!mounted) return;
+      
+      // Navigate to login page
+      Navigator.pushReplacementNamed(context, '/login-page');
+      
+    } catch (e) {
+      print("Logout error: $e");
+      _showErrorDialog("Gagal logout. Coba lagi.");
+    }
+  }
+
+  Future<bool> _showLogoutConfirmDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Konfirmasi Logout"),
+        content: const Text("Apakah Anda yakin ingin keluar dari akun?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Batal"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  void _showErrorDialog(String message) {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Error"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,23 +163,36 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 10.0),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 5.0,
-                    horizontal: 20.0,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18.0),
-                    color: blue300,
-                  ),
-                  child: Text(
-                    '${_auth.currentUser!.email}',
+                if (_isLoading)
+                  const CircularProgressIndicator(color: Colors.white)
+                else ...[
+                  Text(
+                    _userName ?? 'User',
                     style: const TextStyle(
-                      fontSize: 16.0,
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 5.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 5.0,
+                      horizontal: 20.0,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18.0),
+                      color: blue300,
+                    ),
+                    child: Text(
+                      _userEmail ?? 'No email',
+                      style: const TextStyle(
+                        fontSize: 16.0,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -178,11 +310,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Container(
                   alignment: Alignment.bottomCenter,
                   child: ElevatedButton(
-                    onPressed: () async {
-                      // Perform the logout action
-                      await FirebaseAuth.instance.signOut();
-                      Navigator.pushReplacementNamed(context, '/login-page');
-                    },
+                    onPressed: _logout,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       shape: RoundedRectangleBorder(
@@ -230,14 +358,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 },
               ),
               label: ''),
+          
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.store,
-                label: 'Toko',
+                icon: Icons.pest_control,
+                label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/store-page');
+                  Navigator.pushReplacementNamed(context, '/control-page');
                   setState(() {
                     _currentIndex = 1;
                   });
@@ -246,12 +375,12 @@ class _ProfilePageState extends State<ProfilePage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.chat_sharp,
-                label: 'Komunitas',
+                icon: Icons.agriculture,
+                label: 'Panen',
                 currentIndex: _currentIndex,
                 itemIndex: 2,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/community-page');
+                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
                   setState(() {
                     _currentIndex = 2;
                   });
@@ -260,12 +389,12 @@ class _ProfilePageState extends State<ProfilePage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.dataset_sharp,
-                label: 'kontrol',
+                icon: Icons.sell,
+                label: 'Jual',
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
+                  Navigator.pushReplacementNamed(context, '/store-page');
                   setState(() {
                     _currentIndex = 3;
                   });

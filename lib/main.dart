@@ -3,6 +3,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 import 'package:swiftlead/firebase_options.dart';
+import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/analysis_page.dart';
 import 'package:swiftlead/pages/community_page.dart';
 import 'package:swiftlead/pages/control_page.dart';
@@ -13,7 +14,6 @@ import 'package:swiftlead/pages/register_page.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/pages/security_page.dart';
 import 'package:swiftlead/pages/splash_screen.dart';
-import 'package:swiftlead/pages/store_page.dart';
 import 'package:swiftlead/pages/temp_page.dart';
 import 'package:swiftlead/pages/landing_page.dart';
 import 'package:swiftlead/pages/blog_page.dart';
@@ -21,6 +21,9 @@ import 'package:swiftlead/pages/monitoring_system.dart';
 import 'package:swiftlead/pages/farmer_setup_page.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/pages/cage_selection_page.dart';
+import 'package:swiftlead/pages/device_installation_page.dart';
+import 'package:swiftlead/pages/sales_page.dart';
+import 'package:swiftlead/pages/general_harvest_input_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,10 +45,12 @@ Future<void> main() async {
   runApp(MyApp(secondaryDatabase: secondaryDatabase));
 }
 
+
+
 class MyApp extends StatelessWidget {
   final FirebaseDatabase secondaryDatabase;
 
-  const MyApp({Key? key, required this.secondaryDatabase}) : super(key: key);
+  const MyApp({super.key, required this.secondaryDatabase});
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
@@ -71,9 +76,17 @@ class MyApp extends StatelessWidget {
         '/farmer-setup': (context) => const FarmerSetupPage(),
         '/cage-data': (context) => const CageDataPage(),
         '/cage-selection': (context) => const CageSelectionPage(),
+        '/harvest/analysis': (context) => const AnalysisPageAlternate(),
+        '/device-installation': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return DeviceInstallationPage(
+            houseId: args['houseId'],
+            houseName: args['houseName'],
+          );
+        },
         '/home-page': (context) => const HomePage(),
         '/blog-page': (context) => const BlogPage(),
-        '/store-page': (context) => const StorePage(),
+        '/store-page': (context) => const SalesPage(),
         '/monitoring-page': (context) =>
             Monitoring(secondaryDatabase: secondaryDatabase),
         '/community-page': (context) => const CommunityPage(),
@@ -87,3 +100,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+ 
