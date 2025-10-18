@@ -527,7 +527,7 @@ class _SalesPageState extends State<SalesPage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.pest_control,
+                icon: Icons.electrical_services_sharp,
                 label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,

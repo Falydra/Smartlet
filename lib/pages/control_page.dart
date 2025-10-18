@@ -997,21 +997,21 @@ class _ControlPageState extends State<ControlPage> {
             const SizedBox(height: 16),
 
             // Section 3: Water Level per-floor
-            _sectionCard(
-              title: 'Water Level',
-              child: Column(
-                children: [
-                  if (waterLevelPerFloor.isNotEmpty)
-                    for (final w in waterLevelPerFloor) ...[
-                      _metricRow(w),
-                      const SizedBox(height: 12),
-                    ]
-                  else
-                    _buildLoadingMetric('Water Level', Icons.water_drop),
-                ],
-              ),
-            ),
-            const SizedBox(height: 80),
+            // _sectionCard(
+            //   title: 'Water Level',
+            //   child: Column(
+            //     children: [
+            //       if (waterLevelPerFloor.isNotEmpty)
+            //         for (final w in waterLevelPerFloor) ...[
+            //           _metricRow(w),
+            //           const SizedBox(height: 12),
+            //         ]
+            //       else
+            //         _buildLoadingMetric('Water Level', Icons.water_drop),
+            //     ],
+            //   ),
+            // ),
+            // const SizedBox(height: 80),
           ],
         ),
       ) : _buildNoDeviceState()) : _buildEmptyState(),
@@ -1040,7 +1040,7 @@ class _ControlPageState extends State<ControlPage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.pest_control,
+                icon: Icons.electrical_services_sharp,
                 label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,
@@ -1661,10 +1661,3 @@ class _FloorStatus {
   });
 }
 
-/*
-TODO: Integrate backend data
-- Replace _initDemoData and _generateMetricState with API or device reads.
-- Update _loadCageData to use your cage data source (or keep SharedPreferences).
-- Push/refresh per 5 minutes via timer or stream.
-- For Sistem Suara and Water Level, fetch per-floor runtime state.
-*/
