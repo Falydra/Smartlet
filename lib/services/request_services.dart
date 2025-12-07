@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_constants.dart';
 
 class RequestService {
-  final String baseUrl = "https://api.fuadfakhruz.id/api/v1";
+  final String baseUrl = ApiConstants.apiBaseUrl;
 
   // ===================
   // INSTALLATION REQUESTS
@@ -14,69 +15,38 @@ class RequestService {
       'limit': limit.toString(),
       'offset': offset.toString(),
     };
-    final uri = Uri.parse("$baseUrl/installation-requests").replace(queryParameters: queryParams);
-    
-    final response = await http.get(
-      uri,
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final uri = Uri.parse(ApiConstants.installationRequests).replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body)['data'];
   }
 
   // Get installation request by ID
   Future<Map<String, dynamic>> getInstallationRequestById(String token, int id) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/installation-requests/$id"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.get(Uri.parse("${ApiConstants.installationRequests}/$id"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
   // Create installation request
   Future<Map<String, dynamic>> createInstallationRequest(String token, Map<String, dynamic> payload) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/installation-requests"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.post(Uri.parse(ApiConstants.installationRequests), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Update installation request
   Future<Map<String, dynamic>> updateInstallationRequest(String token, int id, Map<String, dynamic> payload) async {
-    final response = await http.put(
-      Uri.parse("$baseUrl/installation-requests/$id"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.put(Uri.parse("${ApiConstants.installationRequests}/$id"), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Update installation request status
   Future<Map<String, dynamic>> updateInstallationRequestStatus(String token, int id, Map<String, dynamic> payload) async {
-    final response = await http.patch(
-      Uri.parse("$baseUrl/installation-requests/$id/status"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.patch(Uri.parse("${ApiConstants.installationRequests}/$id/status"), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Delete installation request
   Future<Map<String, dynamic>> deleteInstallationRequest(String token, int id) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/installation-requests/$id"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.delete(Uri.parse("${ApiConstants.installationRequests}/$id"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
@@ -90,69 +60,38 @@ class RequestService {
       'limit': limit.toString(),
       'offset': offset.toString(),
     };
-    final uri = Uri.parse("$baseUrl/maintenance-requests").replace(queryParameters: queryParams);
-    
-    final response = await http.get(
-      uri,
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final uri = Uri.parse(ApiConstants.maintenanceRequests).replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body)['data'];
   }
 
   // Get maintenance request by ID
   Future<Map<String, dynamic>> getMaintenanceRequestById(String token, int id) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/maintenance-requests/$id"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.get(Uri.parse("${ApiConstants.maintenanceRequests}/$id"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
   // Create maintenance request
   Future<Map<String, dynamic>> createMaintenanceRequest(String token, Map<String, dynamic> payload) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/maintenance-requests"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.post(Uri.parse(ApiConstants.maintenanceRequests), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Update maintenance request
   Future<Map<String, dynamic>> updateMaintenanceRequest(String token, int id, Map<String, dynamic> payload) async {
-    final response = await http.put(
-      Uri.parse("$baseUrl/maintenance-requests/$id"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.put(Uri.parse("${ApiConstants.maintenanceRequests}/$id"), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Update maintenance request status
   Future<Map<String, dynamic>> updateMaintenanceRequestStatus(String token, int id, Map<String, dynamic> payload) async {
-    final response = await http.patch(
-      Uri.parse("$baseUrl/maintenance-requests/$id/status"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.patch(Uri.parse("${ApiConstants.maintenanceRequests}/$id/status"), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Delete maintenance request
   Future<Map<String, dynamic>> deleteMaintenanceRequest(String token, int id) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/maintenance-requests/$id"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.delete(Uri.parse("${ApiConstants.maintenanceRequests}/$id"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
@@ -166,69 +105,38 @@ class RequestService {
       'limit': limit.toString(),
       'offset': offset.toString(),
     };
-    final uri = Uri.parse("$baseUrl/uninstallation-requests").replace(queryParameters: queryParams);
-    
-    final response = await http.get(
-      uri,
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final uri = Uri.parse(ApiConstants.uninstallationRequests).replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body)['data'];
   }
 
   // Get uninstallation request by ID
   Future<Map<String, dynamic>> getUninstallationRequestById(String token, int id) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/uninstallation-requests/$id"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.get(Uri.parse("${ApiConstants.uninstallationRequests}/$id"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
   // Create uninstallation request
   Future<Map<String, dynamic>> createUninstallationRequest(String token, Map<String, dynamic> payload) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/uninstallation-requests"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.post(Uri.parse(ApiConstants.uninstallationRequests), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Update uninstallation request
   Future<Map<String, dynamic>> updateUninstallationRequest(String token, int id, Map<String, dynamic> payload) async {
-    final response = await http.put(
-      Uri.parse("$baseUrl/uninstallation-requests/$id"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.put(Uri.parse("${ApiConstants.uninstallationRequests}/$id"), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Update uninstallation request status
   Future<Map<String, dynamic>> updateUninstallationRequestStatus(String token, int id, Map<String, dynamic> payload) async {
-    final response = await http.patch(
-      Uri.parse("$baseUrl/uninstallation-requests/$id/status"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(payload),
-    );
+    final response = await http.patch(Uri.parse("${ApiConstants.uninstallationRequests}/$id/status"), headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));
     return jsonDecode(response.body);
   }
 
   // Delete uninstallation request
   Future<Map<String, dynamic>> deleteUninstallationRequest(String token, int id) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/uninstallation-requests/$id"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.delete(Uri.parse("${ApiConstants.uninstallationRequests}/$id"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
@@ -238,19 +146,13 @@ class RequestService {
 
   // Get request analytics
   Future<Map<String, dynamic>> getRequestAnalytics(String token) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/requests/analytics"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.get(Uri.parse(ApiConstants.requestAnalytics), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 
   // Get technician workload
   Future<Map<String, dynamic>> getTechnicianWorkload(String token, int technicianId) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/requests/technician-workload/$technicianId"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    final response = await http.get(Uri.parse("${ApiConstants.requestAnalytics}/technician-workload/$technicianId"), headers: ApiConstants.authHeadersOnly(token));
     return jsonDecode(response.body);
   }
 }

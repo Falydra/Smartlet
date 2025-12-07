@@ -1,24 +1,34 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_constants.dart';
 
 class AuthService {
-  final String baseUrl = "https://api.fuadfakhruz.id/api/v1/auth";
+  // Use ApiConstants to build endpoints
+  final String baseUrl = ApiConstants.apiBaseUrl;
 
   // User login
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/login"),
-      headers: {"Content-Type": "application/json"},
+      Uri.parse(ApiConstants.authLogin),
+      headers: ApiConstants.jsonHeaders,
       body: jsonEncode({"email": email, "password": password}),
     );
+    // Debug: log HTTP status and raw response body to help diagnose failures
+    try {
+      print('AuthService.login -> POST ${ApiConstants.authLogin}');
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+    } catch (e) {
+      print('AuthService.login -> failed to print response: $e');
+    }
     return jsonDecode(response.body);
   }
 
   // User registration
   Future<Map<String, dynamic>> register(String name, String email, String password) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/register"),
-      headers: {"Content-Type": "application/json"},
+      Uri.parse(ApiConstants.users),
+      headers: ApiConstants.jsonHeaders,
       body: jsonEncode({"name": name, "email": email, "password": password}),
     );
     return jsonDecode(response.body);
@@ -27,8 +37,8 @@ class AuthService {
   // Get user profile
   Future<Map<String, dynamic>> profile(String token) async {
     final response = await http.get(
-      Uri.parse("$baseUrl/profile"),
-      headers: {"Authorization": "Bearer $token"},
+      Uri.parse(ApiConstants.usersMe),
+      headers: ApiConstants.authHeaders(token),
     );
     return jsonDecode(response.body);
   }
@@ -36,11 +46,8 @@ class AuthService {
   // Update user profile
   Future<Map<String, dynamic>> updateProfile(String token, Map<String, dynamic> payload) async {
     final response = await http.put(
-      Uri.parse("$baseUrl/profile"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
+      Uri.parse(ApiConstants.usersMe),
+      headers: ApiConstants.authHeaders(token),
       body: jsonEncode(payload),
     );
     return jsonDecode(response.body);
@@ -49,11 +56,8 @@ class AuthService {
   // Change password
   Future<Map<String, dynamic>> changePassword(String token, String currentPassword, String newPassword) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/change-password"),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
+      Uri.parse(ApiConstants.authChangePassword),
+      headers: ApiConstants.authHeaders(token),
       body: jsonEncode({
         "current_password": currentPassword,
         "new_password": newPassword
@@ -65,8 +69,8 @@ class AuthService {
   // Refresh authentication token
   Future<Map<String, dynamic>> refreshToken(String token) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/refresh"),
-      headers: {"Content-Type": "application/json"},
+      Uri.parse(ApiConstants.authRefresh),
+      headers: ApiConstants.jsonHeaders,
       body: jsonEncode({"token": token}),
     );
     return jsonDecode(response.body);
@@ -75,8 +79,8 @@ class AuthService {
   // Validate authentication token
   Future<Map<String, dynamic>> validateToken(String token) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/validate"),
-      headers: {"Content-Type": "application/json"},
+      Uri.parse(ApiConstants.authValidate),
+      headers: ApiConstants.jsonHeaders,
       body: jsonEncode({"token": token}),
     );
     return jsonDecode(response.body);
@@ -85,8 +89,8 @@ class AuthService {
   // User logout
   Future<Map<String, dynamic>> logout(String token) async {
     final response = await http.post(
-      Uri.parse("$baseUrl/logout"),
-      headers: {"Authorization": "Bearer $token"},
+      Uri.parse(ApiConstants.authLogout),
+      headers: ApiConstants.authHeaders(token),
     );
     return jsonDecode(response.body);
   }

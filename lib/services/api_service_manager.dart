@@ -1,9 +1,7 @@
 import 'auth_services.dart.dart';
 import 'house_services.dart';
-import 'devices.services.dart';
 import 'sensor_services.dart';
 import 'harvest_services.dart';
-import 'market_services.dart';
 import 'request_services.dart';
 import 'file_services.dart';
 import 'health_check_service.dart';
@@ -13,10 +11,8 @@ class ApiServiceManager {
   // Service instances
   static final AuthService _authService = AuthService();
   static final HouseService _houseService = HouseService();
-  static final DeviceService _deviceService = DeviceService();
   static final SensorService _sensorService = SensorService();
   static final HarvestService _harvestService = HarvestService();
-  static final MarketService _marketService = MarketService();
   static final RequestService _requestService = RequestService();
   static final FileService _fileService = FileService();
   static final HealthCheckService _healthCheckService = HealthCheckService();
@@ -24,10 +20,8 @@ class ApiServiceManager {
   // Getters for service instances
   static AuthService get auth => _authService;
   static HouseService get house => _houseService;
-  static DeviceService get device => _deviceService;
   static SensorService get sensor => _sensorService;
   static HarvestService get harvest => _harvestService;
-  static MarketService get market => _marketService;
   static RequestService get request => _requestService;
   static FileService get file => _fileService;
   static HealthCheckService get health => _healthCheckService;
