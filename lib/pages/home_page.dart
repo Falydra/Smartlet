@@ -7,39 +7,54 @@ import 'package:swiftlead/pages/blog_page.dart';
 import 'package:swiftlead/pages/blog_menu.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/pages/cage_selection_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
-import 'package:swiftlead/services/devices.services.dart';
-import 'package:swiftlead/services/device_installation_service.dart';
+import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/services/sensor_services.dart';
+// Removed deprecated services: DeviceService (iot-devices) & DeviceInstallationService 
+// import 'package:swiftlead/services/devices.services.dart';
+// import 'package:swiftlead/services/device_installation_service.dart';
+// import 'package:swiftlead/services/sensor_services.dart'; // Unused currently; will reintroduce when wiring sensor readings
+import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
-import 'package:swiftlead/pages/device_installation_page.dart';
+import 'package:swiftlead/utils/time_utils.dart';
+import 'package:swiftlead/pages/device_installation_page.dart'; // Still used for creating installation service-requests
 import 'dart:async';
+import 'package:swiftlead/services/alert_service.dart';
+import 'package:swiftlead/utils/notification_manager.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   int _currentIndex = 0;
-  PageController _pageController = PageController();
+  final PageController _pageController = PageController();
   int _currentKandangIndex = 0;
 
   // API Services
   final HouseService _houseService = HouseService();
-  final DeviceService _deviceService = DeviceService();
-  final DeviceInstallationService _installationService = DeviceInstallationService();
+  final NodeService _nodeService = NodeService();
   final SensorService _sensorService = SensorService();
+  // Removed deprecated services; device management now through nodes API
+  // final DeviceService _deviceService = DeviceService();
+  // final DeviceInstallationService _installationService = DeviceInstallationService();
+  // TODO: Use SensorService for real-time readings from /sensors/{id}/readings endpoints
+  // final SensorService _sensorService = SensorService();
 
   // State management
   bool _isLoading = true;
   String? _authToken;
+  bool _isAdmin = false;
+  List<dynamic> _adminRequests = [];
+  final AlertService _alertService = AlertService();
+  final NotificationManager _notif = NotificationManager();
 
   // List of kandang (cages)
   List<Map<String, dynamic>> _kandangList = [];
@@ -47,12 +62,13 @@ class _HomePageState extends State<HomePage> {
   // Real-time sensor data
   Timer? _refreshTimer;
 
-  // Static device data template
-  final Map<String, dynamic> _deviceData = {
-    'temperature': 28.5,
-    'humidity': 75.2,
-    'ammonia': 12.1,
-    'twitter': 'Active', // Active / Not Active
+  // Fallback device data template (null until sensors provide values)
+  final Map<String, dynamic> _fallbackDeviceData = {
+    'temperature': null,
+    'humidity': null,
+    'ammonia': null,
+    'mist_spray': 'Inactive',
+    'speaker': 'Inactive',
   };
 
   // Default harvest cycle data template
@@ -74,7 +90,74 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeData();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Refresh data when app comes back to foreground
+      print('[HOME] App resumed, refreshing data...');
+      if (_authToken != null && mounted) {
+        _loadKandangFromAPI();
+      }
+    }
+  }
+
+  Future<void> _showAlertsDialog() async {
+    await _loadAlerts();
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Notifikasi'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+              valueListenable: _notif.alerts,
+              builder: (context, list, _) {
+                if (list.isEmpty) return const Text('Tidak ada notifikasi');
+                return SingleChildScrollView(
+                  child: Column(
+                    children: list.map((a) {
+                      final isUnread = !(a['is_read'] == true);
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          a['title']?.toString() ?? 'Alert',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isUnread ? Colors.black : Colors.black54,
+                          ),
+                        ),
+                        subtitle: Text(a['message']?.toString() ?? ''),
+                        trailing: isUnread ? const Icon(Icons.fiber_new, color: Colors.redAccent, size: 16) : null,
+                        onTap: () async {
+                          if (_authToken != null && a['synthetic'] != true) {
+                            try { await _alertService.markRead(_authToken!, a['id'].toString()); } catch (_) {}
+                          }
+                          _notif.markRead(a['id'].toString());
+                        },
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _initializeData() async {
@@ -89,108 +172,262 @@ class _HomePageState extends State<HomePage> {
       _authToken = await TokenManager.getToken();
       
       if (_authToken != null) {
-        // Try to load from API first
-        await _loadKandangFromAPI();
+        // Load profile to check role
+        try {
+          final auth = AuthService();
+          final profile = await auth.profile(_authToken!).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              print('Profile API timeout');
+              return {'success': false};
+            },
+          );
+          final role = profile['data']?['role']?.toString();
+          _isAdmin = role == 'admin';
+          if (_isAdmin) {
+            await _loadAdminRequests().timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                print('Admin requests timeout');
+              },
+            );
+          }
+        } catch (e) {
+          print('Failed to load profile: $e');
+        }
+        // Try to load from API first with timeout
+        await _loadKandangFromAPI().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            print('Kandang API timeout after 30s - continuing with partial data');
+          },
+        );
+        await _loadAlerts().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('Alerts API timeout');
+          },
+        );
       }
       
-      // If API failed or no token, fallback to local data
+      // No fallback to local data - only use API data
       if (_kandangList.isEmpty) {
-        await _loadKandangData();
+        print('No kandang data loaded from API');
+      } else {
+        print('Successfully loaded ${_kandangList.length} kandang from API');
       }
     } catch (e) {
       print('Error initializing data: $e');
-      // Fallback to local data
-      await _loadKandangData();
+      // No fallback - just leave empty
+    } finally {
+      // Always set loading to false, even if there's an error
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+  }
+
+  Future<void> _loadAlerts() async {
+    if (_authToken == null) return;
+    try {
+      final allRes = await _alertService.list(_authToken!, unreadOnly: false, perPage: 50);
+      final allList = (allRes['data'] is List) ? List<Map<String, dynamic>>.from(allRes['data']) : <Map<String, dynamic>>[];
+      _notif.replaceAll(allList);
+    } catch (e) {
+      // ignore
     }
   }
 
   Future<void> _loadKandangFromAPI() async {
     try {
+      print('Loading houses from API...');
       final houses = await _houseService.getAll(_authToken!);
+      print('Loaded ${houses.length} houses from API');
       
       List<Map<String, dynamic>> kandangList = [];
+      
+      // First pass: Create basic house cards without sensor data to show UI immediately
       for (var house in houses) {
-        // Load device data for this house
-        Map<String, dynamic> deviceData = Map<String, dynamic>.from(_deviceData); // Default device data
-        try {
-          final devices = await _deviceService.getAll(_authToken!);
-          // Find devices for this house (you might need to filter by house_id)
-          if (devices.isNotEmpty) {
-            // Use the first device data or filter by house ID
-            var houseDevice = devices.firstWhere(
-              (device) => device['house_id'] == house['id'],
-              orElse: () => devices.first,
-            );
-            deviceData = {
-              'temperature': houseDevice['temperature']?.toDouble() ?? 28.5,
-              'humidity': houseDevice['humidity']?.toDouble() ?? 75.2,
-              'ammonia': houseDevice['ammonia']?.toDouble() ?? 12.1,
-              'twitter': houseDevice['status'] ?? 'Active',
-            };
-          }
-        } catch (e) {
-          print('Failed to load device data for house ${house['id']}: $e');
-          // Use default device data
-        }
-
-        // Check device installation status
-        bool hasDeviceInstalled = false;
-        List<String> installationCodes = [];
-        try {
-          final installCheck = await _installationService.checkDeviceInstallation(_authToken!, house['id']);
-          hasDeviceInstalled = installCheck['hasDevices'] ?? false;
-          installationCodes = List<String>.from(installCheck['installationCodes'] ?? []);
-        } catch (e) {
-          print('Failed to check device installation for house ${house['id']}: $e');
-        }
-
-        // Load real sensor data if device is installed
-        if (hasDeviceInstalled && installationCodes.isNotEmpty) {
-          try {
-            final sensorData = await _loadSensorDataForHouse(installationCodes.first);
-            if (sensorData != null) {
-              deviceData = {
-                'temperature': sensorData['suhu'] ?? _deviceData['temperature'],
-                'humidity': sensorData['kelembaban'] ?? _deviceData['humidity'],
-                'ammonia': sensorData['amonia'] ?? _deviceData['ammonia'],
-                'twitter': 'Active', // Keep this as is
-              };
-            }
-          } catch (e) {
-            print('Failed to load sensor data for house ${house['id']}: $e');
-          }
-        }
-
         kandangList.add({
           'id': 'house_${house['id']}',
           'apiId': house['id'],
           'name': house['name'] ?? 'Kandang ${house['floor_count'] ?? 1} Lantai',
-          'address': house['location'] ?? 'Lokasi tidak tersedia',
-          'floors': house['floor_count'] ?? 3,
+          'address': house['address'] ?? 'Lokasi tidak tersedia',
+          'floors': house['total_floors'] ?? 3,
           'description': house['description'] ?? '',
           'image': house['image_url'],
           'isEmpty': false,
-          'deviceData': deviceData,
+          'deviceData': Map<String, dynamic>.from(_fallbackDeviceData),
           'harvestCycle': _defaultHarvestCycle
               .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
               .toList(),
           'isFromAPI': true,
-          'hasDeviceInstalled': hasDeviceInstalled,
-          'installationCodes': installationCodes,
+          'hasDeviceInstalled': false,
+          'nodeIds': <String>[],
+          'sensors': <Map<String, dynamic>>[],
         });
       }
       
+      // Update UI immediately with basic house data
       if (mounted) {
         setState(() {
           _kandangList = kandangList;
         });
       }
+      
+      print('Displayed ${kandangList.length} houses, now loading sensor data...');
+      
+      // Second pass: Load sensor data for each house
+      for (int i = 0; i < houses.length; i++) {
+        var house = houses[i];
+        print('Loading sensors for house ${i}: ${house['name']}');
+        
+        // Start with fallback device data
+        Map<String, dynamic> deviceData = Map<String, dynamic>.from(_fallbackDeviceData);
+        
+        // NOTE: Previously loaded devices via deprecated /iot-devices endpoint
+        // Replace with nodes API call to get actual IoT device data
+
+        // Check device installation status - use nodes API
+        bool hasDeviceInstalled = false;
+        List<String> nodeIds = [];
+        List<Map<String, dynamic>> sensorsCollected = [];
+        try {
+          final rbwId = house['id']?.toString() ?? '';
+          print('RBW ID: $rbwId');
+          if (rbwId.isNotEmpty) {
+            // Load nodes using RBW-specific endpoint
+            print('Loading nodes for RBW: $rbwId (calling /api/v1/rbw/$rbwId/nodes)');
+            final nodesRes = await _nodeService.listByRbw(_authToken!, rbwId, queryParams: {'per_page': '50'}).timeout(
+              const Duration(seconds: 15),
+              onTimeout: () {
+                print('⚠️ Nodes loading timeout after 15s for house ${house['name']}');
+                return {'success': false, 'message': 'timeout'};
+              },
+            );
+            
+            print('Nodes response: success=${nodesRes['success']}, data count=${(nodesRes['data'] as List?)?.length ?? 0}');
+            if (nodesRes['message'] != null) {
+              print('Nodes response message: ${nodesRes['message']}');
+            }
+            if (nodesRes['success'] == true) {
+              final List<dynamic> nodes = (nodesRes['data'] as List<dynamic>? ) ?? [];
+              hasDeviceInstalled = nodes.isNotEmpty;
+              print('Found ${nodes.length} nodes, hasDeviceInstalled=$hasDeviceInstalled');
+              nodeIds = nodes.map((n) => n['id']?.toString() ?? '').where((id) => id.isNotEmpty).cast<String>().toList();
+              print('Node IDs: $nodeIds');
+              
+              // Load sensors and readings with timeout (non-blocking)
+              if (nodeIds.isNotEmpty) {
+                try {
+                  // Fetch node state for pump and audio status
+                  String mistSprayStatus = 'Inactive';
+                  String speakerStatus = 'Inactive';
+                  
+                  // Check all nodes for any active audio states
+                  bool anyAudioActive = false;
+                  
+                  // Get the first node's state for pump (assuming single main control node)
+                  if (nodeIds.isNotEmpty) {
+                    try {
+                      final nodeId = nodeIds.first;
+                      final nodeDetailRes = await _nodeService.getById(_authToken!, nodeId).timeout(
+                        const Duration(seconds: 3),
+                        onTimeout: () => {'success': false},
+                      );
+                      
+                      if (nodeDetailRes['success'] == true && nodeDetailRes['data'] != null) {
+                        final nodeData = nodeDetailRes['data'];
+                        print('[HOME NODE STATE] Node ID: $nodeId');
+                        print('[HOME NODE STATE] state_pump: ${nodeData['state_pump']}');
+                        print('[HOME NODE STATE] state_audio: ${nodeData['state_audio']}');
+                        print('[HOME NODE STATE] state_audio_lmb: ${nodeData['state_audio_lmb']}');
+                        print('[HOME NODE STATE] state_audio_nest: ${nodeData['state_audio_nest']}');
+                        
+                        // Extract pump state
+                        final statePump = nodeData['state_pump'];
+                        mistSprayStatus = (statePump == 1 || statePump == '1' || statePump == true) ? 'Active' : 'Inactive';
+                        
+                        // Check all 3 audio states: state_audio (All), state_audio_lmb (LMB), state_audio_nest (Nest)
+                        final stateAudio = nodeData['state_audio'];
+                        final stateAudioLmb = nodeData['state_audio_lmb'];
+                        final stateAudioNest = nodeData['state_audio_nest'];
+                        
+                        // Speaker is Active if ANY of the 3 audio states is true
+                        anyAudioActive = (stateAudio == 1 || stateAudio == '1' || stateAudio == true) ||
+                                        (stateAudioLmb == 1 || stateAudioLmb == '1' || stateAudioLmb == true) ||
+                                        (stateAudioNest == 1 || stateAudioNest == '1' || stateAudioNest == true);
+                        
+                        speakerStatus = anyAudioActive ? 'Active' : 'Inactive';
+                        
+                        print('[HOME NODE STATE] 🌫️ Mist Spray Status: $mistSprayStatus (from state_pump=$statePump)');
+                        print('[HOME NODE STATE] 🔊 Speaker Status: $speakerStatus (All=$stateAudio, LMB=$stateAudioLmb, Nest=$stateAudioNest, anyActive=$anyAudioActive)');
+                      }
+                    } catch (e) {
+                      print('[HOME NODE STATE] Error fetching node state: $e');
+                    }
+                  }
+                  
+                  // Fetch sensors via dedicated nodes/{node_id}/sensors endpoint
+                  for (final nodeId in nodeIds) {
+                    final sensorsRes = await _nodeService.getSensorsByNode(_authToken!, nodeId).timeout(
+                      const Duration(seconds: 3),
+                      onTimeout: () => {'success': false},
+                    );
+                    if (sensorsRes['success'] == true) {
+                      final List<dynamic> nodeSensors = (sensorsRes['data'] as List<dynamic>? ) ?? [];
+                      print('Node $nodeId has ${nodeSensors.length} sensors');
+                      for (final s in nodeSensors) {
+                        if (s is Map<String, dynamic>) {
+                          sensorsCollected.add(Map<String,dynamic>.from(s));
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Aggregate latest readings across sensors using /sensors/{id}/readings?limit=10
+                  if (sensorsCollected.isNotEmpty) {
+                    deviceData = await _aggregateLatestReadingsFromQuery(sensorsCollected, mistSprayStatus, speakerStatus).timeout(
+                      const Duration(seconds: 5),
+                      onTimeout: () {
+                        print('Sensor readings timeout for house ${house['name']}');
+                        return Map<String, dynamic>.from(_fallbackDeviceData);
+                      },
+                    );
+                  } else {
+                    // No sensors but we have node state
+                    deviceData['mist_spray'] = mistSprayStatus;
+                    deviceData['speaker'] = speakerStatus;
+                  }
+                } catch (e) {
+                  print('Error loading sensors/readings for ${house['name']}: $e');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Keep graceful degradation; just log
+          print('Failed to load nodes for RBW ${house['id']}: $e');
+        }
+
+        // Update the existing house in kandangList with sensor data
+        print('Updating house ${i} with hasDeviceInstalled=$hasDeviceInstalled, sensors=${sensorsCollected.length}');
+        if (mounted) {
+          setState(() {
+            _kandangList[i]['deviceData'] = deviceData;
+            _kandangList[i]['hasDeviceInstalled'] = hasDeviceInstalled;
+            _kandangList[i]['nodeIds'] = nodeIds;
+            _kandangList[i]['sensors'] = sensorsCollected;
+          });
+          print('Updated UI for house ${i}');
+        }
+      }
+      
+      print('Finished loading sensor data for all houses');
+      
+      // No need to set kandangList again as we updated in-place
       
       // Start periodic refresh for real-time sensor data
       _startPeriodicRefresh();
@@ -202,24 +439,30 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<Map<String, dynamic>?> _loadSensorDataForHouse(String installCode) async {
+  Future<void> _loadAdminRequests() async {
+    if (_authToken == null) return;
     try {
-      final response = await _sensorService.getDataByInstallCode(_authToken!, installCode, limit: 1);
-      if (response['success'] == true && response['data'] != null && response['data'].isNotEmpty) {
-        return response['data'][0];
+      final srv = ServiceRequestService();
+      final res = await srv.list(_authToken!, queryParams: {'status': 'pending', 'per_page': '10'});
+      if (res['success'] == true && res['data'] != null) {
+        setState(() {
+          _adminRequests = res['data'] as List<dynamic>;
+        });
       }
     } catch (e) {
-      print('Error loading sensor data for install code $installCode: $e');
+      print('Failed to load admin requests: $e');
     }
-    return null;
   }
+
+  // Removed _loadSensorDataForHouse method since DeviceInstallationService was deprecated
+  // TODO: Replace with sensor readings API calls when needed
 
   void _startPeriodicRefresh() {
     // Cancel existing timer if any
     _refreshTimer?.cancel();
 
-    // Refresh sensor data every 5 minutes
-    _refreshTimer = Timer.periodic(Duration(minutes: 5), (timer) async {
+    // Refresh sensor data every 10 seconds for real-time updates
+    _refreshTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (_authToken != null && mounted) {
         await _loadKandangFromAPI();
       }
@@ -233,166 +476,43 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stopPeriodicRefresh();
     _pageController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadKandangData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Load all stored kandang
-      List<Map<String, dynamic>> kandangList = [];
-
-      // Get saved kandang count
-      int kandangCount = prefs.getInt('kandang_count') ?? 0;
-
-      if (kandangCount == 0) {
-        // Check for legacy single kandang data
-        final savedAddress = prefs.getString('cage_address');
-        final savedFloors = prefs.getInt('cage_floors');
-        final savedImage = prefs.getString('cage_image');
-
-        if (savedAddress != null &&
-            savedAddress.isNotEmpty &&
-            savedFloors != null) {
-          // Convert legacy data to new format
-          kandangList.add({
-            'id': 'kandang_1',
-            'name': 'Kandang $savedFloors Lantai',
-            'address': savedAddress,
-            'floors': savedFloors,
-            'image': savedImage,
-            'harvestCycle': _defaultHarvestCycle
-                .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-                .toList(),
-          });
-
-          // Save in new format
-          await _saveKandangList(kandangList);
-        }
-      } else {
-        // Load all kandang from new format
-        for (int i = 1; i <= kandangCount; i++) {
-          try {
-            // Load individual preferences for each kandang
-            final name = prefs.getString('kandang_${i}_name') ?? '';
-            final address = prefs.getString('kandang_${i}_address') ?? '';
-            final floors = prefs.getInt('kandang_${i}_floors') ?? 3;
-            final description = prefs.getString('kandang_${i}_description') ?? '';
-            final image = prefs.getString('kandang_${i}_image');
-
-            // Check if data is complete
-            final isEmpty = name.isEmpty || address.isEmpty;
-
-            // Always add kandang entry, even if incomplete
-            kandangList.add({
-              'id': 'kandang_$i',
-              'name': isEmpty ? 'Empty' : name,
-              'address': isEmpty ? 'Data belum lengkap' : address,
-              'floors': floors,
-              'description': description,
-              'image': image,
-              'isEmpty': isEmpty, // Flag to identify incomplete data
-              'harvestCycle': _defaultHarvestCycle
-                  .map<Map<String, dynamic>>(
-                      (e) => Map<String, dynamic>.from(e))
-                  .toList(),
-            });
-          } catch (e) {
-            print('Error loading kandang $i: $e');
-          }
-        }
-      }
-
-      // Don't add default kandang - let the empty state show
-      // if (kandangList.isEmpty) {
-      //   kandangList.add({
-      //     'id': 'kandang_default',
-      //     'name': 'Kandang Demo',
-      //     'address': 'Jl Jawa No 23, Semarang',
-      //     'floors': 3,
-      //     'image': null,
-      //     'harvestCycle': _defaultHarvestCycle
-      //         .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-      //         .toList(),
-      //   });
-      // }
-
-      if (mounted) {
-        setState(() {
-          _kandangList = kandangList;
-        });
-      }
-    } catch (e) {
-      print('Error loading kandang data: $e');
-      // Set empty kandang list on error - let the empty state show
-      if (mounted) {
-        setState(() {
-          _kandangList = [];
-        });
-      }
-    }
-  }
-
-  Future<void> _saveKandangList(List<Map<String, dynamic>> kandangList) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Save kandang count
-      await prefs.setInt('kandang_count', kandangList.length);
-
-      // Save each kandang individually
-      for (int i = 0; i < kandangList.length; i++) {
-        final kandang = kandangList[i];
-        final index = i + 1;
-
-        await prefs.setString(
-            'kandang_${index}_name', kandang['name'] ?? '');
-        await prefs.setString(
-            'kandang_${index}_address', kandang['address'] ?? '');
-        await prefs.setInt('kandang_${index}_floors', kandang['floors'] ?? 3);
-        await prefs.setString(
-            'kandang_${index}_description', kandang['description'] ?? '');
-        if (kandang['image'] != null) {
-          await prefs.setString('kandang_${index}_image', kandang['image']);
-        }
-      }
-    } catch (e) {
-      print('Error saving kandang list: $e');
-    }
-  }
-
-
+  // Local data methods removed - only using API data now
 
   void _navigateToKandangManagement() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const CageSelectionPage()),
     ).then((_) {
-      // Reload kandang data when returning
-      _loadKandangData();
+      // Reload kandang data from API when returning
+      _loadKandangFromAPI();
     });
   }
 
   void _navigateToDeviceInstallation(Map<String, dynamic> kandang) {
-    if (kandang['apiId'] != null) {
+    final dynamic apiIdRaw = kandang['apiId'];
+    final String? apiIdStr = apiIdRaw?.toString();
+
+  if (apiIdStr != null && apiIdStr.isNotEmpty) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => DeviceInstallationPage(
-            houseId: kandang['apiId'],
+            houseId: apiIdStr,
             houseName: kandang['name'],
           ),
         ),
       ).then((_) {
-        // Reload kandang data when returning
         _initializeData();
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Kandang harus disimpan ke database terlebih dahulu'),
           backgroundColor: Colors.orange,
         ),
@@ -420,16 +540,44 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: <Widget>[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: IconButton(
-              icon: Icon(Icons.notifications_on_outlined, color: blue500),
-              onPressed: () {},
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: ValueListenableBuilder<int>(
+              valueListenable: _notif.unreadCount,
+              builder: (context, count, _) {
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.notifications_on_outlined, color: blue500),
+                      onPressed: () async {
+                        await _showAlertsDialog();
+                      },
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        right: 4,
+                        top: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            count.toString(),
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
       body: _isLoading 
-        ? Center(
+        ? const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -444,12 +592,44 @@ class _HomePageState extends State<HomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Kandang Carousel Section
-                Container(
-                  height: height(context) * 0.45,
+                SizedBox(
+                  //If the device are not installed make the height * 0.55, if installed 0.38
+                  height: height(context) * 0.38,
                   child: _kandangList.isEmpty
                       ? _buildEmptyKandangCard()
                       : _buildKandangCarousel(),
                 ),
+
+            // Admin quick actions: show pending installation requests
+            if (_isAdmin)
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: width(context) * 0.05, vertical: 8),
+                child: Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Pending Installation Requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        if (_adminRequests.isEmpty) const Text('No pending requests'),
+                        ..._adminRequests.map((r) {
+                          final id = r['id']?.toString() ?? '';
+                          final issue = r['issue'] ?? r['type'] ?? 'Installation';
+                          final rbw = r['rbw']?['name'] ?? r['rbw_id'] ?? '';
+                          return ListTile(
+                            title: Text(issue.toString()),
+                            subtitle: Text('RBW: $rbw'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.pushNamed(context, '/service-request-detail', arguments: {'id': id}).then((_) => _loadAdminRequests()),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             // News section
             Column(
@@ -467,7 +647,7 @@ class _HomePageState extends State<HomePage> {
                           Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => BlogMenu()));
+                                  builder: (context) => const BlogMenu()));
                         },
                         child: const Text("Berita Terkini",
                             style: TextStyle(
@@ -483,10 +663,10 @@ class _HomePageState extends State<HomePage> {
                   padding: EdgeInsets.only(
                       left: width(context) * 0.077,
                       bottom: height(context) * 0.02),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         "Baca berita terkini mengenai dunia burung walet.",
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w200),
@@ -501,17 +681,17 @@ class _HomePageState extends State<HomePage> {
                   child: GestureDetector(
                     onTap: () {
                       Navigator.push(context,
-                          MaterialPageRoute(builder: (context) => BlogPage()));
+                          MaterialPageRoute(builder: (context) => const BlogPage()));
                     },
                     child: Container(
                       alignment: Alignment.center,
                       width: width(context) * 0.8,
                       height: height(context) * 0.25,
                       decoration: BoxDecoration(
-                        color: Color(0xFFFFF7CA),
+                        color: const Color(0xFFFFF7CA),
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: List<BoxShadow>.from([
-                          BoxShadow(
+                          const BoxShadow(
                             color: Colors.black26,
                             blurRadius: 2,
                             offset: Offset(2, 2),
@@ -523,7 +703,7 @@ class _HomePageState extends State<HomePage> {
                           Container(
                             width: width(context) * 0.8,
                             height: height(context) * 0.20,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                                 image: DecorationImage(
                                     image:
                                         AssetImage("assets/img/Frame_19.png"),
@@ -549,7 +729,7 @@ class _HomePageState extends State<HomePage> {
                                         color: Colors.white.withAlpha(140),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: Row(
+                                      child: const Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceAround,
                                         children: [
@@ -558,7 +738,7 @@ class _HomePageState extends State<HomePage> {
                                             color: Color((0xFF245C4C)),
                                             size: 10,
                                           ),
-                                          const Text(
+                                          Text(
                                             "1,2rb",
                                             style: TextStyle(
                                               fontSize: 10,
@@ -581,8 +761,8 @@ class _HomePageState extends State<HomePage> {
                                 width: width(context) * 0.8,
                                 height: height(context) * 0.05,
                                 alignment: Alignment.centerLeft,
-                                padding: EdgeInsets.only(left: 8),
-                                decoration: BoxDecoration(
+                                padding: const EdgeInsets.only(left: 8),
+                                decoration: const BoxDecoration(
                                   color: Color(0xffe9f9ff),
                                 ),
                                 child: const Text(
@@ -609,10 +789,10 @@ class _HomePageState extends State<HomePage> {
                     width: width(context) * 0.8,
                     height: height(context) * 0.25,
                     decoration: BoxDecoration(
-                      color: Color.fromARGB(255, 73, 164, 118),
+                      color: const Color.fromARGB(255, 73, 164, 118),
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: List<BoxShadow>.from([
-                        BoxShadow(
+                        const BoxShadow(
                           color: Colors.black26,
                           blurRadius: 2,
                           offset: Offset(2, 2),
@@ -624,7 +804,7 @@ class _HomePageState extends State<HomePage> {
                         Container(
                           width: width(context) * 0.8,
                           height: height(context) * 0.20,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                               image: DecorationImage(
                                   image:
                                       AssetImage("assets/img/images_(1).jpg"),
@@ -680,8 +860,8 @@ class _HomePageState extends State<HomePage> {
                               width: width(context) * 0.8,
                               height: height(context) * 0.05,
                               alignment: Alignment.centerLeft,
-                              padding: EdgeInsets.only(left: 8),
-                              decoration: BoxDecoration(
+                              padding: const EdgeInsets.only(left: 8),
+                              decoration: const BoxDecoration(
                                 color: Color(0xffe9f9ff),
                               ),
                               child: const Text(
@@ -711,78 +891,123 @@ class _HomePageState extends State<HomePage> {
             _currentIndex = index;
           });
         },
-        items: [
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.home,
-                label: 'Beranda',
-                currentIndex: _currentIndex,
-                itemIndex: 0,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/home-page');
-                  setState(() {
-                    _currentIndex = 0;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.electrical_services_sharp,
-                label: 'Kontrol',
-                currentIndex: _currentIndex,
-                itemIndex: 1,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
-                  setState(() {
-                    _currentIndex = 1;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.agriculture,
-                label: 'Panen',
-                currentIndex: _currentIndex,
-                itemIndex: 2,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
-                  setState(() {
-                    _currentIndex = 2;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.sell,
-                label: 'Jual',
-                currentIndex: _currentIndex,
-                itemIndex: 3,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/store-page');
-                  setState(() {
-                    _currentIndex = 3;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.person,
-                label: 'Profil',
-                currentIndex: _currentIndex,
-                itemIndex: 4,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/profile-page');
-                  setState(() {
-                    _currentIndex = 4;
-                  });
-                },
-              ),
-              label: ''),
-        ],
+        items: _isAdmin
+            ? [
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.home,
+                      label: 'Beranda',
+                      currentIndex: _currentIndex,
+                      itemIndex: 0,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/home-page');
+                        setState(() {
+                          _currentIndex = 0;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.build_circle,
+                      label: 'Installation',
+                      currentIndex: _currentIndex,
+                      itemIndex: 1,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/installation-manager');
+                        setState(() {
+                          _currentIndex = 1;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.group,
+                      label: 'Users',
+                      currentIndex: _currentIndex,
+                      itemIndex: 2,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/user-manager');
+                        setState(() {
+                          _currentIndex = 2;
+                        });
+                      },
+                    ),
+                    label: ''),
+              ]
+            : [
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.home,
+                      label: 'Beranda',
+                      currentIndex: _currentIndex,
+                      itemIndex: 0,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/home-page');
+                        setState(() {
+                          _currentIndex = 0;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.devices,
+                      label: 'Kontrol',
+                      currentIndex: _currentIndex,
+                      itemIndex: 1,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/control-page');
+                        setState(() {
+                          _currentIndex = 1;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.agriculture,
+                      label: 'Panen',
+                      currentIndex: _currentIndex,
+                      itemIndex: 2,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                        setState(() {
+                          _currentIndex = 2;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.sell,
+                      label: 'Jual',
+                      currentIndex: _currentIndex,
+                      itemIndex: 3,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/store-page');
+                        setState(() {
+                          _currentIndex = 3;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.person,
+                      label: 'Profil',
+                      currentIndex: _currentIndex,
+                      itemIndex: 4,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/profile-page');
+                        setState(() {
+                          _currentIndex = 4;
+                        });
+                      },
+                    ),
+                    label: ''),
+              ],
       ),
     );
   }
@@ -802,12 +1027,12 @@ class _HomePageState extends State<HomePage> {
                   children: List.generate(
                     _kandangList.length,
                     (index) => Container(
-                      margin: EdgeInsets.only(right: 4),
+                      margin: const EdgeInsets.only(right: 4),
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
                         color: _currentKandangIndex == index
-                            ? Color(0xFF245C4C)
+                            ? const Color(0xFF245C4C)
                             : Colors.grey[300],
                         shape: BoxShape.circle,
                       ),
@@ -819,8 +1044,8 @@ class _HomePageState extends State<HomePage> {
               // Manage kandang button
               TextButton.icon(
                 onPressed: _navigateToKandangManagement,
-                icon: Icon(Icons.settings, size: 16, color: Color(0xFF245C4C)),
-                label: Text(
+                icon: const Icon(Icons.settings, size: 16, color: Color(0xFF245C4C)),
+                label: const Text(
                   'Kelola',
                   style: TextStyle(
                     fontSize: 12,
@@ -861,14 +1086,14 @@ class _HomePageState extends State<HomePage> {
       
       children: [
         Container(
-          padding: EdgeInsets.only(top: 16),
+          padding: const EdgeInsets.only(top: 16),
           width: width(context) * 0.85,
-          height: height(context) * 0.35,
+          height: height(context) * 0.75,
           decoration: BoxDecoration(
             border: Border.all(
-              color: isEmpty ? Colors.grey[300]! : Color(0xFFffc200),
+              color: isEmpty ? Colors.grey[300]! : const Color(0xFFffc200),
             ),
-            color: isEmpty ? Colors.grey[50] : Color(0xFFfffcee),
+            color: isEmpty ? Colors.grey[50] : const Color(0xFFfffcee),
             borderRadius: BorderRadius.circular(8),
           ),
           child: isEmpty ? _buildEmptyKandangContent(kandang) : SingleChildScrollView(
@@ -882,7 +1107,7 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.only(left: 16.0),
                     child: Text(
                       kandang['name']?.toString() ?? 'Kandang',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF245C4C),
@@ -924,7 +1149,7 @@ class _HomePageState extends State<HomePage> {
                             ? Colors.green 
                             : Colors.red,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
                           (kandang['hasDeviceInstalled'] ?? false) 
                             ? 'Device Installed' 
@@ -943,12 +1168,12 @@ class _HomePageState extends State<HomePage> {
                       GestureDetector(
                         onTap: () => _navigateToDeviceInstallation(kandang),
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.orange,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(
+                          child: const Text(
                             'Install',
                             style: TextStyle(
                               fontSize: 10,
@@ -985,45 +1210,72 @@ class _HomePageState extends State<HomePage> {
 
               // Device statistics with icons and data or installation prompt
               if (kandang['hasDeviceInstalled'] ?? false)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStatCard(
-                      "Temp",
-                      "${kandang['deviceData']?['temperature'] ?? _deviceData['temperature']}°C",
-                      Icons.thermostat,
-                      Colors.orange,
-                    ),
-                    _buildStatCard(
-                      "Humidity",
-                      "${kandang['deviceData']?['humidity'] ?? _deviceData['humidity']}%",
-                      Icons.water_drop,
-                      Colors.blue,
-                    ),
-                    _buildStatCard(
-                      "Ammonia",
-                      "${kandang['deviceData']?['ammonia'] ?? _deviceData['ammonia']}ppm",
-                      Icons.air,
-                      Colors.purple,
-                    ),
-                    _buildStatCard(
-                      "Twitter",
-                      kandang['deviceData']?['twitter']?.toString() ?? _deviceData['twitter']?.toString() ?? 'Not Active',
-                      (kandang['deviceData']?['twitter'] ?? _deviceData['twitter']) == 'Active'
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      (kandang['deviceData']?['twitter'] ?? _deviceData['twitter']) == 'Active'
-                          ? Colors.green
-                          : Colors.red,
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Flexible(
+                        child: _buildStatCard(
+                          "Suhu",
+                          _formatMetric(kandang['deviceData']?['temperature'], suffix: '°C'),
+                          Icons.thermostat,
+                          Colors.orange,
+                        ),
+                      ),
+                      Flexible(
+                        child: _buildStatCard(
+                          "Kelembapan",
+                          _formatMetric(kandang['deviceData']?['humidity'], suffix: '%'),
+                          Icons.water_drop,
+                          Colors.blue,
+                        ),
+                      ),
+                      Flexible(
+                        child: _buildStatCard(
+                          "Amonia",
+                          _formatMetric(kandang['deviceData']?['ammonia'], suffix: 'ppm'),
+                          Icons.air,
+                          Colors.purple,
+                        ),
+                      ),
+                      Flexible(
+                        child: _buildStatCard(
+                          "Speaker",
+                          (kandang['deviceData']?['speaker'] ?? 'Inactive') == 'Active' 
+                              ? 'Active' 
+                              : 'Inactive',
+                          (kandang['deviceData']?['speaker'] ?? 'Inactive') == 'Active'
+                              ? Icons.volume_up
+                              : Icons.volume_off,
+                          (kandang['deviceData']?['speaker'] ?? 'Inactive') == 'Active'
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
+                      Flexible(
+                        child: _buildStatCard(
+                          "Mist",
+                          (kandang['deviceData']?['mist_spray'] ?? 'Inactive') == 'Active' 
+                              ? 'Active' 
+                              : 'Inactive',
+                          (kandang['deviceData']?['mist_spray'] ?? 'Inactive') == 'Active'
+                              ? Icons.water_drop_outlined
+                              : Icons.block,
+                          (kandang['deviceData']?['mist_spray'] ?? 'Inactive') == 'Active'
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
                 )
               else
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
                   child: Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.red[50],
                       borderRadius: BorderRadius.circular(8),
@@ -1036,7 +1288,7 @@ class _HomePageState extends State<HomePage> {
                           size: 48,
                           color: Colors.red[400],
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                           'No sensors installed',
                           style: TextStyle(
@@ -1045,7 +1297,7 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.red[700],
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           'Install devices to monitor your kandang',
                           style: TextStyle(
@@ -1054,11 +1306,11 @@ class _HomePageState extends State<HomePage> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         ElevatedButton.icon(
                           onPressed: () => _navigateToDeviceInstallation(kandang),
-                          icon: Icon(Icons.add_circle, size: 16, color: Colors.white),
-                          label: Text(
+                          icon: const Icon(Icons.add_circle, size: 16, color: Colors.white),
+                          label: const Text(
                             'Request Installation',
                             style: TextStyle(fontSize: 12, color: Colors.white),
                           ),
@@ -1067,7 +1319,7 @@ class _HomePageState extends State<HomePage> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           ),
                         ),
                       ],
@@ -1147,7 +1399,7 @@ class _HomePageState extends State<HomePage> {
           size: 64,
           color: Colors.orange[400],
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         Text(
           'Empty',
           style: TextStyle(
@@ -1156,7 +1408,7 @@ class _HomePageState extends State<HomePage> {
             color: Colors.orange[600],
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
           'Data kandang belum lengkap',
           style: TextStyle(
@@ -1165,7 +1417,7 @@ class _HomePageState extends State<HomePage> {
           ),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           'Silakan lengkapi data kandang\nuntuk menggunakan fitur analisis',
           style: TextStyle(
@@ -1174,11 +1426,11 @@ class _HomePageState extends State<HomePage> {
           ),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
         ElevatedButton.icon(
           onPressed: _navigateToKandangManagement,
-          icon: Icon(Icons.edit, color: Colors.white),
-          label: Text(
+          icon: const Icon(Icons.edit, color: Colors.white),
+          label: const Text(
             'Lengkapi Data',
             style: TextStyle(color: Colors.white),
           ),
@@ -1198,7 +1450,7 @@ class _HomePageState extends State<HomePage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           alignment: Alignment.center,
           width: width(context) * 0.85,
           height: height( context) * 0.8 ,
@@ -1218,7 +1470,7 @@ class _HomePageState extends State<HomePage> {
                 size: 64,
                 color: Colors.grey[400],
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Belum Ada Kandang',
                 style: TextStyle(
@@ -1227,7 +1479,7 @@ class _HomePageState extends State<HomePage> {
                   color: Colors.grey[600],
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Tambahkan kandang pertama Anda\nuntuk mulai menganalisis panen',
                 style: TextStyle(
@@ -1236,16 +1488,16 @@ class _HomePageState extends State<HomePage> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: _navigateToKandangManagement,
-                icon: Icon(Icons.add, color: Colors.white),
-                label: Text(
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
                   'Tambah Kandang',
                   style: TextStyle(color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF245C4C),
+                  backgroundColor: const Color(0xFF245C4C),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1261,41 +1513,186 @@ class _HomePageState extends State<HomePage> {
   Widget _buildStatCard(
       String label, String value, IconData icon, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: Container(
-        width: width(context) * 0.15,
-        height: height(context) * 0.09,
+        width: width(context) * 0.14,
+        height: height(context) * 0.10,
         decoration: BoxDecoration(
-            color: Color(0xFFFFF7CA), borderRadius: BorderRadius.circular(8)),
+            color: const Color(0xFFFFF7CA), 
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300, width: 1)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
               color: color,
-              size: 16,
+              size: 20,
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               value,
-              style: TextStyle(
-                  fontSize: 10,
+              style: const TextStyle(
+                  fontSize: 9,
                   color: Colors.black,
                   fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 8,
                   color: Colors.black,
                   fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _formatMetric(dynamic value, {required String suffix}) {
+    if (value == null) return '--';
+    if (value is num) return '${value.toStringAsFixed(1)}$suffix';
+    final parsed = double.tryParse(value.toString());
+    return parsed != null ? '${parsed.toStringAsFixed(1)}$suffix' : '--';
+  }
+
+  Future<Map<String, dynamic>> _aggregateLatestReadingsFromQuery(
+    List<Map<String, dynamic>> sensors,
+    String mistSprayStatus,
+    String speakerStatus,
+  ) async {
+    // Reset any previous values to avoid stale display
+    double? temperature; double? humidity; double? ammonia; 
+    DateTime? latestTs;
+    String? temperatureSensorId; String? humiditySensorId; String? ammoniaSensorId;
+
+    for (final sensor in sensors) {
+      final sensorId = sensor['id']?.toString();
+      if (sensorId == null || sensorId.isEmpty) continue;
+
+      try {
+        final res = await _sensorService.getReadings(_authToken!, sensorId, queryParams: {'limit':'10'});
+        if (res['data'] is List) {
+          final List<dynamic> readings = res['data'];
+          readings.sort((a, b) {
+            final aTime = DateTime.tryParse(a['recorded_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = DateTime.tryParse(b['recorded_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime); // newest first
+          });
+          if (readings.isNotEmpty) {
+            final newest = readings.first;
+            if (newest is Map<String,dynamic>) {
+              final metric = _classifySensorMetric(sensor);
+              final value = (newest['value'] as num?)?.toDouble();
+              final tsRaw = DateTime.tryParse(newest['recorded_at']?.toString() ?? '');
+              // Convert to WIB for display purposes; still track raw ordering via UTC logic
+              final ts = tsRaw != null ? TimeUtils.toWIB(tsRaw) : null;
+
+              print('[HOME] Sensor $sensorId type=${sensor['type'] ?? sensor['name'] ?? sensor['label']} classified=$metric value=$value at ${newest['recorded_at']}');
+
+              if (metric == 'temperature' && value != null) { 
+                temperature = value; 
+                temperatureSensorId = sensorId; 
+                latestTs = _pickLatest(latestTs, ts); 
+              }
+              else if (metric == 'humidity' && value != null) { 
+                humidity = value; 
+                humiditySensorId = sensorId; 
+                latestTs = _pickLatest(latestTs, ts); 
+              }
+              else if (metric == 'ammonia' && value != null) { 
+                ammonia = value; 
+                ammoniaSensorId = sensorId; 
+                latestTs = _pickLatest(latestTs, ts); 
+              }
+              // Note: mist_spray and speaker status come from node state, not sensors
+            }
+          }
+        }
+      } catch (e) {
+        print('[HOME] Error fetching readings for sensor $sensorId: $e');
+      }
+    }
+
+    final result = {
+      'temperature': temperature,
+      'humidity': humidity,
+      'ammonia': ammonia,
+      'mist_spray': mistSprayStatus,  // From node state_pump
+      'speaker': speakerStatus,        // From node state_audio
+      // Store ISO in WIB context for UI consumption
+      'timestamp': latestTs?.toIso8601String(),
+      'temperatureSensorId': temperatureSensorId,
+      'humiditySensorId': humiditySensorId,
+      'ammoniaSensorId': ammoniaSensorId,
+    };
+
+    print('=== AGGREGATED READINGS (HOME) ===');
+    print('Temperature: $temperature°C (sensor=$temperatureSensorId)');
+    print('Humidity: $humidity% (sensor=$humiditySensorId)');
+    print('Ammonia: $ammonia ppm (sensor=$ammoniaSensorId)');
+    print('Mist Spray: $mistSprayStatus (from node state_pump)');
+    print('Speaker: $speakerStatus (from node state_audio)');
+    print('Latest timestamp: ${latestTs?.toIso8601String()}');
+    print('=================================');
+
+    return result;
+  }
+
+  // Unused helpers removed after switching to /readings query
+
+  String? _classifySensorMetric(Map<String,dynamic> s) {
+    final raw = (s['type'] ?? s['name'] ?? s['label'] ?? '').toString().toLowerCase();
+    final unit = (s['unit']?.toString() ?? '').toLowerCase();
+    
+    print('[HOME CLASSIFY] Sensor: type="${s['type']}", name="${s['name']}", label="${s['label']}", unit="${s['unit']}"');
+    print('[HOME CLASSIFY] Raw string: "$raw"');
+    
+    // Keyword sets (English + Indonesian + chemical alias)
+    const tempKeys = ['temp','temperature','suhu','heat','panas'];
+    const humidityKeys = ['humid','humidity','kelembaban','lembab'];
+    const ammoniaKeys = ['ammon','ammonia','amonia','nh3'];
+    const mistSprayKeys = ['mist','spray','kabut','semprot','mist_spray','mistspray'];
+    const speakerKeys = ['speaker','audio','sound','suara','bunyi'];
+    bool match(List<String> keys) => keys.any((k) => raw.contains(k));
+
+    if (match(tempKeys) || unit.contains('c')) {
+      print('[HOME CLASSIFY] ✅ Matched as: temperature');
+      return 'temperature';
+    }
+    if (match(humidityKeys) || unit.contains('%')) {
+      print('[HOME CLASSIFY] ✅ Matched as: humidity');
+      return 'humidity';
+    }
+    if (match(ammoniaKeys) || unit.contains('ppm')) {
+      print('[HOME CLASSIFY] ✅ Matched as: ammonia');
+      return 'ammonia';
+    }
+    if (match(mistSprayKeys)) {
+      print('[HOME CLASSIFY] ✅ Matched as: mist_spray');
+      return 'mist_spray';
+    }
+    if (match(speakerKeys)) {
+      print('[HOME CLASSIFY] ✅ Matched as: speaker');
+      return 'speaker';
+    }
+    
+    print('[HOME CLASSIFY] ❌ No match found');
+    return null;
+  }
+
+  DateTime? _pickLatest(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return b.isAfter(a) ? b : a;
   }
 
 

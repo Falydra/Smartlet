@@ -5,7 +5,7 @@ import 'package:swiftlead/pages/login_page.dart';
 import 'package:swiftlead/pages/register_page.dart';
 
 class LandingPage extends StatelessWidget {
-  const LandingPage({Key? key}) : super(key: key);
+  const LandingPage({super.key});
   double width(BuildContext context) => MediaQuery.of(context).size.width;
 
   double height(BuildContext context) => MediaQuery.of(context).size.height;
@@ -24,7 +24,7 @@ class LandingPage extends StatelessWidget {
           ),
         ),
       ),
-      Container(
+      SizedBox(
           width: width(context),
           height: height(context) * 0.5,
           child: Column(
@@ -47,7 +47,7 @@ class LandingPage extends StatelessWidget {
                       alignment: Alignment.center,
 
                       width: width(context) * 0.2,
-                      margin: EdgeInsets.only(bottom: 4),
+                      margin: const EdgeInsets.only(bottom: 4),
                       child: const Image(
                         image: AssetImage("assets/img/logo.png"),
                         fit: BoxFit.cover,

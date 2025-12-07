@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/pages/home_page.dart';
-import 'package:swiftlead/shared/theme.dart';
 
 class FarmerSetupPage extends StatelessWidget {
-  const FarmerSetupPage({Key? key}) : super(key: key);
+  const FarmerSetupPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +30,7 @@ class FarmerSetupPage extends StatelessWidget {
               ),
 
               // Welcome Text
-              Text(
+              const Text(
                 'Selamat Datang!',
                 style: TextStyle(
                   fontSize: 28,
@@ -44,7 +43,7 @@ class FarmerSetupPage extends StatelessWidget {
               const SizedBox(height: 16),
 
               // Question
-              Text(
+              const Text(
                 'Apakah Anda seorang peternak burung walet?',
                 style: TextStyle(
                   fontSize: 18,
@@ -56,7 +55,7 @@ class FarmerSetupPage extends StatelessWidget {
 
               const SizedBox(height: 8),
 
-              Text(
+              const Text(
                 'Kami akan membantu Anda mengatur data kandang untuk pengalaman yang lebih personal.',
                 style: TextStyle(
                   fontSize: 14,
@@ -72,10 +71,10 @@ class FarmerSetupPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFFF7CA),
+                  color: const Color(0xFFFFF7CA),
                   borderRadius: BorderRadius.circular(50),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.agriculture,
                   size: 60,
                   color: Color(0xFF245C4C),
@@ -98,7 +97,7 @@ class FarmerSetupPage extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF245C4C),
+                    backgroundColor: const Color(0xFF245C4C),
                     foregroundColor: Colors.white,
                     elevation: 2,
                     shape: RoundedRectangleBorder(

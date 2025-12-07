@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// Removed Firebase usage: profile is fetched/updated via API
 import 'package:swiftlead/shared/theme.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:swiftlead/services/auth_services.dart.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
@@ -14,13 +13,13 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final AuthService _apiAuth = AuthService();
 
   int _currentIndex = 4;
   String? _userName;
   String? _userEmail;
   bool _isLoading = true;
+  bool _isAdmin = false;
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
@@ -32,37 +31,48 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUserData() async {
-    try {
-      // Try to get user data from TokenManager first
-      final token = await TokenManager.getToken();
-      if (token != null && token != 'firebase_user') {
-        // API user
-        final response = await _apiAuth.profile(token);
-        if (response['success'] == true && response['data'] != null) {
+    // Prefer API-backed profile when token available. Fallback to locally
+    // stored values (TokenManager) if API fails or token absent.
+    final token = await TokenManager.getToken();
+    if (token != null && token != 'firebase_user') {
+      try {
+        final Map<String, dynamic> response = await _apiAuth.profile(token);
+        Map<String, dynamic>? userData;
+
+        if (response['success'] == true && response['data'] is Map) {
+          userData = Map<String, dynamic>.from(response['data']);
+        } else if (response['data'] is Map) {
+          userData = Map<String, dynamic>.from(response['data']);
+        } else if (response['user'] is Map) {
+          userData = Map<String, dynamic>.from(response['user']);
+        } else if (response.containsKey('name') || response.containsKey('email')) {
+          userData = Map<String, dynamic>.from(response);
+        }
+
+        if (userData != null) {
+          final ud = userData; // non-nullable alias for null-safety
           setState(() {
-            _userName = response['data']['name'];
-            _userEmail = response['data']['email'];
+            _userName = ud['name'] ?? ud['full_name'] ?? ud['username'] ?? 'User';
+            _userEmail = ud['email'] ?? ud['user_email'] ?? 'No email';
+            _isAdmin = (ud['role']?.toString() == 'admin');
             _isLoading = false;
           });
           return;
         }
+      } catch (e) {
+        print('Failed to load profile from API: $e');
       }
-    } catch (e) {
-      print("Failed to load API user data: $e");
     }
 
-    // Fallback to Firebase or TokenManager stored data
+    // Fallback: use locally stored values
     final userName = await TokenManager.getUserName();
     final userEmail = await TokenManager.getUserEmail();
-    final currentUser = _auth.currentUser;
-    
     if (mounted) {
       setState(() {
-        _userName = userName ?? currentUser?.displayName ?? 'User';
-        _userEmail = userEmail ?? currentUser?.email ?? 'No email';
+        _userName = userName ?? 'User';
+        _userEmail = userEmail ?? 'No email';
         _isLoading = false;
       });
-
     }
   }
 
@@ -83,14 +93,11 @@ class _ProfilePageState extends State<ProfilePage> {
         }
       }
 
-      // Firebase logout
-      await FirebaseAuth.instance.signOut();
-      
       // Clear local storage
       await TokenManager.clearAuthData();
-      
+
       if (!mounted) return;
-      
+
       // Navigate to login page
       Navigator.pushReplacementNamed(context, '/login-page');
       
@@ -293,7 +300,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     // Navigate to the edit profile page
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => EditProfilePage()),
+                      MaterialPageRoute(builder: (context) => const EditProfilePage()),
                     );
                   },
                   icon: const Icon(Icons.edit),
@@ -335,88 +342,156 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.home,
-                label: 'Beranda',
-                currentIndex: _currentIndex,
-                itemIndex: 0,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/home-page');
-                  setState(() {
-                    _currentIndex = 0;
-                  });
-                },
-              ),
-              label: ''),
-          
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.electrical_services_sharp,
-                label: 'Kontrol',
-                currentIndex: _currentIndex,
-                itemIndex: 1,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
-                  setState(() {
-                    _currentIndex = 1;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.agriculture,
-                label: 'Panen',
-                currentIndex: _currentIndex,
-                itemIndex: 2,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
-                  setState(() {
-                    _currentIndex = 2;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.sell,
-                label: 'Jual',
-                currentIndex: _currentIndex,
-                itemIndex: 3,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/store-page');
-                  setState(() {
-                    _currentIndex = 3;
-                  });
-                },
-              ),
-              label: ''),
-          BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.person,
-                label: 'Profil',
-                currentIndex: _currentIndex,
-                itemIndex: 4,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/profile-page');
-                  setState(() {
-                    _currentIndex = 4;
-                  });
-                },
-              ),
-              label: ''),
-        ],
-      ),
+      bottomNavigationBar: _isAdmin
+          ? BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex > 3 ? 3 : _currentIndex,
+              onTap: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+              items: [
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.home,
+                      label: 'Beranda',
+                      currentIndex: _currentIndex,
+                      itemIndex: 0,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/home-page');
+                        setState(() {
+                          _currentIndex = 0;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.build_circle,
+                      label: 'Installation',
+                      currentIndex: _currentIndex,
+                      itemIndex: 1,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/installation-manager');
+                        setState(() {
+                          _currentIndex = 1;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.group,
+                      label: 'Users',
+                      currentIndex: _currentIndex,
+                      itemIndex: 2,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/user-manager');
+                        setState(() {
+                          _currentIndex = 2;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.person,
+                      label: 'Profil',
+                      currentIndex: _currentIndex,
+                      itemIndex: 3,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/profile-page');
+                        setState(() {
+                          _currentIndex = 3;
+                        });
+                      },
+                    ),
+                    label: ''),
+              ],
+            )
+          : BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex,
+              onTap: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+              items: [
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.home,
+                      label: 'Beranda',
+                      currentIndex: _currentIndex,
+                      itemIndex: 0,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/home-page');
+                        setState(() {
+                          _currentIndex = 0;
+                        });
+                      },
+                    ),
+                    label: ''),
+                
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.devices,
+                      label: 'Kontrol',
+                      currentIndex: _currentIndex,
+                      itemIndex: 1,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/control-page');
+                        setState(() {
+                          _currentIndex = 1;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.agriculture,
+                      label: 'Panen',
+                      currentIndex: _currentIndex,
+                      itemIndex: 2,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                        setState(() {
+                          _currentIndex = 2;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.sell,
+                      label: 'Jual',
+                      currentIndex: _currentIndex,
+                      itemIndex: 3,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/store-page');
+                        setState(() {
+                          _currentIndex = 3;
+                        });
+                      },
+                    ),
+                    label: ''),
+                BottomNavigationBarItem(
+                    icon: CustomBottomNavigationItem(
+                      icon: Icons.person,
+                      label: 'Profil',
+                      currentIndex: _currentIndex,
+                      itemIndex: 4,
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/profile-page');
+                        setState(() {
+                          _currentIndex = 4;
+                        });
+                      },
+                    ),
+                    label: ''),
+              ],
+            ),
     );
   }
 }
@@ -429,8 +504,7 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final AuthService _apiAuth = AuthService();
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -440,28 +514,67 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.initState();
     _loadUserData();
   }
-
   Future<void> _loadUserData() async {
-    User? user = _auth.currentUser;
-    if (user != null) {
-      DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        setState(() {
-          _nameController.text = userDoc['name'];
-          _emailController.text = user.email ?? '';
-        });
+    // Try API-backed profile first
+    final token = await TokenManager.getToken();
+    if (token != null && token != 'firebase_user') {
+      try {
+        final Map<String, dynamic> response = await _apiAuth.profile(token);
+        Map<String, dynamic>? userData;
+
+        if (response['success'] == true && response['data'] is Map) {
+          userData = Map<String, dynamic>.from(response['data']);
+        } else if (response['data'] is Map) {
+          userData = Map<String, dynamic>.from(response['data']);
+        } else if (response['user'] is Map) {
+          userData = Map<String, dynamic>.from(response['user']);
+        } else if (response.containsKey('name') || response.containsKey('email')) {
+          userData = Map<String, dynamic>.from(response);
+        }
+
+        if (userData != null) {
+          final ud = userData;
+          _nameController.text = ud['name'] ?? ud['full_name'] ?? '';
+          _emailController.text = ud['email'] ?? ud['user_email'] ?? '';
+          return;
+        }
+      } catch (e) {
+        print('API profile fetch failed: $e');
       }
     }
+
+    // Last resort: use locally stored values
+    final storedName = await TokenManager.getUserName();
+    final storedEmail = await TokenManager.getUserEmail();
+    _nameController.text = storedName ?? '';
+    _emailController.text = storedEmail ?? '';
   }
 
   Future<void> _updateProfile() async {
-    User? user = _auth.currentUser;
-    if (user != null) {
-      await _firestore.collection('users').doc(user.uid).update({
-        'name': _nameController.text,
-        'email': _emailController.text,
-      });
-      user.updateEmail(_emailController.text);
+    final token = await TokenManager.getToken();
+    final payload = {
+      'name': _nameController.text,
+      'email': _emailController.text,
+    };
+
+    if (token != null && token != 'firebase_user') {
+      try {
+        await _apiAuth.updateProfile(token, payload);
+      } catch (e) {
+        print('API update profile failed: $e');
+      }
+    }
+
+    // Update locally stored user info so UI shows the latest values
+    final storedToken = await TokenManager.getToken();
+    final storedUserId = await TokenManager.getUserId();
+    if (storedToken != null && storedUserId != null) {
+      await TokenManager.saveAuthData(
+        token: storedToken,
+        userId: storedUserId,
+        userName: _nameController.text,
+        userEmail: _emailController.text,
+      );
     }
   }
 
@@ -469,7 +582,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Edit Profile'),
+        title: const Text('Edit Profile'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -477,19 +590,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
           children: [
             TextField(
               controller: _nameController,
-              decoration: InputDecoration(labelText: 'Name'),
+              decoration: const InputDecoration(labelText: 'Name'),
             ),
             TextField(
               controller: _emailController,
-              decoration: InputDecoration(labelText: 'Email'),
+              decoration: const InputDecoration(labelText: 'Email'),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () async {
                 await _updateProfile();
                 Navigator.pop(context);
               },
-              child: Text('Save Changes'),
+              child: const Text('Save Changes'),
             ),
           ],
         ),

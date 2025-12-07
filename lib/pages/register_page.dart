@@ -1,15 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:swiftlead/auth/firebase_auth_services.dart';
 import 'package:swiftlead/pages/login_page.dart';
 import 'package:swiftlead/services/auth_services.dart.dart';
-import 'package:swiftlead/utils/token_manager.dart';
+ 
 
 
 class RegisterPage extends StatefulWidget {
   final TextEditingController? controller;
 
-  const RegisterPage({Key? key, required this.controller}) : super(key: key);
+  const RegisterPage({super.key, required this.controller});
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -18,7 +16,6 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
 
-  final FirebaseAuthService _auth = FirebaseAuthService();
   final AuthService _apiAuth = AuthService();
 
   final TextEditingController _nameController = TextEditingController();
@@ -295,18 +292,14 @@ class _RegisterPageState extends State<RegisterPage> {
     String password = _passwordController.text;
 
     try {
-      // Try API registration first
+      // Try API registration only
       final apiResponse = await _apiAuth.register(name, email, password);
-      
+
       if (apiResponse['success'] == true) {
-        // API registration successful
         if (!mounted) return;
-        
-        print("API Registration successful");
         _showSuccessDialog("Registrasi berhasil! Silakan login dengan akun Anda.");
         return;
       } else {
-        // API registration failed, show error message
         String errorMessage = "Registrasi gagal";
         if (apiResponse['message'] != null) {
           errorMessage = apiResponse['message'];
@@ -316,41 +309,7 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     } catch (e) {
       print("API Registration failed: $e");
-      // Continue to Firebase fallback
-    }
-
-    try {
-      // Fallback to Firebase authentication
-      User? user = await _auth.signUpWithEmailAndPassword(email, password);
-
-      if (!mounted) return;
-      
-      if (user != null) {
-        print("Firebase Registration successful");
-        
-        // Save basic user data for Firebase users
-        await TokenManager.saveAuthData(
-          token: 'firebase_user', // Placeholder token for Firebase users
-          userId: user.uid,
-          userName: name,
-          userEmail: user.email ?? email,
-        );
-        
-        _showSuccessDialog("Registrasi berhasil! Silakan login dengan akun Anda.");
-      } else {
-        _showErrorDialog("Registrasi gagal. Coba lagi.");
-      }
-    } catch (e) {
-      print("Firebase Registration failed: $e");
-      if (e.toString().contains('email-already-in-use')) {
-        _showErrorDialog("Email sudah terdaftar. Gunakan email lain atau login.");
-      } else if (e.toString().contains('weak-password')) {
-        _showErrorDialog("Password terlalu lemah. Gunakan password yang lebih kuat.");
-      } else if (e.toString().contains('invalid-email')) {
-        _showErrorDialog("Format email tidak valid.");
-      } else {
-        _showErrorDialog("Registrasi gagal. Periksa koneksi internet dan coba lagi.");
-      }
+      _showErrorDialog("Registrasi gagal. Periksa koneksi internet dan coba lagi.");
     }
 
     if (mounted) {

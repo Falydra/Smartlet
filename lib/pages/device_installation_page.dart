@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:swiftlead/services/device_installation_service.dart';
+// Deprecated DeviceInstallationService removed; use ServiceRequestService to create installation requests.
+import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class DeviceInstallationPage extends StatefulWidget {
-  final int houseId;
+  final String houseId;
   final String houseName;
   
   const DeviceInstallationPage({
-    Key? key,
+    super.key,
     required this.houseId,
     required this.houseName,
-  }) : super(key: key);
+  });
 
   @override
   State<DeviceInstallationPage> createState() => _DeviceInstallationPageState();
 }
 
 class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
-  final DeviceInstallationService _installationService = DeviceInstallationService();
-  final TextEditingController _installCodeController = TextEditingController();
-  final TextEditingController _floorController = TextEditingController();
+  final ServiceRequestService _serviceRequestService = ServiceRequestService();
   final TextEditingController _reasonController = TextEditingController();
 
   bool _isLoading = false;
@@ -56,64 +55,18 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
     if (_authToken == null) return;
 
     try {
-      final result = await _installationService.checkDeviceInstallation(_authToken!, widget.houseId);
-      
-      if (result['success'] == true) {
-        setState(() {
-          _hasDevices = result['hasDevices'] ?? false;
-          _installedDevices = result['devices'] ?? [];
-        });
-      }
+      // TODO: Use NodeService.listByRbw to check existing nodes for this RBW
+      // Placeholder sets no devices
+      setState(() {
+        _hasDevices = false;
+        _installedDevices = [];
+      });
     } catch (e) {
       print('Error checking device installation: $e');
     }
   }
 
-  Future<void> _installDevice() async {
-    if (_authToken == null) return;
-
-    final installCode = _installCodeController.text.trim();
-    final floorText = _floorController.text.trim();
-
-    if (installCode.isEmpty || floorText.isEmpty) {
-      _showMessage('Please fill in all fields', isError: true);
-      return;
-    }
-
-    final floor = int.tryParse(floorText);
-    if (floor == null || floor < 1) {
-      _showMessage('Please enter a valid floor number', isError: true);
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final result = await _installationService.installDevice(
-        _authToken!,
-        installCode,
-        widget.houseId,
-        floor,
-      );
-
-      if (result['success'] == true) {
-        _showMessage(result['message'] ?? 'Device installed successfully');
-        _installCodeController.clear();
-        _floorController.clear();
-        await _checkDeviceInstallation();
-      } else {
-        _showMessage(result['message'] ?? 'Failed to install device', isError: true);
-      }
-    } catch (e) {
-      _showMessage('Error installing device: $e', isError: true);
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
-  }
+  // Manual installation removed; installation should be done via service request and technician workflow.
 
   Future<void> _requestInstallation() async {
     if (_authToken == null) return;
@@ -129,16 +82,16 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
     });
 
     try {
-      final result = await _installationService.requestInstallation(
-        _authToken!,
-        widget.houseId,
-        reason,
-      );
-
+      final payload = {
+        'rbw_id': widget.houseId,
+        'type': 'installation',
+        'issue': reason,
+      };
+      final result = await _serviceRequestService.create(_authToken!, payload);
       if (result['success'] == true) {
-        _showMessage(result['message'] ?? 'Installation request submitted successfully');
+        _showMessage('Installation request submitted');
         _reasonController.clear();
-        Navigator.pop(context); // Close the dialog
+        Navigator.pop(context);
       } else {
         _showMessage(result['message'] ?? 'Failed to submit installation request', isError: true);
       }
@@ -165,18 +118,18 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Request Installation'),
+          title: const Text('Request Installation'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Request professional installation for ${widget.houseName}',
-                style: TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: 16),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 controller: _reasonController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Reason for installation',
                   hintText: 'Describe why you need device installation...',
                   border: OutlineInputBorder(),
@@ -191,11 +144,11 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
                 Navigator.pop(context);
                 _reasonController.clear();
               },
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: _isLoading ? null : _requestInstallation,
-              child: _isLoading ? CircularProgressIndicator() : Text('Submit Request'),
+              child: _isLoading ? const CircularProgressIndicator() : const Text('Submit Request'),
             ),
           ],
         );
@@ -207,40 +160,40 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Device Installation'),
-        backgroundColor: Color(0xFF245C4C),
+        title: const Text('Device Installation'),
+        backgroundColor: const Color(0xFF245C4C),
         foregroundColor: Colors.white,
       ),
       body: _isLoading ? 
-        Center(child: CircularProgressIndicator()) :
+        const Center(child: CircularProgressIndicator()) :
         SingleChildScrollView(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // House Info
               Card(
                 child: Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.houseName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF245C4C),
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Icon(
                             _hasDevices ? Icons.check_circle : Icons.warning,
                             color: _hasDevices ? Colors.green : Colors.orange,
                           ),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
                             _hasDevices 
                               ? '${_installedDevices.length} device(s) installed'
@@ -257,11 +210,11 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
                 ),
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Installed Devices List
               if (_hasDevices) ...[
-                Text(
+                const Text(
                   'Installed Devices',
                   style: TextStyle(
                     fontSize: 18,
@@ -269,11 +222,11 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
                     color: Color(0xFF245C4C),
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 ..._installedDevices.map((device) => Card(
-                  margin: EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
-                    leading: Icon(Icons.sensors, color: Color(0xFF245C4C)),
+                    leading: const Icon(Icons.sensors, color: Color(0xFF245C4C)),
                     title: Text(device['device_name'] ?? 'ESP32 Device'),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,74 +237,17 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
                       ],
                     ),
                     trailing: device['status'] == 1 
-                      ? Icon(Icons.check_circle, color: Colors.green)
-                      : Icon(Icons.error, color: Colors.red),
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.error, color: Colors.red),
                   ),
-                )).toList(),
-                SizedBox(height: 24),
+                )),
+                const SizedBox(height: 24),
               ],
 
-              // Manual Installation Section
-              Text(
-                'Manual Device Installation',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF245C4C),
-                ),
-              ),
-              SizedBox(height: 12),
-              
-              Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: _installCodeController,
-                        decoration: InputDecoration(
-                          labelText: 'Installation Code',
-                          hintText: 'ESP32_YGY_001_L1',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.qr_code),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      TextField(
-                        controller: _floorController,
-                        decoration: InputDecoration(
-                          labelText: 'Floor Number',
-                          hintText: '1',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.layers),
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                      SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _installDevice,
-                          icon: Icon(Icons.add_circle, color: Colors.white),
-                          label: Text(
-                            'Install Device',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF245C4C),
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Request Professional Installation
-              Text(
+              const Text(
                 'Professional Installation',
                 style: TextStyle(
                   fontSize: 18,
@@ -359,11 +255,11 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
                   color: Color(0xFF245C4C),
                 ),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               
               Card(
                 child: Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
                       Text(
@@ -374,19 +270,19 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
                           color: Colors.grey[600],
                         ),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _showInstallationRequestDialog,
-                          icon: Icon(Icons.support_agent, color: Colors.white),
-                          label: Text(
+                          icon: const Icon(Icons.support_agent, color: Colors.white),
+                          label: const Text(
                             'Request Installation',
                             style: TextStyle(color: Colors.white),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.orange,
-                            padding: EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                       ),
@@ -402,8 +298,6 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
 
   @override
   void dispose() {
-    _installCodeController.dispose();
-    _floorController.dispose();
     _reasonController.dispose();
     super.dispose();
   }

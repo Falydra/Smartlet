@@ -1,8 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:swiftlead/auth/firebase_auth_services.dart';
-import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/pages/register_page.dart';
 import 'package:swiftlead/pages/farmer_setup_page.dart';
 import 'package:swiftlead/services/auth_services.dart.dart';
@@ -11,14 +7,13 @@ import 'package:swiftlead/utils/token_manager.dart';
 class LoginPage extends StatefulWidget {
   final TextEditingController? controller;
 
-  const LoginPage({Key? key, required this.controller}) : super(key: key);
+  const LoginPage({super.key, required this.controller});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final FirebaseAuthService _auth = FirebaseAuthService();
   final AuthService _apiAuth = AuthService();
 
   bool showPassword = false;
@@ -172,33 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(
                   height: 5,
                 ),
-                // Google Sign-In Button
-                Padding(
-                  padding: EdgeInsets.only(top: height(context) * 0.02),
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      _googleSignIn();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF204941),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      minimumSize:
-                          Size(width(context) * 0.75, height(context) * 0.075),
-                    ),
-                    icon: Image.asset(
-                      'assets/img/Google__G__logo.png', // Google logo path
-                      height: 25,
-                      width: 25,
-                    ),
-                    label: const Text(
-                      "Sign in with Google",
-                      style: TextStyle(fontSize: 18),
-                    ),
-                  ),
-                ),
+                // Google Sign-In removed — using API authentication only.
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -254,11 +223,17 @@ class _LoginPageState extends State<LoginPage> {
       // Try API login first
       final apiResponse = await _apiAuth.login(email, password);
       
-      if (apiResponse['success'] == true && apiResponse['data'] != null) {
+      // The API sometimes returns {data: {token: ..., user: {...}}} without a 'success' flag.
+      // Accept both shapes: either {success: true, data: {...}} or {data: {...}} (or top-level token/user).
+      final dynamic responseBody = apiResponse;
+      final dynamic userData = (responseBody is Map && responseBody.containsKey('data'))
+          ? responseBody['data']
+          : responseBody;
+
+      if (userData != null && userData is Map && (userData['token'] != null || userData.containsKey('user'))) {
         // API login successful
-        final userData = apiResponse['data'];
         final token = userData['token'];
-        final user = userData['user'];
+        final user = userData['user'] ?? userData;
         
         // Save authentication data
         await TokenManager.saveAuthData(
@@ -269,12 +244,20 @@ class _LoginPageState extends State<LoginPage> {
         );
         
         if (!mounted) return;
-        
+
         print("API Login successful");
         Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (context) => const FarmerSetupPage())
+          context,
+          MaterialPageRoute(builder: (context) => const FarmerSetupPage()),
         );
+        return;
+      }
+      // If we reach here, API login did not return success.
+      // Log the full API response for debugging and show server message if available.
+      print('API login response (not successful): $apiResponse');
+      if (apiResponse.containsKey('message') && apiResponse['message'] != null) {
+        _showErrorDialog(apiResponse['message'].toString());
+        setState(() { _isLoading = false; });
         return;
       }
     } catch (e) {
@@ -282,35 +265,8 @@ class _LoginPageState extends State<LoginPage> {
       // Continue to Firebase fallback
     }
 
-    try {
-      // Fallback to Firebase authentication
-      User? user = await _auth.signInWithEmailAndPassword(email, password);
-
-      if (!mounted) return;
-      
-      if (user != null) {
-        print("Firebase Login successful");
-        
-        // Save basic user data for Firebase users
-        await TokenManager.saveAuthData(
-          token: 'firebase_user', // Placeholder token for Firebase users
-          userId: user.uid,
-          userName: user.displayName ?? '',
-          userEmail: user.email ?? email,
-        );
-        
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (context) => const FarmerSetupPage())
-        );
-      } else {
-        _showErrorDialog("Email atau password salah");
-      }
-    } catch (e) {
-      print("Firebase Login failed: $e");
-      _showErrorDialog("Gagal masuk. Periksa koneksi internet dan coba lagi.");
-    }
-
+    // No Firebase fallback — show generic error if API login failed
+    _showErrorDialog("Email atau password salah");
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -336,35 +292,5 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Google Sign-In
-  void _googleSignIn() async {
-    try {
-      GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId:
-            "615110452085-bl7rokvu2evs57846dosjpf1qd5ati2c.apps.googleusercontent.com", // Pass your web client ID here
-      );
-      GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
-      if (googleUser == null) {
-        print("Google Sign-In canceled by user");
-        return;
-      }
-
-      GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      print("Google Sign-In successful: ${userCredential.user}");
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (context) => const HomePage()));
-    } catch (e) {
-      print("Error during Google Sign-In: $e");
-    }
-  }
+  // Google Sign-In removed; social login should be implemented via API.
 }
