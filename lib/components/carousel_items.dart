@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 
 class Carousel extends StatelessWidget {
+  const Carousel({super.key});
+
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
@@ -21,7 +23,7 @@ class Carousel extends StatelessWidget {
               humidity: 'Sedang',
               security: '24%',
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             contentContainer(
               quarter: 'Q2 Apr - Jun',
               date: '15 May 2024',
@@ -47,11 +49,11 @@ class Carousel extends StatelessWidget {
     required String security,
   }) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.yellow[100],
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black26,
             blurRadius: 4,
@@ -62,14 +64,14 @@ class Carousel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(quarter, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
-          Text(date, style: TextStyle(color: Colors.grey)),
-          SizedBox(height: 8),
-          Text(price, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          Text('Rata-rata Statistik perangkat', style: TextStyle(fontSize: 16)),
-          SizedBox(height: 8),
+          Text(quarter, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(date, style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 8),
+          Text(price, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Rata-rata Statistik perangkat', style: TextStyle(fontSize: 16)),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -79,10 +81,10 @@ class Carousel extends StatelessWidget {
               statBox('Keamanan', security),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {},
-            child: Text('Lihat Analisis Panen'),
+            child: const Text('Lihat Analisis Panen'),
           ),
         ],
       ),
@@ -92,8 +94,8 @@ class Carousel extends StatelessWidget {
   Widget statBox(String label, String value) {
     return Column(
       children: [
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(color: Colors.grey)),
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.grey)),
       ],
     );
   }

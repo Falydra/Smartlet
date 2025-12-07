@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:carousel_slider/carousel_slider.dart';
+import 'package:carousel_slider/carousel_slider.dart' as cs;
 
 final List<Map<String, dynamic>> contentList = [
   {
@@ -32,7 +32,7 @@ final List<Map<String, dynamic>> contentList = [
 ];
 
 class CarouselHome extends StatelessWidget {
-  const CarouselHome({Key? key}) : super(key: key);
+  const CarouselHome({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +41,8 @@ class CarouselHome extends StatelessWidget {
 }
 
 class CarouselWithIndicatorDemo extends StatefulWidget {
+  const CarouselWithIndicatorDemo({super.key});
+
   @override
   State<StatefulWidget> createState() {
     return _CarouselWithIndicatorState();
@@ -49,7 +51,7 @@ class CarouselWithIndicatorDemo extends StatefulWidget {
 
 class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
   int _current = 0;
-  final CarouselController _controller = CarouselController();
+  final cs.CarouselController _controller = cs.CarouselController();
 
   @override
   Widget build(BuildContext context) {
@@ -61,17 +63,17 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
 
             return Stack(
               children: [
-                CarouselSlider(
+                cs.CarouselSlider(
                   carouselController: _controller,
                   items: contentList
                       .map(
                         (item) => Container(
-                          padding: EdgeInsets.all(16),
-                          margin: EdgeInsets.symmetric(vertical: 16.0),
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.symmetric(vertical: 16.0),
                           decoration: BoxDecoration(
                             color: Colors.yellow[100],
                             borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
+                            boxShadow: const [
                               BoxShadow(
                                 color: Colors.black26,
                                 blurRadius: 4,
@@ -86,30 +88,30 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
                               children: [
                                 Text(
                                   item['quarter'],
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 Text(
                                   item['date'],
-                                  style: TextStyle(color: Colors.grey),
+                                  style: const TextStyle(color: Colors.grey),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 Text(
                                   item['price'],
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 8),
-                                Text(
+                                const SizedBox(height: 8),
+                                const Text(
                                   'Rata-rata Statistik perangkat',
                                   style: TextStyle(fontSize: 16),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
@@ -119,10 +121,10 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
                                     statBox('Keamanan', item['security']),
                                   ],
                                 ),
-                                SizedBox(height: 16),
+                                const SizedBox(height: 16),
                                 ElevatedButton(
                                   onPressed: () {},
-                                  child: Text('Lihat Analisis Panen'),
+                                  child: const Text('Lihat Analisis Panen'),
                                 ),
                               ],
                             ),
@@ -130,7 +132,7 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
                         ),
                       )
                       .toList(),
-                  options: CarouselOptions(
+                  options: cs.CarouselOptions(
                     height: height,
                     viewportFraction: 0.9,
                     enlargeCenterPage: true,
@@ -153,7 +155,7 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
                         child: Container(
                           width: 12.0,
                           height: 12.0,
-                          margin: EdgeInsets.symmetric(
+                          margin: const EdgeInsets.symmetric(
                               vertical: 8.0, horizontal: 4.0),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
@@ -181,11 +183,11 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
       children: [
         Text(
           value,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         Text(
           label,
-          style: TextStyle(color: Colors.grey),
+          style: const TextStyle(color: Colors.grey),
         ),
       ],
     );
@@ -193,5 +195,5 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicatorDemo> {
 }
 
 void main() {
-  runApp(MaterialApp(home: CarouselHome()));
+  runApp(const MaterialApp(home: CarouselHome()));
 }
