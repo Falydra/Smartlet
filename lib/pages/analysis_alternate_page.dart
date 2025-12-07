@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:swiftlead/pages/cage_selection_page.dart';
+// Removed local storage fallback imports; analysis will use API-only
 import 'package:swiftlead/pages/add_harvest_page.dart';
 import 'package:swiftlead/pages/general_harvest_input_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
-import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/services/harvest_services.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
@@ -13,14 +11,14 @@ import 'package:swiftlead/utils/token_manager.dart';
 class AnalysisPageAlternate extends StatefulWidget {
   final String? selectedCageId;
 
-  const AnalysisPageAlternate({Key? key, this.selectedCageId})
-      : super(key: key);
+  const AnalysisPageAlternate({super.key, this.selectedCageId});
 
   @override
   State<AnalysisPageAlternate> createState() => _AnalysisPageAlternateState();
 }
 
-class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with WidgetsBindingObserver {
+class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
+    with WidgetsBindingObserver {
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
@@ -29,9 +27,9 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
   // API Services
   final HarvestService _harvestService = HarvestService();
   final HouseService _houseService = HouseService();
-  
+
   // State management
-  bool _isLoading = true;
+  // Removed unused _isLoading field (was not referenced)
   String? _authToken;
 
   // Date selection
@@ -60,14 +58,21 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
     'oval': 0.0,
     'patahan': 0.0,
   };
-  
+
   // General floor totals for optimal harvest calculation
   double _generalTotalSarang = 0.0;
+
+  // Harvest ratio data (from post-harvest)
+  double _preHarvestTotal = 0.0;
+  double _recommendedHarvest = 0.0;
+  double _actualHarvest = 0.0;
+  double _harvestRatio = 0.0;
+  bool _followedRecommendation = false;
 
   // Cage data
   String _selectedCageName = "Kandang 1";
   int _selectedCageFloors = 3;
-  int? _selectedHouseId;
+  String? _selectedHouseId; // Changed to String to support UUID
 
   // Floor data template
   List<Map<String, dynamic>> _floorData = [];
@@ -78,6 +83,16 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
     WidgetsBinding.instance.addObserver(this);
     // Initialize with default data first
     _initializeFloorData();
+    // If this page was opened from the home carousel, widget.selectedCageId
+    // may contain a value like 'house_<id>'. Extract the ID part.
+    if (widget.selectedCageId != null) {
+      try {
+        _selectedHouseId = widget.selectedCageId!.replaceFirst('house_', '');
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+
     _initializeData();
   }
 
@@ -97,31 +112,23 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
   }
 
   Future<void> _initializeData() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
-    
+    // Loading flag removed (unused); keep method lean
+
     try {
       // Get authentication token
       _authToken = await TokenManager.getToken();
-      
+
       // Load cage data
       await _loadCageData();
       _initializeFloorData();
-      
+
       // Load harvest data (try API first, then local)
       await _loadHarvestData();
     } catch (e) {
       print('Error initializing analysis data: $e');
     }
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+
+    // Loading complete
   }
 
   Future<void> _loadCageData() async {
@@ -140,15 +147,19 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                 orElse: () => houses.first,
               );
             }
-            
+
             if (mounted) {
               setState(() {
-                _selectedHouseId = selectedHouse['id'];
-                _selectedCageFloors = selectedHouse['floor_count'] ?? 3;
-                _selectedCageName = selectedHouse['name'] ?? "Kandang ${selectedHouse['floor_count'] ?? 3} Lantai";
+                _selectedHouseId = selectedHouse['id']?.toString();
+                // API uses 'total_floors', fallback to 'floor_count' for compatibility
+                _selectedCageFloors = selectedHouse['total_floors'] ??
+                    selectedHouse['floor_count'] ??
+                    3;
+                _selectedCageName = selectedHouse['name'] ??
+                    "Kandang ${_selectedCageFloors} Lantai";
               });
             }
-            
+
             _initializeFloorData();
             return;
           }
@@ -156,27 +167,13 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
           print('Error loading houses from API: $e');
         }
       }
-      
-      // Fallback to SharedPreferences
-      SharedPreferences? prefs;
-      try {
-        prefs = await SharedPreferences.getInstance();
-        final savedFloors = prefs.getInt('cage_floors') ?? 3;
 
-        if (mounted) {
-          setState(() {
-            _selectedCageFloors = savedFloors;
-            _selectedCageName = "Kandang $savedFloors Lantai";
-          });
-        }
-      } catch (e) {
-        print('SharedPreferences not available, using default values: $e');
-        if (mounted) {
-          setState(() {
-            _selectedCageFloors = 3;
-            _selectedCageName = "Kandang 3 Lantai";
-          });
-        }
+      // If API didn't provide houses, fallback to sensible defaults (no local storage)
+      if (mounted) {
+        setState(() {
+          _selectedCageFloors = 3;
+          _selectedCageName = "Kandang 3 Lantai";
+        });
       }
 
       _initializeFloorData();
@@ -199,160 +196,427 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
 
   Future<void> _loadHarvestData() async {
     try {
-      final key =
-          'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
-
+      // Build API-only harvest aggregate for selected month/year
       double mangkok = 0.0, sudut = 0.0, oval = 0.0, patahan = 0.0;
+      double preHarvestMangkok = 0.0,
+          preHarvestSudut = 0.0,
+          preHarvestOval = 0.0,
+          preHarvestPatahan = 0.0;
       bool hasDetailedData = false;
+      bool hasPostHarvestData = false;
+      bool hasPreHarvestBreakdown = false;
 
-      // Try API first if token available
+      // Prepare floorData template
+      List<Map<String, dynamic>> floorData = List.generate(
+          _selectedCageFloors,
+          (index) => {
+                'floor': index + 1,
+                'mangkok': '0.0',
+                'sudut': '0.0',
+                'oval': '0.0',
+                'patahan': '0.0',
+              });
+
+      double preHarvestTotal = 0.0;
+      double recommendedHarvest = 0.0;
+      double actualHarvest = 0.0;
+      double harvestRatio = 0.0;
+      bool followedRecommendation = false;
+
       if (_authToken != null) {
         try {
-          final harvests = await _harvestService.getAll(_authToken!, limit: 1000);
-          
-          // Filter harvests for the selected month/year and house
+          final harvests =
+              await _harvestService.getAll(_authToken!, limit: 1000);
+
+          // First pass: collect pre-harvest and post-harvest data
           for (var harvest in harvests) {
-            final harvestDate = DateTime.tryParse(harvest['harvest_date'] ?? '');
-            bool isCorrectHouse = _selectedHouseId == null || harvest['house_id'] == _selectedHouseId;
-            
-            if (harvestDate != null && 
-                harvestDate.month == _selectedMonth && 
+            // Try several possible date fields
+            DateTime? harvestDate;
+            if (harvest['harvest_date'] != null) {
+              harvestDate = DateTime.tryParse(harvest['harvest_date']);
+            }
+            if (harvestDate == null && harvest['harvested_at'] != null) {
+              harvestDate = DateTime.tryParse(harvest['harvested_at']);
+            }
+
+            bool isCorrectHouse = _selectedHouseId == null ||
+                (harvest['rbw_id']?.toString() == _selectedHouseId) ||
+                (harvest['house_id']?.toString() == _selectedHouseId);
+
+            if (harvestDate != null &&
+                harvestDate.month == _selectedMonth &&
                 harvestDate.year == _selectedYear &&
                 isCorrectHouse) {
-              // Convert from API integer values to double
-              mangkok += (harvest['mangkok'] as num?)?.toDouble() ?? 0.0;
-              sudut += (harvest['sudut'] as num?)?.toDouble() ?? 0.0;
-              oval += (harvest['oval'] as num?)?.toDouble() ?? 0.0;
-              patahan += (harvest['patahan'] as num?)?.toDouble() ?? 0.0;
-            }
-          }
-          print('Loaded harvest data from API for house $_selectedHouseId: M:$mangkok S:$sudut O:$oval P:$patahan');
-        } catch (apiError) {
-          print('API failed, falling back to local storage: $apiError');
-        }
-      }
+              final notes = (harvest['notes'] as String?) ?? '';
+              final floorNo = (harvest['floor_no'] as int?) ?? 0;
+              final nestsCount =
+                  (harvest['nests_count'] as num?)?.toDouble() ?? 0.0;
 
-      // Only load detailed data from AddHarvestPage saves (not from general input)
-      if (mangkok == 0.0 && sudut == 0.0 && oval == 0.0 && patahan == 0.0) {
-        try {
-          // Check static storage from AddHarvestPage for detailed data
-          final staticData = AddHarvestPage.getStoredData();
-          mangkok = (staticData['${key}_mangkok'] as num?)?.toDouble() ?? 0.0;
-          sudut = (staticData['${key}_sudut'] as num?)?.toDouble() ?? 0.0;
-          oval = (staticData['${key}_oval'] as num?)?.toDouble() ?? 0.0;
-          patahan = (staticData['${key}_patahan'] as num?)?.toDouble() ?? 0.0;
-          
-          // Check if we have actual detailed data (not just equal distribution)
-          if (mangkok > 0 || sudut > 0 || oval > 0 || patahan > 0) {
-            // Verify this is from detailed input by checking if floor data exists
-            bool hasFloorDetails = false;
-            for (int i = 0; i < _selectedCageFloors; i++) {
-              if (staticData.containsKey('${key}_floor_${i + 1}_mangkok')) {
-                hasFloorDetails = true;
-                break;
+              // Check if this is a pre-harvest plan (notes start with PRE_HARVEST_PLAN)
+              if (notes.startsWith('PRE_HARVEST_PLAN')) {
+                // Parse pre-harvest data from notes: PRE_HARVEST_PLAN|recommended:X|total:Y
+                preHarvestTotal += nestsCount;
+
+                // Extract recommended value from notes
+                final recMatch = RegExp(r'recommended:(\d+)').firstMatch(notes);
+                if (recMatch != null) {
+                  recommendedHarvest +=
+                      double.tryParse(recMatch.group(1) ?? '0') ?? 0.0;
+                }
+
+                // Try to parse breakdown from notes if available
+                if (notes.contains('Mangkok:') || notes.contains('mangkok:')) {
+                  hasPreHarvestBreakdown = true;
+                  final mangkokMatch =
+                      RegExp(r'Mangkok:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+                  final sudutMatch =
+                      RegExp(r'Sudut:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+                  final ovalMatch =
+                      RegExp(r'Oval:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+                  final patahanMatch =
+                      RegExp(r'Patahan:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+
+                  double mangkokCount = mangkokMatch != null
+                      ? (double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+                  double sudutCount = sudutMatch != null
+                      ? (double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+                  double ovalCount = ovalMatch != null
+                      ? (double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+                  double patahanCount = patahanMatch != null
+                      ? (double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+
+                  // Accumulate pre-harvest breakdown
+                  preHarvestMangkok += mangkokCount;
+                  preHarvestSudut += sudutCount;
+                  preHarvestOval += ovalCount;
+                  preHarvestPatahan += patahanCount;
+
+                  // Update floor data with detailed breakdown (only if no post-harvest yet)
+                  if (floorNo > 0 &&
+                      floorNo <= _selectedCageFloors &&
+                      !hasPostHarvestData) {
+                    floorData[floorNo - 1]['mangkok'] =
+                        mangkokCount.toStringAsFixed(1);
+                    floorData[floorNo - 1]['sudut'] =
+                        sudutCount.toStringAsFixed(1);
+                    floorData[floorNo - 1]['oval'] =
+                        ovalCount.toStringAsFixed(1);
+                    floorData[floorNo - 1]['patahan'] =
+                        patahanCount.toStringAsFixed(1);
+                  }
+
+                  print(
+                      'Parsed PRE_HARVEST: Floor $floorNo - M:$mangkokCount S:$sudutCount O:$ovalCount P:$patahanCount');
+                } else {
+                  // No detailed breakdown, use total for mangkok column
+                  if (floorNo > 0 &&
+                      floorNo <= _selectedCageFloors &&
+                      !hasPostHarvestData) {
+                    floorData[floorNo - 1]['mangkok'] =
+                        nestsCount.toStringAsFixed(1);
+                  }
+                }
+              }
+              // Check if this is a post-harvest (notes start with POST_HARVEST)
+              else if (notes.startsWith('POST_HARVEST')) {
+                hasPostHarvestData = true;
+                hasDetailedData = true;
+
+                // NEW FORMAT: POST_HARVEST|ratio:X%|followed:yes/no
+                // Use nests_count directly as the actual harvest amount
+                actualHarvest += nestsCount;
+
+                // Extract ratio if available
+                final ratioMatch = RegExp(r'ratio:([\d.]+)').firstMatch(notes);
+                if (ratioMatch != null) {
+                  harvestRatio =
+                      (double.tryParse(ratioMatch.group(1) ?? '0') ?? 0.0) /
+                          100.0;
+                }
+
+                // Extract followed recommendation flag
+                final followedMatch =
+                    RegExp(r'followed:(yes|no)').firstMatch(notes);
+                if (followedMatch != null && followedMatch.group(1) == 'yes') {
+                  followedRecommendation = true;
+                }
+
+                // Try to parse breakdown from notes if available
+                if (notes.contains('Mangkok:') || notes.contains('mangkok:')) {
+                  final mangkokMatch =
+                      RegExp(r'Mangkok:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+                  final sudutMatch =
+                      RegExp(r'Sudut:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+                  final ovalMatch =
+                      RegExp(r'Oval:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+                  final patahanMatch =
+                      RegExp(r'Patahan:\s*(\d+)', caseSensitive: false)
+                          .firstMatch(notes);
+
+                  double mangkokCount = mangkokMatch != null
+                      ? (double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+                  double sudutCount = sudutMatch != null
+                      ? (double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+                  double ovalCount = ovalMatch != null
+                      ? (double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+                  double patahanCount = patahanMatch != null
+                      ? (double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0)
+                      : 0.0;
+
+                  // Add to total breakdown
+                  mangkok += mangkokCount;
+                  sudut += sudutCount;
+                  oval += ovalCount;
+                  patahan += patahanCount;
+
+                  // Update floor data with detailed breakdown
+                  if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                    floorData[floorNo - 1]['mangkok'] =
+                        mangkokCount.toStringAsFixed(1);
+                    floorData[floorNo - 1]['sudut'] =
+                        sudutCount.toStringAsFixed(1);
+                    floorData[floorNo - 1]['oval'] =
+                        ovalCount.toStringAsFixed(1);
+                    floorData[floorNo - 1]['patahan'] =
+                        patahanCount.toStringAsFixed(1);
+                  }
+
+                  print(
+                      'Parsed POST_HARVEST: Floor $floorNo - M:$mangkokCount S:$sudutCount O:$ovalCount P:$patahanCount');
+                } else {
+                  // No detailed breakdown, divide equally among 4 types for pie chart
+                  // This ensures the pie chart shows all harvested nests
+                  double perType = nestsCount / 4.0;
+                  mangkok += perType;
+                  sudut += perType;
+                  oval += perType;
+                  patahan += perType;
+
+                  // Update floor data - show total in mangkok column for display
+                  if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                    floorData[floorNo - 1]['mangkok'] =
+                        nestsCount.toStringAsFixed(1);
+                  }
+
+                  print(
+                      'POST_HARVEST without breakdown: Floor $floorNo - Total:$nestsCount (divided equally for pie chart)');
+                }
+              }
+              // Parse standard harvest data format: "Mangkok: X, Sudut: Y, Oval: Z, Patahan: W"
+              else if (notes.contains('Mangkok:') ||
+                  notes.contains('mangkok:')) {
+                hasPostHarvestData = true;
+                hasDetailedData = true;
+                actualHarvest += nestsCount;
+
+                // Parse the breakdown from notes
+                final mangkokMatch =
+                    RegExp(r'Mangkok:\s*(\d+)', caseSensitive: false)
+                        .firstMatch(notes);
+                final sudutMatch =
+                    RegExp(r'Sudut:\s*(\d+)', caseSensitive: false)
+                        .firstMatch(notes);
+                final ovalMatch = RegExp(r'Oval:\s*(\d+)', caseSensitive: false)
+                    .firstMatch(notes);
+                final patahanMatch =
+                    RegExp(r'Patahan:\s*(\d+)', caseSensitive: false)
+                        .firstMatch(notes);
+
+                double mangkokCount = mangkokMatch != null
+                    ? (double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0)
+                    : 0.0;
+                double sudutCount = sudutMatch != null
+                    ? (double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0)
+                    : 0.0;
+                double ovalCount = ovalMatch != null
+                    ? (double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0)
+                    : 0.0;
+                double patahanCount = patahanMatch != null
+                    ? (double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0)
+                    : 0.0;
+
+                // Add to total breakdown
+                mangkok += mangkokCount;
+                sudut += sudutCount;
+                oval += ovalCount;
+                patahan += patahanCount;
+
+                // Update floor data with detailed breakdown
+                if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                  floorData[floorNo - 1]['mangkok'] =
+                      mangkokCount.toStringAsFixed(1);
+                  floorData[floorNo - 1]['sudut'] =
+                      sudutCount.toStringAsFixed(1);
+                  floorData[floorNo - 1]['oval'] = ovalCount.toStringAsFixed(1);
+                  floorData[floorNo - 1]['patahan'] =
+                      patahanCount.toStringAsFixed(1);
+                }
+
+                print(
+                    'Parsed harvest: Floor $floorNo - M:$mangkokCount S:$sudutCount O:$ovalCount P:$patahanCount');
+              }
+              // Catch any other harvest data without specific format
+              else if (nestsCount > 0) {
+                // This is harvest data without specific format markers
+                // Treat as post-harvest and divide equally for pie chart
+                hasPostHarvestData = true;
+                actualHarvest += nestsCount;
+
+                // Divide equally among 4 types for pie chart
+                double perType = nestsCount / 4.0;
+                mangkok += perType;
+                sudut += perType;
+                oval += perType;
+                patahan += perType;
+
+                // Update floor data - show total in mangkok column for display
+                if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                  floorData[floorNo - 1]['mangkok'] =
+                      nestsCount.toStringAsFixed(1);
+                }
+
+                print(
+                    'Generic harvest data: Floor $floorNo - Total:$nestsCount (divided equally for pie chart)');
               }
             }
-            hasDetailedData = hasFloorDetails;
           }
-          
-          print('Loaded detailed data from AddHarvestPage: $hasDetailedData');
-        } catch (staticError) {
-          print('Static storage failed: $staticError');
-          // Use default values (already set to 0.0)
+
+          print(
+              'Loaded harvest data from API for house $_selectedHouseId: post-harvest total=$actualHarvest pre=$preHarvestTotal rec=$recommendedHarvest');
+        } catch (apiError) {
+          print('Error loading harvests from API: $apiError');
+        }
+      }
+
+      // Try to get pre-harvest data from temporary storage if not loaded from API
+      if (preHarvestTotal == 0.0) {
+        try {
+          final tempData = AddHarvestPage.getTempPreHarvestData();
+          if (tempData.isNotEmpty) {
+            preHarvestTotal =
+                (tempData['totalPreHarvest'] as num?)?.toDouble() ?? 0.0;
+            recommendedHarvest =
+                (tempData['totalRecommended'] as num?)?.toDouble() ?? 0.0;
+            print(
+                'Loaded pre-harvest from temp storage: pre=$preHarvestTotal rec=$recommendedHarvest');
+          }
+        } catch (e) {
+          print('Error loading temp pre-harvest data: $e');
+        }
+      }
+
+      // If recommended/ratio missing, derive them
+      if (recommendedHarvest == 0.0 && preHarvestTotal > 0.0) {
+        recommendedHarvest = (preHarvestTotal * 0.75); // Changed to 75%
+      }
+
+      if (harvestRatio == 0.0 && preHarvestTotal > 0.0 && actualHarvest > 0.0) {
+        double variance = preHarvestTotal > 0
+            ? ((actualHarvest - recommendedHarvest).abs() / preHarvestTotal)
+            : 0.0;
+        if (variance <= 0.1) {
+          harvestRatio = 0.75;
+          followedRecommendation = true;
+        } else {
+          harvestRatio =
+              preHarvestTotal > 0 ? (actualHarvest / preHarvestTotal) : 0.0;
+        }
+      }
+
+      // Determine what to display in pie chart
+      double generalTotal = 0.0;
+
+      if (hasPostHarvestData && actualHarvest > 0.0) {
+        // POST-HARVEST exists: show post-harvest data in pie chart
+        // Use actual breakdown if we parsed it, otherwise divide equally
+        if (mangkok > 0 || sudut > 0 || oval > 0 || patahan > 0) {
+          // We have detailed breakdown from parsing notes
+          generalTotal = mangkok + sudut + oval + patahan;
+          hasDetailedData = true;
+          print(
+              'Using parsed harvest breakdown: M:$mangkok S:$sudut O:$oval P:$patahan Total:$generalTotal');
+        } else {
+          // No detailed breakdown, divide equally among 4 types for visualization
+          final perType = actualHarvest / 4.0;
+          mangkok = perType;
+          sudut = perType;
+          oval = perType;
+          patahan = perType;
+          generalTotal = actualHarvest;
+          hasDetailedData = true;
+          print(
+              'Using POST_HARVEST data for pie chart: $actualHarvest divided equally');
+        }
+      } else if (preHarvestTotal > 0.0) {
+        // Only PRE-HARVEST exists: show pre-harvest data in pie chart
+        // Use actual breakdown if we parsed it, otherwise divide equally
+        if (hasPreHarvestBreakdown &&
+            (preHarvestMangkok > 0 ||
+                preHarvestSudut > 0 ||
+                preHarvestOval > 0 ||
+                preHarvestPatahan > 0)) {
+          // We have detailed breakdown from parsing PRE_HARVEST notes
+          mangkok = preHarvestMangkok;
+          sudut = preHarvestSudut;
+          oval = preHarvestOval;
+          patahan = preHarvestPatahan;
+          generalTotal = mangkok + sudut + oval + patahan;
+          hasDetailedData = true;
+          print(
+              'Using parsed PRE_HARVEST breakdown: M:$mangkok S:$sudut O:$oval P:$patahan Total:$generalTotal');
+        } else {
+          // No detailed breakdown, divide equally among 4 types for visualization
+          final perType = preHarvestTotal / 4.0;
+          mangkok = perType;
+          sudut = perType;
+          oval = perType;
+          patahan = perType;
+          generalTotal = preHarvestTotal;
+          hasDetailedData = true;
+          print(
+              'Using PRE_HARVEST data for pie chart: $preHarvestTotal divided equally');
         }
       } else {
-        hasDetailedData = true; // Data from API is considered detailed
-      }
-
-      // Load floor data
-      List<Map<String, dynamic>> floorData = [];
-      for (int i = 0; i < _selectedCageFloors; i++) {
-        double floorMangkok = 0.0,
-            floorSudut = 0.0,
-            floorOval = 0.0,
-            floorPatahan = 0.0;
-
-        // First try AddHarvestPage static storage for detailed data
-        try {
-          final staticData = AddHarvestPage.getStoredData();
-          floorMangkok = (staticData['${key}_floor_${i + 1}_mangkok'] as num?)
-                  ?.toDouble() ??
-              0.0;
-          floorSudut = (staticData['${key}_floor_${i + 1}_sudut'] as num?)
-                  ?.toDouble() ??
-              0.0;
-          floorOval = (staticData['${key}_floor_${i + 1}_oval'] as num?)
-                  ?.toDouble() ??
-              0.0;
-          floorPatahan = (staticData['${key}_floor_${i + 1}_patahan'] as num?)
-                  ?.toDouble() ??
-              0.0;
-        } catch (staticError) {
-          print('Static storage failed for floor ${i + 1}: $staticError');
-          
-          // Fallback to SharedPreferences
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            floorMangkok =
-                prefs.getDouble('${key}_floor_${i + 1}_mangkok') ?? 0.0;
-            floorSudut = prefs.getDouble('${key}_floor_${i + 1}_sudut') ?? 0.0;
-            floorOval = prefs.getDouble('${key}_floor_${i + 1}_oval') ?? 0.0;
-            floorPatahan =
-                prefs.getDouble('${key}_floor_${i + 1}_patahan') ?? 0.0;
-          } catch (prefsError) {
-            print('SharedPreferences failed for floor ${i + 1}: $prefsError');
-            // Use default values (already set to 0.0)
-          }
-        }
-
-        floorData.add({
-          'floor': i + 1,
-          'mangkok': floorMangkok.toStringAsFixed(1),
-          'sudut': floorSudut.toStringAsFixed(1),
-          'oval': floorOval.toStringAsFixed(1),
-          'patahan': floorPatahan.toStringAsFixed(1),
-        });
-        
-        // Log floor data for debugging
-        print('Floor ${i + 1} data loaded: M:${floorMangkok.toStringAsFixed(1)} S:${floorSudut.toStringAsFixed(1)} O:${floorOval.toStringAsFixed(1)} P:${floorPatahan.toStringAsFixed(1)}');
-      }
-
-      // Load general total sarang for optimal harvest calculation
-      double generalTotal = 0.0;
-      try {
-        if (_authToken != null) {
-          // Try to get from API response if available
-          final prefs = await SharedPreferences.getInstance();
-          generalTotal = prefs.getDouble('${key}_general_total') ?? 0.0;
-        } else {
-          final prefs = await SharedPreferences.getInstance();
-          generalTotal = prefs.getDouble('${key}_general_total') ?? 0.0;
-        }
-        
-        // Fallback: calculate from static storage
-        if (generalTotal == 0.0) {
-          final staticData = AddHarvestPage.getStoredData();
-          generalTotal = (staticData['${key}_general_total'] as num?)?.toDouble() ?? 0.0;
-        }
-      } catch (e) {
-        print('Error loading general total: $e');
+        // No data at all
         generalTotal = 0.0;
+        hasDetailedData = false;
+        print('No harvest data found for this period');
       }
 
       if (mounted) {
         setState(() {
           _harvestData = {
-            'mangkok': hasDetailedData ? mangkok : 0.0,
-            'sudut': hasDetailedData ? sudut : 0.0,
-            'oval': hasDetailedData ? oval : 0.0,
-            'patahan': hasDetailedData ? patahan : 0.0,
+            'mangkok': mangkok,
+            'sudut': sudut,
+            'oval': oval,
+            'patahan': patahan,
           };
           _generalTotalSarang = generalTotal;
+          _preHarvestTotal = preHarvestTotal;
+          _recommendedHarvest = recommendedHarvest;
+          _actualHarvest = actualHarvest;
+          _harvestRatio = harvestRatio;
+          _followedRecommendation = followedRecommendation;
           _floorData = floorData;
         });
       }
 
-            print('Analysis data loaded: $_harvestData, hasDetailedData: $hasDetailedData');
+      print(
+          'Analysis data loaded: $_harvestData, hasDetailedData: $hasDetailedData');
     } catch (e) {
       print('Error loading harvest data: $e');
       // Set default zero data on error
@@ -385,12 +649,15 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
   }
 
   List<PieChartSectionData> _getChartData() {
-    // Check if we have detailed harvest data (from AddHarvestPage)
-    final key = 'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
-    final staticData = AddHarvestPage.getStoredData();
-    bool hasDetailedData = staticData.containsKey('${key}_mangkok') && 
-                          (staticData['${key}_mangkok'] as num? ?? 0) > 0;
-    
+    // Use API-derived floor data to determine whether detailed data exists
+    bool hasDetailedData = _floorData.any((f) {
+      double m = double.tryParse(f['mangkok']?.toString() ?? '0') ?? 0.0;
+      double s = double.tryParse(f['sudut']?.toString() ?? '0') ?? 0.0;
+      double o = double.tryParse(f['oval']?.toString() ?? '0') ?? 0.0;
+      double p = double.tryParse(f['patahan']?.toString() ?? '0') ?? 0.0;
+      return m > 0 || s > 0 || o > 0 || p > 0;
+    });
+
     if (_totalHarvest == 0 || !hasDetailedData) {
       return [
         PieChartSectionData(
@@ -407,13 +674,21 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
       ];
     }
 
+    // Use nest counts instead of weight for pie chart
     List<PieChartSectionData> sections = [];
+    final totalNests = _harvestData['mangkok'] +
+        _harvestData['sudut'] +
+        _harvestData['oval'] +
+        _harvestData['patahan'];
 
     if (_harvestData['mangkok'] > 0) {
+      final percentage = totalNests > 0
+          ? (_harvestData['mangkok'] / totalNests * 100).toStringAsFixed(1)
+          : '0';
       sections.add(PieChartSectionData(
         value: _harvestData['mangkok'],
         color: const Color(0xFF245C4C),
-        title: '${_harvestData['mangkok']} Kg',
+        title: '${_harvestData['mangkok'].toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -424,10 +699,13 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
     }
 
     if (_harvestData['sudut'] > 0) {
+      final percentage = totalNests > 0
+          ? (_harvestData['sudut'] / totalNests * 100).toStringAsFixed(1)
+          : '0';
       sections.add(PieChartSectionData(
         value: _harvestData['sudut'],
         color: const Color(0xFFffc200),
-        title: '${_harvestData['sudut']} Kg',
+        title: '${_harvestData['sudut'].toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -438,10 +716,13 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
     }
 
     if (_harvestData['oval'] > 0) {
+      final percentage = totalNests > 0
+          ? (_harvestData['oval'] / totalNests * 100).toStringAsFixed(1)
+          : '0';
       sections.add(PieChartSectionData(
         value: _harvestData['oval'],
         color: const Color(0xFF168AB5),
-        title: '${_harvestData['oval']} Kg',
+        title: '${_harvestData['oval'].toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -452,10 +733,13 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
     }
 
     if (_harvestData['patahan'] > 0) {
+      final percentage = totalNests > 0
+          ? (_harvestData['patahan'] / totalNests * 100).toStringAsFixed(1)
+          : '0';
       sections.add(PieChartSectionData(
         value: _harvestData['patahan'],
         color: const Color(0xFFC20000),
-        title: '${_harvestData['patahan']} Kg',
+        title: '${_harvestData['patahan'].toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -487,15 +771,15 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Pilih Bulan dan Tahun'),
-        content: Container(
+        title: const Text('Pilih Bulan dan Tahun'),
+        content: SizedBox(
           width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: _selectedMonth,
-                decoration: InputDecoration(
+                initialValue: _selectedMonth,
+                decoration: const InputDecoration(
                   labelText: 'Bulan',
                   border: OutlineInputBorder(),
                 ),
@@ -513,10 +797,10 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                   }
                 },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               DropdownButtonFormField<int>(
-                value: _selectedYear,
-                decoration: InputDecoration(
+                initialValue: _selectedYear,
+                decoration: const InputDecoration(
                   labelText: 'Tahun',
                   border: OutlineInputBorder(),
                 ),
@@ -541,18 +825,18 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _loadHarvestData();
             },
-            child: Text('OK'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF245C4C),
+              backgroundColor: const Color(0xFF245C4C),
               foregroundColor: Colors.white,
             ),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -561,11 +845,11 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
 
   void _showHarvestRecommendation() {
     String recommendationText = _generateHarvestRecommendation();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.lightbulb, color: Color(0xFFffc200), size: 24),
             SizedBox(width: 8),
@@ -579,29 +863,29 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
             ),
           ],
         ),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFFF7CA),
+                  color: const Color(0xFFFFF7CA),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Color(0xFFffc200)),
+                  border: Border.all(color: const Color(0xFFffc200)),
                 ),
                 child: Text(
                   recommendationText,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: Color(0xFF245C4C),
                     height: 1.4,
                   ),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 '💡 Tips: Lakukan panen secara berkala setiap 40-45 hari untuk hasil optimal.',
                 style: TextStyle(
@@ -616,31 +900,44 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Tutup'),
+            child: const Text('Tutup'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Navigate to add harvest page
+              // Navigate to detailed harvest page
+              // Build floorLimits from pre-harvest data
+              Map<int, int> floorLimits = {};
+              for (var floorItem in _floorData) {
+                int floorNo = floorItem['floor'] as int;
+                double preHarvestValue =
+                    double.tryParse(floorItem['mangkok'].toString()) ?? 0.0;
+                floorLimits[floorNo] = preHarvestValue.toInt();
+              }
+
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => GeneralHarvestInputPage(
+                  builder: (context) => AddHarvestPage(
                     cageName: _selectedCageName,
                     floors: _selectedCageFloors,
+                    houseId: _selectedHouseId,
+                    floorLimits: floorLimits,
+                    selectedMonth: _selectedMonth,
+                    selectedYear: _selectedYear,
                   ),
                 ),
               ).then((result) {
-                if (result == true) {
+                if (result == true || result != null) {
                   _loadHarvestData();
                 }
               });
             },
-            child: Text('Tambah Panen'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF245C4C),
+              backgroundColor: const Color(0xFF245C4C),
               foregroundColor: Colors.white,
             ),
+            child: Text('Tambah Panen'),
           ),
         ],
       ),
@@ -648,41 +945,80 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
   }
 
   String _generateHarvestRecommendation() {
-    int optimalHarvest = (_generalTotalSarang * 0.6).round();
-    
-    if (_generalTotalSarang == 0) {
-      return "Belum ada data sarang untuk periode ini. Disarankan untuk:\n\n"
-             "• Input data sarang terlebih dahulu\n"
-             "• Lakukan pemeriksaan kondisi sarang di setiap lantai\n"
-             "• Catat jumlah sarang untuk analisis selanjutnya";
+    // Case 1: No pre-harvest data available
+    if (_preHarvestTotal == 0 && _generalTotalSarang == 0) {
+      return "Belum ada data pre-harvest untuk periode ini.\n\n"
+          "Disarankan untuk:\n"
+          "• Input data pre-harvest terlebih dahulu\n"
+          "• Lakukan pemeriksaan kondisi sarang di setiap lantai\n"
+          "• Catat jumlah sarang untuk analisis selanjutnya";
     }
-    
-    if (_totalHarvest == 0) {
-      return "Total sarang: ${_generalTotalSarang.toInt()}\n"
-             "Panen optimal yang disarankan: $optimalHarvest sarang (60%)\n\n"
-             "Rekomendasi:\n"
-             "• Mulai lakukan panen rutin setiap 40-45 hari\n"
-             "• Panen tidak lebih dari 60% untuk menjaga regenerasi\n"
-             "• Periksa kondisi sarang di setiap lantai";
+
+    // Case 2: Has pre-harvest data but no post-harvest data yet
+    if (_totalHarvest == 0 && _preHarvestTotal > 0) {
+      return "Pre-Harvest Data:\n"
+          "Total sarang: ${_preHarvestTotal.toInt()}\n"
+          "Rekomendasi panen (60%): ${_recommendedHarvest.toInt()} sarang\n\n"
+          "Status: Belum ada data hasil panen\n\n"
+          "Rekomendasi:\n"
+          "• Lakukan panen sesuai rekomendasi\n"
+          "• Input hasil panen setelah pemanenan\n"
+          "• Sistem akan menghitung ratio panen otomatis";
     }
-    
-    double harvestPercentage = (_totalHarvest / _generalTotalSarang) * 100;
-    
+
+    // Case 3: Has post-harvest data - show ratio analysis
+    if (_actualHarvest > 0 && _preHarvestTotal > 0) {
+      String ratioText = _followedRecommendation
+          ? "75% (Mengikuti rekomendasi ✓)"
+          : "${(_harvestRatio * 100).toStringAsFixed(1)}%";
+
+      String performance = "";
+      if (_harvestRatio <= 0.60) {
+        performance = "Excellent! Panen dalam batas optimal.";
+      } else if (_harvestRatio <= 0.75) {
+        performance = "Good! Panen sedikit melebihi optimal namun masih baik.";
+      } else {
+        performance = "Warning! Panen melebihi batas yang disarankan.";
+      }
+
+      return "Analisis Panen:\n\n"
+              "Pre-Harvest:\n"
+              "• Total sarang: ${_preHarvestTotal.toInt()}\n"
+              "• Rekomendasi: ${_recommendedHarvest.toInt()} sarang\n\n"
+              "Post-Harvest:\n"
+              "• Hasil panen: ${_actualHarvest.toStringAsFixed(1)} \n"
+              "• Ratio panen: $ratioText\n\n"
+              "Status: $performance\n\n"
+              "Rekomendasi Berikutnya:\n" +
+          (_harvestRatio <= 0.60
+              ? "• Pertahankan pola panen saat ini\n"
+                  "• Jaga konsistensi kondisi lingkungan\n"
+                  "• Panen berikutnya dalam 40-45 hari"
+              : "• Kurangi intensitas panen berikutnya\n"
+                  "• Beri waktu istirahat lebih lama (50-60 hari)\n"
+                  "• Monitor regenerasi sarang dengan teliti");
+    }
+
+    // Fallback to old logic if data structure doesn't match
+    double harvestPercentage = (_generalTotalSarang > 0)
+        ? (_totalHarvest / _generalTotalSarang) * 100
+        : 0;
+
     if (harvestPercentage <= 60) {
       return "Total sarang: ${_generalTotalSarang.toInt()}\n"
-             "Hasil panen: $_totalHarvest kg (${harvestPercentage.toStringAsFixed(1)}% dari sarang)\n\n"
-             "Panen dalam batas optimal! Rekomendasi:\n"
-             "• Pertahankan pola panen saat ini\n"
-             "• Jaga konsistensi kondisi lingkungan\n"
-             "• Panen berikutnya dalam 40-45 hari";
+          "Hasil panen: $_totalHarvest (${harvestPercentage.toStringAsFixed(1)}% dari sarang)\n\n"
+          "Panen dalam batas optimal! Rekomendasi:\n"
+          "• Pertahankan pola panen saat ini\n"
+          "• Jaga konsistensi kondisi lingkungan\n"
+          "• Panen berikutnya dalam 40-45 hari";
     }
-    
+
     return "Total sarang: ${_generalTotalSarang.toInt()}\n"
-           "Hasil panen: $_totalHarvest kg (${harvestPercentage.toStringAsFixed(1)}% dari sarang)\n\n"
-           "Panen melebihi batas optimal (60%)! Rekomendasi:\n"
-           "• Kurangi intensitas panen berikutnya\n"
-           "• Beri waktu istirahat lebih lama (50-60 hari)\n"
-           "• Monitor regenerasi sarang dengan teliti";
+        "Hasil panen: $_totalHarvest  (${harvestPercentage.toStringAsFixed(1)}% dari sarang)\n\n"
+        "Panen melebihi batas optimal (60%)! Rekomendasi:\n"
+        "• Kurangi intensitas panen berikutnya\n"
+        "• Beri waktu istirahat lebih lama (50-60 hari)\n"
+        "• Monitor regenerasi sarang dengan teliti";
   }
 
   @override
@@ -693,7 +1029,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
         title: Text('Analisis Panen - $_selectedCageName'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Color(0xFF245C4C),
+        foregroundColor: const Color(0xFF245C4C),
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -708,29 +1044,31 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Date Selection Button
             Center(
               child: Container(
-                margin: EdgeInsets.only(bottom: 16),
+                margin: const EdgeInsets.only(bottom: 16),
                 child: ElevatedButton.icon(
                   onPressed: _showDatePicker,
-                  icon: Icon(Icons.calendar_month, size: 18),
+                  icon: const Icon(Icons.calendar_month, size: 18),
                   label: Text(
                     '${_months[_selectedMonth - 1]} $_selectedYear',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFFF7CA),
-                    foregroundColor: Color(0xFF245C4C),
+                    backgroundColor: const Color(0xFFFFF7CA),
+                    foregroundColor: const Color(0xFF245C4C),
                     elevation: 2,
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: Color(0xFFffc200)),
+                      side: const BorderSide(color: Color(0xFFffc200)),
                     ),
                   ),
                 ),
@@ -740,7 +1078,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
             // First Section: Pie Chart and Legend
             Container(
               height: height(context) * 0.32,
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -749,7 +1087,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                     color: Colors.grey.withOpacity(0.1),
                     spreadRadius: 2,
                     blurRadius: 5,
-                    offset: Offset(0, 3),
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
@@ -777,17 +1115,25 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildLegendItem('Mangkok',
-                            '${_harvestData['mangkok']} Kg', Color(0xFF245C4C)),
-                        SizedBox(height: 8),
-                        _buildLegendItem('Sudut', '${_harvestData['sudut']} Kg',
-                            Color(0xFFffc200)),
-                        SizedBox(height: 8),
-                        _buildLegendItem('Oval', '${_harvestData['oval']} Kg',
-                            Color(0xFF168AB5)),
-                        SizedBox(height: 8),
-                        _buildLegendItem('Patahan',
-                            '${_harvestData['patahan']} Kg', Color(0xFFC20000)),
+                        _buildLegendItem(
+                            'Mangkok',
+                            '${_harvestData['mangkok'].toInt()} sarang',
+                            const Color(0xFF245C4C)),
+                        const SizedBox(height: 8),
+                        _buildLegendItem(
+                            'Sudut',
+                            '${_harvestData['sudut'].toInt()} sarang',
+                            const Color(0xFFffc200)),
+                        const SizedBox(height: 8),
+                        _buildLegendItem(
+                            'Oval',
+                            '${_harvestData['oval'].toInt()} sarang',
+                            const Color(0xFF168AB5)),
+                        const SizedBox(height: 8),
+                        _buildLegendItem(
+                            'Patahan',
+                            '${_harvestData['patahan'].toInt()} sarang',
+                            const Color(0xFFC20000)),
                       ],
                     ),
                   ),
@@ -795,18 +1141,18 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               ),
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Second Section: Cycle, Sarang, and Income
             Row(
               children: [
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Color(0xFFFFF7CA),
+                      color: const Color(0xFFFFF7CA),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFffc200)),
+                      border: Border.all(color: const Color(0xFFffc200)),
                     ),
                     child: const Text(
                       'Siklus Panen\n40-45 Hari',
@@ -819,18 +1165,18 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Color(0xFFF0F8FF),
+                      color: const Color(0xFFF0F8FF),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFF168AB5)),
+                      border: Border.all(color: const Color(0xFF168AB5)),
                     ),
                     child: Column(
                       children: [
-                        Text(
+                        const Text(
                           'Total Sarang',
                           style: TextStyle(
                             fontSize: 10,
@@ -840,15 +1186,15 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                         ),
                         Text(
                           '${_generalTotalSarang.toInt()}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF168AB5),
                           ),
                         ),
                         Text(
-                          'Optimal: ${(_generalTotalSarang * 0.6).toInt()}',
-                          style: TextStyle(
+                          'Optimal: ${_preHarvestTotal > 0 ? (_preHarvestTotal * 0.75).toInt() : (_generalTotalSarang * 0.75).toInt()}',
+                          style: const TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF168AB5),
@@ -858,18 +1204,18 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Color(0xFFFFF7CA),
+                      color: const Color(0xFFFFF7CA),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFffc200)),
+                      border: Border.all(color: const Color(0xFFffc200)),
                     ),
                     child: Text(
                       'Rekap Pendapatan\n$_totalIncome',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF245C4C),
@@ -881,7 +1227,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               ],
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Time Selection for Table
             Row(
@@ -889,7 +1235,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               children: [
                 Text(
                   'Data Panen ${_months[_selectedMonth - 1]} $_selectedYear',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF245C4C),
@@ -898,7 +1244,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               ],
             ),
 
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
 
             // Third Section: Total and Floor Table (Same Width)
             Row(
@@ -906,7 +1252,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               children: [
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
@@ -915,7 +1261,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Total Sarang Dipetik',
                           style: TextStyle(
                             fontSize: 14,
@@ -923,10 +1269,10 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                             color: Color(0xFF245C4C),
                           ),
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         Text(
-                          '${_totalHarvest.toStringAsFixed(1)} Kg',
-                          style: TextStyle(
+                          '${_totalHarvest.toStringAsFixed(0)} sarang',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFFffc200),
@@ -937,7 +1283,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                   ),
                 ),
 
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
 
                 // Floor Table
                 Expanded(
@@ -951,16 +1297,16 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                       children: [
                         // Table Header
                         Container(
-                          padding:
-                              EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                          decoration: BoxDecoration(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 6, horizontal: 8),
+                          decoration: const BoxDecoration(
                             color: Color(0xFF245C4C),
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(7),
                               topRight: Radius.circular(7),
                             ),
                           ),
-                          child: Row(
+                          child: const Row(
                             children: [
                               Expanded(
                                 flex: 2,
@@ -1006,47 +1352,44 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                         ),
 
                         // Table Rows
-                        ..._floorData
-                            .map((floor) => Container(
-                                  padding: EdgeInsets.symmetric(
-                                      vertical: 6, horizontal: 8),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom:
-                                          BorderSide(color: Colors.grey[200]!),
+                        ..._floorData.map((floor) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 6, horizontal: 8),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: Colors.grey[200]!),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      'Lt ${floor['floor']}',
+                                      style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w500),
                                     ),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          'Lt ${floor['floor']}',
-                                          style: TextStyle(
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w500),
-                                        ),
-                                      ),
-                                      Expanded(
-                                          child: Text('${floor['mangkok']}',
-                                              style: TextStyle(fontSize: 8),
-                                              textAlign: TextAlign.center)),
-                                      Expanded(
-                                          child: Text('${floor['sudut']}',
-                                              style: TextStyle(fontSize: 8),
-                                              textAlign: TextAlign.center)),
-                                      Expanded(
-                                          child: Text('${floor['oval']}',
-                                              style: TextStyle(fontSize: 8),
-                                              textAlign: TextAlign.center)),
-                                      Expanded(
-                                          child: Text('${floor['patahan']}',
-                                              style: TextStyle(fontSize: 8),
-                                              textAlign: TextAlign.center)),
-                                    ],
-                                  ),
-                                ))
-                            .toList(),
+                                  Expanded(
+                                      child: Text('${floor['mangkok']}',
+                                          style: const TextStyle(fontSize: 8),
+                                          textAlign: TextAlign.center)),
+                                  Expanded(
+                                      child: Text('${floor['sudut']}',
+                                          style: const TextStyle(fontSize: 8),
+                                          textAlign: TextAlign.center)),
+                                  Expanded(
+                                      child: Text('${floor['oval']}',
+                                          style: const TextStyle(fontSize: 8),
+                                          textAlign: TextAlign.center)),
+                                  Expanded(
+                                      child: Text('${floor['patahan']}',
+                                          style: const TextStyle(fontSize: 8),
+                                          textAlign: TextAlign.center)),
+                                ],
+                              ),
+                            )),
                       ],
                     ),
                   ),
@@ -1054,7 +1397,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               ],
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Action Buttons
             Row(
@@ -1062,13 +1405,26 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
+                      // Build floorLimits from pre-harvest data
+                      Map<int, int> floorLimits = {};
+                      for (var floorItem in _floorData) {
+                        int floorNo = floorItem['floor'] as int;
+                        double preHarvestValue =
+                            double.tryParse(floorItem['mangkok'].toString()) ??
+                                0.0;
+                        floorLimits[floorNo] = preHarvestValue.toInt();
+                      }
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => GeneralHarvestInputPage(
+                          builder: (context) => AddHarvestPage(
                             cageName: _selectedCageName,
                             floors: _selectedCageFloors,
                             houseId: _selectedHouseId,
+                            floorLimits: floorLimits,
+                            selectedMonth: _selectedMonth,
+                            selectedYear: _selectedYear,
                           ),
                         ),
                       ).then((result) {
@@ -1077,8 +1433,8 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                         _loadHarvestData();
                       });
                     },
-                    icon: Icon(Icons.add, color: Colors.white, size: 18),
-                    label: Text(
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                    label: const Text(
                       'Tambah Panen',
                       style: TextStyle(
                         fontSize: 13,
@@ -1087,45 +1443,93 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF245C4C),
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      backgroundColor: const Color(0xFF245C4C),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      // Show harvest recommendation dialog
-                      _showHarvestRecommendation();
+                      // Navigate to edit pre-harvest data
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GeneralHarvestInputPage(
+                            cageName: _selectedCageName,
+                            floors: _selectedCageFloors,
+                            houseId: _selectedHouseId,
+                            selectedMonth: _selectedMonth,
+                            selectedYear: _selectedYear,
+                          ),
+                        ),
+                      ).then((result) {
+                        // Reload data after editing pre-harvest
+                        _loadHarvestData();
+                      });
                     },
-                    icon: Icon(Icons.lightbulb, color: Color(0xFF245C4C), size: 18),
-                    label: Text(
-                      'Rekomendasi Panen',
+                    icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                    label: const Text(
+                      'Edit Pre-Harvest',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF245C4C),
+                        color: Colors.white,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFFFF7CA),
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      backgroundColor: const Color(0xFF5C7C4C),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Color(0xFFffc200)),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            
 
-            SizedBox(height: 80),
+            const SizedBox(height: 12),
+
+            // Recommendation Button (full width)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Show harvest recommendation dialog
+                  _showHarvestRecommendation();
+                },
+                icon: const Icon(Icons.lightbulb,
+                    color: Color(0xFF245C4C), size: 18),
+                label: const Text(
+                  'Rekomendasi Panen',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF245C4C),
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFF7CA),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: Color(0xFFffc200)),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -1144,7 +1548,6 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
                 label: 'Beranda',
                 currentIndex: _currentIndex,
                 itemIndex: 0,
-
                 onTap: () {
                   Navigator.pushReplacementNamed(context, '/home-page');
                   setState(() {
@@ -1155,7 +1558,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.electrical_services_sharp,
+                icon: Icons.devices,
                 label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,
@@ -1225,7 +1628,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
             borderRadius: BorderRadius.circular(3),
           ),
         ),
-        SizedBox(width: 6),
+        const SizedBox(width: 6),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1240,7 +1643,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate> with Widg
               ),
               Text(
                 value,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF245C4C),

@@ -1,14 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
-import 'package:swiftlead/services/file_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class CageDataPage extends StatefulWidget {
-  const CageDataPage({Key? key}) : super(key: key);
+  const CageDataPage({super.key});
 
   @override
   State<CageDataPage> createState() => _CageDataPageState();
@@ -17,140 +16,31 @@ class CageDataPage extends StatefulWidget {
 class _CageDataPageState extends State<CageDataPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
   final _locationController = TextEditingController();
   final _floorCountController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  File? _selectedImage;
-  final ImagePicker _picker = ImagePicker();
+  double? _selectedLatitude;
+  double? _selectedLongitude;
   bool _isLoading = false;
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
-  Future<void> _pickImage() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memilih gambar: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _takePicture() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengambil foto: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _showImagePickerDialog() {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Pilih Sumber Gambar',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      _takePicture();
-                    },
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Color(0xFF245C4C),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            size: 32,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Kamera'),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      _pickImage();
-                    },
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Color(0xFF245C4C),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.photo_library,
-                            size: 32,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Galeri'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+  void _openMapPicker() async {
+    // Open a full screen dialog with Google Map to select a location
+    final LatLng? result = await Navigator.push<LatLng?>(
+      context,
+      MaterialPageRoute(builder: (context) => _MapPickerPage(initialPosition: LatLng(-6.200000, 106.816666))),
     );
+
+    if (result != null) {
+      setState(() {
+        _selectedLatitude = result.latitude;
+        _selectedLongitude = result.longitude;
+      });
+    }
   }
 
   Future<void> _saveData() async {
@@ -163,53 +53,67 @@ class _CageDataPageState extends State<CageDataPage> {
     });
 
     try {
-      // Get authentication token
+        // Get authentication token
       final token = await TokenManager.getToken();
       
       if (token != null) {
-        String? imageUrl;
-        
-        // Upload image first if selected
-        if (_selectedImage != null) {
-          try {
-            final fileService = FileService();
-            final imageUploadResponse = await fileService.uploadFile(
-              token, 
-              _selectedImage!,
-              category: 'swiftlet_house',
-              description: 'Kandang ${_nameController.text}',
-            );
-            
-            if (imageUploadResponse['success'] == true) {
-              imageUrl = imageUploadResponse['data']['file_url'];
-            }
-          } catch (e) {
-            print('Error uploading image: $e');
-            // Continue without image
-          }
+        // Validate location selected
+        if (_selectedLatitude == null || _selectedLongitude == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Silakan pilih lokasi kandang melalui peta terlebih dahulu'), backgroundColor: Colors.red),
+          );
+          setState(() { _isLoading = false; });
+          return;
         }
-        
-        // Create house via API
+
+        // Generate RBW code based on location string and current RBW count
         final houseService = HouseService();
+        int nextId = 1;
+        try {
+          final existing = await houseService.getAll(token);
+          nextId = (existing.length) + 1;
+        } catch (e) {
+          print('Failed to fetch existing RBW count: $e');
+          nextId = DateTime.now().millisecondsSinceEpoch % 100000; // fallback random-ish id
+        }
+
+  // Use user-provided code if present, otherwise generate one
+  String codeSource = _locationController.text.isNotEmpty ? _locationController.text : _nameController.text;
+  final generatedCode = _generateRbwCode(codeSource, nextId);
+  final rbwCode = _codeController.text.trim().isNotEmpty ? _codeController.text.trim() : generatedCode;
+
+        // parse floor count safely (validator already checked, but be defensive)
+        final parsedFloors = int.tryParse(_floorCountController.text.trim()) ?? 0;
+
         final payload = {
+          'code': rbwCode,
           'name': _nameController.text,
-          'location': _locationController.text,
-          'floor_count': int.parse(_floorCountController.text),
+          'address': _locationController.text,
+          'latitude': _selectedLatitude,
+          'longitude': _selectedLongitude,
+          // API expects `total_floors` (not floor_count)
+          'total_floors': parsedFloors,
           'description': _descriptionController.text,
         };
-        
-        // Add image URL if uploaded successfully
-        if (imageUrl != null) {
-          payload['image_url'] = imageUrl;
-        }
-        
+
         final apiResponse = await houseService.create(token, payload);
-        print('House created via API: $apiResponse');
-        
+        print('RBW created via API: $apiResponse');
+
+        // If API returned an explicit error, show it and DO NOT save locally.
+        if (apiResponse.containsKey('error')) {
+          final err = apiResponse['error'];
+          final message = (err is Map) ? (err['message'] ?? err['detail'] ?? err.toString()) : err.toString();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal membuat RBW: $message'), backgroundColor: Colors.red),
+          );
+          setState(() { _isLoading = false; });
+          return; // stop here — do not save locally
+        }
+
         // If API successful, also save locally for offline support
         if (apiResponse['success'] == true || apiResponse['data'] != null) {
           await _saveToLocalStorage();
-          
+
           setState(() {
             _isLoading = false;
           });
@@ -232,7 +136,7 @@ class _CageDataPageState extends State<CageDataPage> {
         }
       }
       
-      // Fallback to local storage only
+  // Fallback to local storage only
       await _saveToLocalStorage();
       
       setState(() {
@@ -302,12 +206,11 @@ class _CageDataPageState extends State<CageDataPage> {
     
     // Save new kandang data
     await prefs.setString('kandang_${kandangCount}_name', _nameController.text);
+  await prefs.setString('kandang_${kandangCount}_code', _codeController.text);
     await prefs.setString('kandang_${kandangCount}_address', _locationController.text);
     await prefs.setInt('kandang_${kandangCount}_floors', int.parse(_floorCountController.text));
     await prefs.setString('kandang_${kandangCount}_description', _descriptionController.text);
-    if (_selectedImage != null) {
-      await prefs.setString('kandang_${kandangCount}_image', _selectedImage!.path);
-    }
+    // No image saved locally (image input replaced with map picker)
     
     // Update kandang count
     await prefs.setInt('kandang_count', kandangCount);
@@ -315,9 +218,8 @@ class _CageDataPageState extends State<CageDataPage> {
     // Also save in legacy format for backward compatibility
     await prefs.setString('cage_address', _locationController.text);
     await prefs.setInt('cage_floors', int.parse(_floorCountController.text));
-    if (_selectedImage != null) {
-      await prefs.setString('cage_image', _selectedImage!.path);
-    }
+  await prefs.setString('cage_code', _codeController.text);
+    // legacy image no longer used
 
     print('Cage data saved locally');
   }
@@ -374,6 +276,7 @@ class _CageDataPageState extends State<CageDataPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _codeController.dispose();
     _locationController.dispose();
     _floorCountController.dispose();
     _descriptionController.dispose();
@@ -386,7 +289,7 @@ class _CageDataPageState extends State<CageDataPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Data Kandang'),
-        backgroundColor: Color(0xFF245C4C),
+        backgroundColor: const Color(0xFF245C4C),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -398,7 +301,7 @@ class _CageDataPageState extends State<CageDataPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
-              Text(
+              const Text(
                 'Lengkapi Data Kandang Anda',
                 style: TextStyle(
                   fontSize: 24,
@@ -420,9 +323,9 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 32),
 
-              // Image Upload Section
-              Text(
-                'Foto Kandang',
+              // Location (pick on map)
+              const Text(
+                'Lokasi (Pilih di Peta)',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -432,53 +335,107 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 12),
 
-              GestureDetector(
-                onTap: _showImagePickerDialog,
-                child: Container(
-                  width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.grey[300]!,
-                      width: 2,
-                      style: BorderStyle.solid,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.grey[50],
+              Container(
+                width: double.infinity,
+                height: 160,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.grey[300]!,
+                    width: 1,
                   ),
-                  child: _selectedImage != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(
-                            _selectedImage!,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.grey[50],
+                ),
+                child: InkWell(
+                  onTap: _openMapPicker,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              Icons.add_a_photo,
-                              size: 48,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 8),
                             Text(
-                              'Ketuk untuk menambah foto',
+                              _selectedLatitude != null && _selectedLongitude != null
+                                  ? 'Lat: ${_selectedLatitude!.toStringAsFixed(6)}, Lng: ${_selectedLongitude!.toStringAsFixed(6)}'
+                                  : 'Belum memilih lokasi',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.grey[600],
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: _openMapPicker,
+                              icon: const Icon(Icons.map),
+                              label: const Text('Pilih di Peta'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF245C4C),
+                                foregroundColor: Colors.white,
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: Center(
+                            child: _selectedLatitude == null
+                                ? const Text('Tap "Pilih di Peta" untuk menentukan lokasi kandang')
+                                : const Text('Lokasi terpilih ditampilkan di atas'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
 
               const SizedBox(height: 24),
 
+              // Code Field (optional)
+              const Text(
+                'Kode RBW (opsional)',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _codeController,
+                decoration: InputDecoration(
+                  hintText: 'Masukkan kode RBW jika tersedia (mis. RBW-ABC-1)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  suffixIcon: Icon(Icons.confirmation_number, color: Colors.grey[400]),
+                ),
+                validator: (value) {
+                  if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
+                    return 'Kode terlalu pendek';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 24),
+
               // Name Field
-              Text(
+              const Text(
                 'Nama Kandang',
                 style: TextStyle(
                   fontSize: 16,
@@ -503,7 +460,7 @@ class _CageDataPageState extends State<CageDataPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Color(0xFF245C4C)),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
@@ -523,7 +480,7 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 24),
 
               // Location Field
-              Text(
+              const Text(
                 'Lokasi Kandang',
                 style: TextStyle(
                   fontSize: 16,
@@ -549,7 +506,7 @@ class _CageDataPageState extends State<CageDataPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Color(0xFF245C4C)),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
@@ -569,7 +526,7 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 24),
 
               // Floor Count Field
-              Text(
+              const Text(
                 'Jumlah Lantai',
                 style: TextStyle(
                   fontSize: 16,
@@ -595,7 +552,7 @@ class _CageDataPageState extends State<CageDataPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Color(0xFF245C4C)),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
@@ -622,7 +579,7 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 24),
 
               // Description Field
-              Text(
+              const Text(
                 'Deskripsi Kandang',
                 style: TextStyle(
                   fontSize: 16,
@@ -648,7 +605,7 @@ class _CageDataPageState extends State<CageDataPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Color(0xFF245C4C)),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
@@ -669,7 +626,7 @@ class _CageDataPageState extends State<CageDataPage> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _saveData,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF245C4C),
+                    backgroundColor: const Color(0xFF245C4C),
                     foregroundColor: Colors.white,
                     elevation: 2,
                     shape: RoundedRectangleBorder(
@@ -723,6 +680,81 @@ class _CageDataPageState extends State<CageDataPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Helper to generate RBW code: RBW-<3letters>-<id>
+String _generateRbwCode(String source, int id) {
+  final cleaned = source.replaceAll(RegExp(r'[^A-Za-z]'), '').toUpperCase();
+  String first = 'X';
+  String middle = 'X';
+  String last = 'X';
+  if (cleaned.isNotEmpty) {
+    first = cleaned[0];
+    last = cleaned[cleaned.length - 1];
+    middle = cleaned[(cleaned.length - 1) ~/ 2];
+  }
+  final letters = (first + middle + last).padRight(3, 'X').substring(0,3);
+  return 'RBW-$letters-$id';
+}
+
+class _MapPickerPage extends StatefulWidget {
+  final LatLng initialPosition;
+  const _MapPickerPage({required this.initialPosition});
+
+  @override
+  State<_MapPickerPage> createState() => _MapPickerPageState();
+}
+
+class _MapPickerPageState extends State<_MapPickerPage> {
+  LatLng? _picked;
+  final MapController _mapController = MapController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pilih Lokasi'),
+        backgroundColor: const Color(0xFF245C4C),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, _picked);
+            },
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+      body: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          center: widget.initialPosition,
+          zoom: 15,
+          onTap: (tapPosition, point) {
+            setState(() {
+              _picked = LatLng(point.latitude, point.longitude);
+            });
+          },
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            subdomains: const ['a', 'b', 'c'],
+          ),
+          if (_picked != null)
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: _picked!,
+                  width: 80,
+                  height: 80,
+                  builder: (ctx) => const Icon(Icons.location_on, color: Colors.red, size: 40),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }

@@ -4,11 +4,12 @@ import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/house_services.dart';
-import 'package:swiftlead/services/device_installation_service.dart';
+import 'package:swiftlead/pages/edit_cage_page.dart';
+// DeviceInstallationService deprecated; use service requests + nodes API instead
 import 'package:swiftlead/utils/token_manager.dart';
 
 class CageSelectionPage extends StatefulWidget {
-  const CageSelectionPage({Key? key}) : super(key: key);
+  const CageSelectionPage({super.key});
 
   @override
   State<CageSelectionPage> createState() => _CageSelectionPageState();
@@ -23,7 +24,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
   
   // API Services
   final HouseService _houseService = HouseService();
-  final DeviceInstallationService _installationService = DeviceInstallationService();
+  // Removed DeviceInstallationService; replace future install checks using NodeService if needed
   
   // Authentication
   String? _authToken;
@@ -72,22 +73,21 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         // Check device installation status
         bool hasDeviceInstalled = false;
         List<String> installationCodes = [];
-        try {
-          final installCheck = await _installationService.checkDeviceInstallation(_authToken!, house['id']);
-          hasDeviceInstalled = installCheck['hasDevices'] ?? false;
-          installationCodes = List<String>.from(installCheck['installationCodes'] ?? []);
-        } catch (e) {
-          print('Failed to check device installation for house ${house['id']}: $e');
-        }
+        // TODO: Call NodeService.listByRbw to determine installed nodes
+        // Placeholder: leave hasDeviceInstalled false until nodes are fetched
         
         cageList.add({
           'id': 'house_${house['id']}',
-          'apiId': house['id'],
-          'name': house['name'] ?? 'Kandang ${house['floor_count'] ?? 1} Lantai',
-          'address': house['location'] ?? 'Lokasi tidak tersedia',
-          'floors': house['floor_count'] ?? 3,
+          'apiId': house['id'].toString(),
+          // API uses 'name', 'address', 'total_floors' per the backend example
+          'name': house['name'] ?? 'Kandang ${house['total_floors'] ?? house['floor_count'] ?? 1} Lantai',
+          'address': house['address'] ?? house['location'] ?? 'Lokasi tidak tersedia',
+          'floors': house['total_floors'] ?? house['floor_count'] ?? 3,
           'description': house['description'] ?? '',
           'image': house['image_url'],
+          'latitude': house['latitude'],
+          'longitude': house['longitude'],
+          'code': house['code'],
           'isEmpty': false,
           'isFromAPI': true,
           'hasDeviceInstalled': hasDeviceInstalled,
@@ -170,13 +170,13 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Hapus Kandang'),
+          title: const Text('Hapus Kandang'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Apakah Anda yakin ingin menghapus kandang "${cage['name']}"?'),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               if (isFromAPI) 
                 Text(
                   '• Kandang akan dihapus dari database server',
@@ -192,8 +192,8 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                   '• Perangkat yang terpasang mungkin perlu dikonfigurasi ulang',
                   style: TextStyle(fontSize: 12, color: Colors.orange[600]),
                 ),
-              SizedBox(height: 8),
-              Text(
+              const SizedBox(height: 8),
+              const Text(
                 'Tindakan ini tidak dapat dibatalkan.',
                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
               ),
@@ -216,7 +216,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
-              child: Text('Hapus'),
+              child: const Text('Hapus'),
             ),
           ],
         );
@@ -229,11 +229,19 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       // Check if this cage is from API and has an API ID
       if (cage['isFromAPI'] == true && cage['apiId'] != null && _authToken != null) {
         try {
-          // Delete from database first
-          final apiResponse = await _houseService.delete(_authToken!, cage['apiId']);
-          
-          if (apiResponse['success'] == true || apiResponse['message'] != null) {
-            print('House deleted from database: ${cage['apiId']}');
+          // Ensure apiId is an int before calling the service
+          final dynamic rawId = cage['apiId'];
+          final String apiId = rawId?.toString() ?? '';
+
+          if (apiId.isEmpty) {
+            throw Exception('Invalid apiId for cage: ${cage['apiId']}');
+          }
+
+          // Delete from database first (uses UUID string id)
+          final apiResponse = await _houseService.delete(_authToken!, apiId);
+
+          if (apiResponse['success'] == true || apiResponse['message'] != null || apiResponse['data'] != null) {
+            print('House deleted from database: $apiId');
           } else {
             throw Exception('API deletion failed: ${apiResponse['error'] ?? 'Unknown error'}');
           }
@@ -245,19 +253,19 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text('Gagal Hapus dari Server'),
+                title: const Text('Gagal Hapus dari Server'),
                 content: Text(
                   'Kandang tidak dapat dihapus dari server. Hapus hanya dari penyimpanan lokal?\n\nError: $apiError',
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: Text('Batal'),
+                    child: const Text('Batal'),
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(true),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                    child: Text('Hapus Lokal Saja'),
+                    child: const Text('Hapus Lokal Saja'),
                   ),
                 ],
               );
@@ -272,7 +280,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       
       // Handle local storage cleanup for local cages or fallback
       final prefs = await SharedPreferences.getInstance();
-      final cageId = cage['id'].toString();
+    final cageId = cage['id'].toString();
       
       // Extract the cage number from the ID (e.g., "kandang_1" -> 1)
       final cageNumber = int.tryParse(cageId.replaceAll('kandang_', '').replaceAll('cage_', '').replaceAll('house_', ''));
@@ -304,7 +312,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Kandang berhasil dihapus'),
           backgroundColor: Colors.green,
         ),
@@ -380,12 +388,12 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pilih Kandang'),
-        backgroundColor: Color(0xFF245C4C),
+        title: const Text('Pilih Kandang'),
+        backgroundColor: const Color(0xFF245C4C),
         foregroundColor: Colors.white,
       ),
       body: _isLoading
-        ? Center(
+        ? const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -396,11 +404,11 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
             ),
           )
         : Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Pilih kandang untuk analisis panen',
                   style: TextStyle(
                     fontSize: 18,
@@ -409,7 +417,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                   ),
                 ),
     
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
     
                 Expanded(
                   child: _cageList.isEmpty
@@ -422,7 +430,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                             size: 80,
                             color: Colors.grey[400],
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Text(
                             'Belum ada kandang terdaftar',
                             style: TextStyle(
@@ -438,7 +446,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                       itemBuilder: (context, index) {
                         final cage = _cageList[index];
                         return Card(
-                          margin: EdgeInsets.only(bottom: 16),
+                          margin: const EdgeInsets.only(bottom: 16),
                           elevation: 3,
                           child: InkWell(
                             onTap: () {
@@ -447,7 +455,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => CageDataPage(),
+                                    builder: (context) => const CageDataPage(),
                                   ),
                                 );
                               } else {
@@ -463,15 +471,15 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                               }
                             },
                             child: Padding(
-                              padding: EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(16),
                               child: Row(
                                 children: [
                                   Container(
-                                    padding: EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
                                       color: cage['isEmpty'] == true 
                                           ? Colors.orange[100] 
-                                          : Color(0xFFFFF7CA),
+                                          : const Color(0xFFFFF7CA),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Icon(
@@ -480,11 +488,11 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                           : Icons.home_work,
                                       color: cage['isEmpty'] == true 
                                           ? Colors.orange[600]
-                                          : Color(0xFF245C4C),
+                                          : const Color(0xFF245C4C),
                                       size: 32,
                                     ),
                                   ),
-                                  SizedBox(width: 16),
+                                  const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -495,7 +503,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                             Expanded(
                                               child: Text(
                                                 cage['name'] ?? 'Kandang Tidak Dikenal',
-                                                style: TextStyle(
+                                                style: const TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
                                                   color: Color(0xFF245C4C),
@@ -504,14 +512,14 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                             ),
                                             if (cage['isFromAPI'] == true)
                                               Container(
-                                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                 decoration: BoxDecoration(
                                                   color: cage['hasDeviceInstalled'] == true ? Colors.green : Colors.orange,
                                                   borderRadius: BorderRadius.circular(8),
                                                 ),
                                                 child: Text(
                                                   cage['hasDeviceInstalled'] == true ? 'Device OK' : 'No Device',
-                                                  style: TextStyle(
+                                                  style: const TextStyle(
                                                     fontSize: 10,
                                                     color: Colors.white,
                                                     fontWeight: FontWeight.w500,
@@ -520,7 +528,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                               ),
                                           ],
                                         ),
-                                        SizedBox(height: 4),
+                                        const SizedBox(height: 4),
                                         Text(
                                           cage['address'] ?? 'Alamat tidak tersedia',
                                           style: TextStyle(
@@ -530,16 +538,34 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        SizedBox(height: 4),
+                                        const SizedBox(height: 4),
                                         Text(
                                           '${cage['floors']} Lantai',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             fontSize: 12,
                                             color: Color(0xFFffc200),
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
+                                    ),
+                                  ),
+                                  // Edit button
+                                  IconButton(
+                                    onPressed: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => EditCagePage(cage: cage)),
+                                      );
+                                      if (result == true) {
+                                        // refresh list after successful edit
+                                        await _initializeData();
+                                      }
+                                    },
+                                    icon: Icon(
+                                      Icons.edit_outlined,
+                                      color: Colors.blue[600],
+                                      size: 20,
                                     ),
                                   ),
                                   // Delete button
@@ -574,12 +600,12 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CageDataPage(),
+                      builder: (context) => const CageDataPage(),
                     ),
                   );
                 },
-                icon: Icon(Icons.add, color: Colors.white),
-                label: Text(
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
                   'Tambah Kandang',
                   style: TextStyle(
                     fontSize: 16,
@@ -588,7 +614,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF245C4C),
+                  backgroundColor: const Color(0xFF245C4C),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -615,39 +641,51 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                 itemIndex: 0,
                 onTap: () {
                   Navigator.pushReplacementNamed(context, '/home-page');
+                  setState(() {
+                    _currentIndex = 0;
+                  });
                 },
               ),
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.store,
+                icon: Icons.devices,
                 label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/monitoring-page');
+                  Navigator.pushReplacementNamed(context, '/control-page');
+                  setState(() {
+                    _currentIndex = 1;
+                  });
                 },
               ),
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.chat_sharp,
+                icon: Icons.agriculture,
                 label: 'Panen',
                 currentIndex: _currentIndex,
                 itemIndex: 2,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/community-page');
+                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                  setState(() {
+                    _currentIndex = 2;
+                  });
                 },
               ),
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.dataset_sharp,
+                icon: Icons.sell,
                 label: 'Jual',
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
+                  Navigator.pushReplacementNamed(context, '/store-page');
+                  setState(() {
+                    _currentIndex = 3;
+                  });
                 },
               ),
               label: ''),
@@ -659,6 +697,9 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                 itemIndex: 4,
                 onTap: () {
                   Navigator.pushReplacementNamed(context, '/profile-page');
+                  setState(() {
+                    _currentIndex = 4;
+                  });
                 },
               ),
               label: ''),

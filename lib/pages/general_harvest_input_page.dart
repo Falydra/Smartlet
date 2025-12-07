@@ -1,21 +1,27 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/house_services.dart';
+import 'package:swiftlead/services/harvest_services.dart';
+import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/pages/add_harvest_page.dart';
 
 class GeneralHarvestInputPage extends StatefulWidget {
   final String? cageName;
   final int? floors;
-  final int? houseId;
+  final String? houseId; // Changed to String to support UUID
+  final int? selectedMonth;
+  final int? selectedYear;
 
   const GeneralHarvestInputPage({
-    Key? key,
+    super.key,
     this.cageName,
     this.floors,
     this.houseId,
-  }) : super(key: key);
+    this.selectedMonth,
+    this.selectedYear,
+  });
 
   @override
   State<GeneralHarvestInputPage> createState() => _GeneralHarvestInputPageState();
@@ -29,11 +35,15 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   
   // API Services
   final HouseService _houseService = HouseService();
+  final HarvestService _harvestService = HarvestService();
+  final NodeService _nodeService = NodeService();
   
   // State management
   bool _isLoading = true;
   bool _isSaving = false;
   bool _hasSavedData = false;
+  bool _hasExistingData = false; // Track if editing existing data
+  Map<int, String> _existingRecordIds = {}; // Store existing harvest record IDs by floor number
   String? _authToken;
   
   // House data
@@ -42,12 +52,16 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   String _cageName = 'Kandang 1';
   int _cageFloors = 3;
   
+  // Node data
+  List<dynamic> _nodes = [];
+  Map<String, dynamic>? _selectedNode;
+  
   // Navigation
   int _currentIndex = 2;
   
   // Date selection
-  int _selectedMonth = DateTime.now().month;
-  int _selectedYear = DateTime.now().year;
+  late int _selectedMonth;
+  late int _selectedYear;
 
   final List<String> _months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -57,6 +71,9 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   @override
   void initState() {
     super.initState();
+    // Initialize date from parameters or use current date
+    _selectedMonth = widget.selectedMonth ?? DateTime.now().month;
+    _selectedYear = widget.selectedYear ?? DateTime.now().year;
     _initializeData();
   }
 
@@ -71,30 +88,54 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       // Get authentication token
       _authToken = await TokenManager.getToken();
       
-      if (_authToken != null) {
-        // Load houses from API
-        await _loadHouses();
-        
-        // Set selected house
-        if (widget.houseId != null) {
-          _selectedHouse = _houses.firstWhere(
-            (house) => house['id'] == widget.houseId,
-            orElse: () => _houses.isNotEmpty ? _houses.first : null,
-          );
-        } else if (_houses.isNotEmpty) {
-          _selectedHouse = _houses.first;
-        }
-        
-        if (_selectedHouse != null) {
-          _cageName = _selectedHouse!['name'] ?? 'Kandang 1';
-          _cageFloors = _selectedHouse!['floor_count'] ?? 3;
-        }
+      if (_authToken == null) {
+        throw Exception('Token autentikasi tidak tersedia. Silakan login kembali.');
       }
+      
+      // Load houses from API only - no local fallback
+      await _loadHouses();
+      
+      // Set selected house from widget.houseId or first house
+      if (widget.houseId != null && _houses.isNotEmpty) {
+        try {
+          _selectedHouse = _houses.firstWhere(
+            (house) => house['id']?.toString() == widget.houseId,
+          );
+        } catch (e) {
+          print('House with id ${widget.houseId} not found in API response: $e');
+          // Use first house if provided houseId not found
+          if (_houses.isNotEmpty) {
+            _selectedHouse = _houses.first;
+          }
+        }
+      } else if (_houses.isNotEmpty) {
+        _selectedHouse = _houses.first;
+      }
+      
+      if (_selectedHouse == null) {
+        throw Exception('Tidak ada data kandang tersedia');
+      }
+      
+      // Update cage name and floors from API data
+      _cageName = _selectedHouse!['name'] ?? _cageName;
+      _cageFloors = _selectedHouse!['total_floors'] ?? _selectedHouse!['floor_count'] ?? _cageFloors;
+      
+      // Load nodes for the selected house
+      await _loadNodes(rbwId: _selectedHouse!['id']?.toString());
+      
     } catch (e) {
       print('Error initializing general harvest data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data kandang: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
     
-    // Initialize controllers for each floor
+    // Initialize controllers for each floor based on the actual floor count
     _floorControllers = List.generate(
       _cageFloors,
       (index) => TextEditingController(text: '0'),
@@ -104,6 +145,9 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     for (var controller in _floorControllers) {
       controller.addListener(_updateTotals);
     }
+    
+    // Load existing pre-harvest data for this period (must be after controllers are created)
+    await _loadExistingPreHarvestData();
     
     if (mounted) {
       setState(() {
@@ -125,6 +169,115 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     }
   }
 
+  Future<void> _loadNodes({String? rbwId}) async {
+    if (_authToken == null || rbwId == null || rbwId.isEmpty) {
+      print('Cannot load nodes: missing token or rbwId');
+      return;
+    }
+    
+    try {
+      final response = await _nodeService.listByRbw(_authToken!, rbwId);
+      if (response['success'] == true && response['data'] != null) {
+        final nodes = response['data'] as List<dynamic>;
+        if (mounted) {
+          setState(() {
+            _nodes = nodes;
+            // Auto-select first node if available
+            if (_nodes.isNotEmpty) {
+              _selectedNode = _nodes.first;
+            }
+          });
+        }
+        print('Loaded ${nodes.length} nodes for house $rbwId');
+      } else {
+        print('Failed to load nodes: ${response['message']}');
+      }
+    } catch (e) {
+      print('Error loading nodes: $e');
+    }
+  }
+
+  Future<void> _loadExistingPreHarvestData() async {
+    if (_authToken == null || _selectedHouse == null) {
+      print('Cannot load existing pre-harvest data: missing auth or house');
+      return;
+    }
+    
+    try {
+      final rbwId = _selectedHouse!['id']?.toString();
+      if (rbwId == null) return;
+      
+      print('Loading existing pre-harvest data for rbwId=$rbwId, month=$_selectedMonth, year=$_selectedYear');
+      
+      // Load harvests for this house and period
+      final harvests = await _harvestService.getAll(
+        _authToken!,
+        rbwId: rbwId,
+      );
+      
+      print('Found ${harvests.length} harvest records total');
+      
+      bool foundData = false;
+      
+      // Look for PRE_HARVEST_PLAN records for this month/year
+      for (var harvest in harvests) {
+        final harvestedAt = harvest['harvested_at'];
+        if (harvestedAt != null) {
+          final date = DateTime.tryParse(harvestedAt);
+          if (date != null && 
+              date.month == _selectedMonth && 
+              date.year == _selectedYear) {
+            
+            final notes = (harvest['notes'] as String?) ?? '';
+            final floorNo = (harvest['floor_no'] as int?) ?? 0;
+            
+            print('Checking record: floor=$floorNo, notes=$notes');
+            
+            // Store the record ID for later updates
+            final recordId = harvest['id']?.toString();
+            if (recordId != null && floorNo > 0) {
+              _existingRecordIds[floorNo] = recordId;
+              print('Stored record ID for floor $floorNo: $recordId');
+            }
+            
+            // Check if this is a PRE_HARVEST_PLAN record
+            if (notes.startsWith('PRE_HARVEST_PLAN')) {
+              foundData = true;
+              
+              // Use nests_count from the record (this is the count for THIS floor, not total)
+              final nestsCount = (harvest['nests_count'] as num?)?.toInt() ?? 0;
+              
+              print('Parsed pre-harvest floor $floorNo: nests_count=$nestsCount');
+              
+              // Pre-fill the controller for this floor
+              if (floorNo > 0 && floorNo <= _cageFloors) {
+                final floorIndex = floorNo - 1;
+                _floorControllers[floorIndex].text = nestsCount.toString();
+                
+                print('Set controller for floor $floorNo (index $floorIndex) to $nestsCount');
+              }
+            }
+          }
+        }
+      }
+      
+      if (foundData) {
+        // Recalculate totals after loading
+        _updateTotals();
+        
+        if (mounted) {
+          setState(() {
+            _hasExistingData = true;
+          });
+        }
+      }
+      
+      print('Loaded existing pre-harvest data: foundData=$foundData');
+    } catch (e) {
+      print('Error loading existing pre-harvest data: $e');
+    }
+  }
+
   @override
   void dispose() {
     for (var controller in _floorControllers) {
@@ -138,41 +291,40 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.info_outline, color: Color(0xFF245C4C)),
             SizedBox(width: 8),
-            Text('Informasi Input'),
+            Text('Informasi Pre-Harvest'),
           ],
         ),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Cara Penggunaan:',
+              'Tahap Pre-Harvest:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             SizedBox(height: 8),
-            Text('1. Masukkan total sarang untuk setiap lantai'),
-            Text('2. Klik tombol "Lanjut ke Detail" untuk input detail jenis sarang'),
-            Text('3. Detail jenis sarang tidak boleh melebihi total sarang per lantai'),
+            Text('1. Input total sarang mentah untuk setiap lantai'),
+            Text('2. Sistem akan menghitung rekomendasi panen (75% dari total)'),
+            Text('3. Simpan data untuk melanjutkan ke tahap panen'),
             SizedBox(height: 12),
             Text(
-              'Jenis Sarang:',
+              'Rekomendasi Panen:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             SizedBox(height: 8),
-            Text('• Mangkok: Sarang berbentuk mangkok sempurna'),
-            Text('• Sudut: Sarang di pojok/sudut kandang'),
-            Text('• Oval: Sarang berbentuk lonjong/oval'),
-            Text('• Patahan: Sarang yang rusak/patah'),
+            Text('• 75% dari total sarang adalah jumlah optimal'),
+            Text('• Menjaga regenerasi sarang untuk siklus berikutnya'),
+            Text('• Anda bisa memanen lebih atau kurang dari rekomendasi'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Mengerti'),
+            child: const Text('Mengerti'),
           ),
         ],
       ),
@@ -183,15 +335,15 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Pilih Bulan dan Tahun Panen'),
-        content: Container(
+        title: const Text('Pilih Bulan dan Tahun Panen'),
+        content: SizedBox(
           width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: _selectedMonth,
-                decoration: InputDecoration(
+                initialValue: _selectedMonth,
+                decoration: const InputDecoration(
                   labelText: 'Bulan',
                   border: OutlineInputBorder(),
                 ),
@@ -207,10 +359,10 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                   });
                 },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               DropdownButtonFormField<int>(
-                value: _selectedYear,
-                decoration: InputDecoration(
+                initialValue: _selectedYear,
+                decoration: const InputDecoration(
                   labelText: 'Tahun',
                   border: OutlineInputBorder(),
                 ),
@@ -233,17 +385,17 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
             },
-            child: Text('OK'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF245C4C),
+              backgroundColor: const Color(0xFF245C4C),
               foregroundColor: Colors.white,
             ),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -270,7 +422,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     if (_formKey.currentState!.validate()) {
       if (_totalSarang == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Minimal satu lantai harus memiliki sarang'),
             backgroundColor: Colors.red,
           ),
@@ -285,38 +437,209 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       }
 
       try {
+        // Calculate recommended harvest (75% of total)
+        int recommendedHarvest = (_totalSarang * 0.75).round();
 
-
-
-        // Save general totals to SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        final key = 'harvest_${_selectedYear}_${_selectedMonth.toString().padLeft(2, '0')}';
+        // Save general totals to SharedPreferences and try to send to API
         
-        await prefs.setDouble('${key}_general_total', _totalSarang.toDouble());
 
-        // Save floor data to SharedPreferences
-        for (int floor = 0; floor < _cageFloors; floor++) {
-          final floorTotal = int.tryParse(_floorControllers[floor].text) ?? 0;
-          await prefs.setDouble('${key}_floor_${floor + 1}_general_total', floorTotal.toDouble());
+        // Try to send pre-harvest plan to backend. No local fallback.
+        if (_authToken == null) {
+          if (mounted) {
+            setState(() {
+              _isSaving = false;
+            });
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Akses API diperlukan — silakan masuk terlebih dahulu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
         }
 
-        // Also save to AddHarvestPage static storage for consistency
-        final staticData = AddHarvestPage.getStoredData();
-        staticData['${key}_general_total'] = _totalSarang.toDouble();
-
-        if (mounted) {
-          setState(() {
-            _hasSavedData = true;
-            _isSaving = false;
-          });
+        // Determine rbw id to send (now as string to support UUID)
+        String? rbwId;
+        if (_selectedHouse != null) {
+          rbwId = _selectedHouse!['id']?.toString();
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Data panen berhasil disimpan'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (rbwId == null || rbwId.isEmpty) {
+          if (mounted) {
+            setState(() {
+              _isSaving = false;
+            });
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ID Kandang tidak tersedia, Pilih kandang terlebih dahulu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // Create harvest timestamp (first day of selected month at 00:00 UTC)
+        final harvestedAt = DateTime.utc(_selectedYear, _selectedMonth, 1).toIso8601String();
+
+        // Check if node is selected
+        if (_selectedNode == null || _selectedNode!['id'] == null) {
+          if (mounted) {
+            setState(() {
+              _isSaving = false;
+            });
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Node tidak tersedia. Silakan pilih node terlebih dahulu.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        final nodeId = _selectedNode!['id']?.toString();
+
+        // Save pre-harvest plan: create one harvest record per floor
+        // Use notes field to indicate this is a pre-harvest plan
+        try {
+          int successCount = 0;
+          List<String> errors = [];
+          
+          for (int floor = 0; floor < _cageFloors; floor++) {
+            final floorTotal = int.tryParse(_floorControllers[floor].text) ?? 0;
+            if (floorTotal == 0) continue; // Skip empty floors
+            
+            final floorRecommended = (floorTotal * 0.75).round();
+            
+            // Build payload with node_id
+            final apiPayload = <String, dynamic>{
+              'rbw_id': rbwId,
+              'node_id': nodeId, // Required: node from node management table
+              'floor_no': floor + 1,
+              'harvested_at': harvestedAt,
+              'nests_count': floorTotal,
+              // weight_kg omitted for pre-harvest (not yet harvested)
+              'grade': 'good', // Default grade for pre-harvest plan
+              'notes': 'PRE_HARVEST_PLAN|recommended:$floorRecommended|total:$_totalSarang',
+            };
+
+            print('Saving pre-harvest for floor ${floor + 1}: $apiPayload');
+            print('Payload JSON: ${jsonEncode(apiPayload)}');
+            
+            // Check if this floor has an existing record
+            final floorNum = floor + 1;
+            Map<String, dynamic> response;
+            
+            if (_existingRecordIds.containsKey(floorNum)) {
+              // UPDATE existing record
+              final recordId = _existingRecordIds[floorNum]!;
+              print('Updating existing record $recordId for floor $floorNum');
+              response = await _harvestService.update(_authToken!, recordId, apiPayload);
+            } else {
+              // CREATE new record
+              print('Creating new pre-harvest record for floor $floorNum');
+              response = await _harvestService.create(_authToken!, apiPayload);
+            }
+            
+            if (response['success'] == true || response['data'] != null) {
+              successCount++;
+              print('Floor ${floor + 1} saved successfully');
+            } else {
+              final errorMsg = response['error'] ?? 'Unknown error';
+              final statusCode = response['statusCode'] ?? 'N/A';
+              final fullError = 'Status: $statusCode, Error: $errorMsg';
+              errors.add('Lantai ${floor + 1}: $fullError');
+              print('Floor ${floor + 1} failed: $fullError');
+              
+              // Show detailed error dialog for debugging
+              if (mounted && errors.length == 1) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Debug: API Error'),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Status: $statusCode'),
+                          const SizedBox(height: 8),
+                          Text('Error: $errorMsg'),
+                          const SizedBox(height: 8),
+                          const Text('Payload:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(jsonEncode(apiPayload), style: const TextStyle(fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            }
+          }
+
+          if (successCount > 0) {
+            if (mounted) {
+              setState(() {
+                _hasSavedData = true;
+                _isSaving = false;
+              });
+            }
+            
+            String message = 'Data pre-harvest tersimpan di server ($successCount lantai). Rekomendasi: $recommendedHarvest sarang';
+            if (errors.isNotEmpty) {
+              message += '\n\nPeringatan: Beberapa lantai gagal:\n${errors.join('\n')}';
+            }
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          } else {
+            // No floors saved
+            if (mounted) {
+              setState(() {
+                _isSaving = false;
+              });
+            }
+            
+            String errorMessage = 'Gagal menyimpan data pre-harvest';
+            if (errors.isNotEmpty) {
+              errorMessage += ':\n${errors.join('\n')}';
+            }
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isSaving = false;
+            });
+          }
+          print('Error saving pre-harvest to API: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal terhubung ke server: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } catch (e) {
         print('Error saving harvest data: $e');
         if (mounted) {
@@ -336,91 +659,194 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   }
 
   void _showOptimalHarvestSummary() {
+    if (_totalSarang == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan masukkan data sarang terlebih dahulu'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     int totalSarang = _totalSarang;
-    int optimalHarvest = (totalSarang * 0.6).round(); // 60% of total
+    int optimalHarvest = (totalSarang * 0.75).round(); // 75% of total
+    
+    // Calculate per-floor recommendations
+    List<Map<String, int>> floorRecommendations = [];
+    for (int i = 0; i < _cageFloors; i++) {
+      int floorTotal = int.tryParse(_floorControllers[i].text) ?? 0;
+      int floorOptimal = (floorTotal * 0.75).round();
+      floorRecommendations.add({
+        'floor': i + 1,
+        'total': floorTotal,
+        'recommended': floorOptimal,
+      });
+    }
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+      
+        title: const Row(
           children: [
-            SizedBox(width: 8),
             Text('Rekomendasi Panen'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Total Sarang: $totalSarang',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Summary Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF245C4C),
+                      const Color(0xFF2d7a5f),
+                    ],
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Panen Optimal (60%): $optimalHarvest sarang',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF245C4C),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Total Sarang',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
+                    Text(
+                      '$totalSarang sarang',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(color: Colors.white30),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Rekomendasi Panen (75%)',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    Text(
+                      '$optimalHarvest sarang',
+                      style: const TextStyle(
+                        color: Colors.yellowAccent,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              const Text(
+                'Detail per Lantai:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              
+              ...floorRecommendations.map((floor) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Lantai ${floor['floor']}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${floor['total']} sarang',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                          Text(
+                            '→ ${floor['recommended']} sarang',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF245C4C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              
+              const SizedBox(height: 16),
+              
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF245C4C).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF245C4C).withOpacity(0.3)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: const Color(0xFF245C4C)),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Catatan Penting',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF245C4C),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '• Panen 75% menjaga regenerasi optimal\n'
+                      '• Anda bebas memanen lebih atau kurang\n'
+                      '• Ratio panen akan dihitung otomatis saat input hasil',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Detail per Lantai:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            SizedBox(height: 8),
-            ...List.generate(_cageFloors, (index) {
-              int floorTotal = int.tryParse(_floorControllers[index].text) ?? 0;
-              int floorOptimal = (floorTotal * 0.6).round();
-              return Padding(
-                padding: EdgeInsets.only(bottom: 4),
-                child: Text('Lantai ${index + 1}: $floorTotal → $floorOptimal sarang'),
-              );
-            }),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Color(0xFF245C4C).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Catatan: Panen 60% dari total sarang memastikan regenerasi yang optimal untuk siklus berikutnya.',
-                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Tutup'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _proceedToDetail();
-            },
-            child: Text('Lanjut ke Detail'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF245C4C),
-              foregroundColor: Colors.white,
+          Row(children: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
             ),
-          ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _proceedToDetail();
+              },
+              
+              icon: const Icon(Icons.forward, size: 18),
+              label: const Text('Input Hasil Panen', style: TextStyle(fontSize: 12),),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF245C4C),
+                foregroundColor: Colors.white,
+              ),
+            ),
+
+          ],),
         ],
       ),
     );
@@ -436,12 +862,18 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
       if (floorLimits.values.every((limit) => limit == 0)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Minimal satu lantai harus memiliki sarang'),
             backgroundColor: Colors.red,
           ),
         );
         return;
+      }
+
+      // Get house ID as string to support UUID
+      String? selectedHouseId;
+      if (_selectedHouse != null) {
+        selectedHouseId = _selectedHouse!['id']?.toString();
       }
 
       // Navigate to detail harvest page
@@ -451,7 +883,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
           builder: (context) => AddHarvestPage(
             cageName: _cageName,
             floors: _cageFloors,
-            houseId: _selectedHouse?['id'],
+            houseId: selectedHouseId,
             floorLimits: floorLimits,
             selectedMonth: _selectedMonth,
             selectedYear: _selectedYear,
@@ -471,6 +903,240 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     }
   }
 
+  Future<void> _showHarvestListDialog() async {
+    if (_authToken == null) return;
+    
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF245C4C)),
+      ),
+    );
+    
+    try {
+      // Load harvest records for selected house and period
+      final rbwId = _selectedHouse?['id']?.toString() ?? '';
+      final harvests = await _harvestService.getAll(
+        _authToken!,
+        rbwId: rbwId,
+      );
+      
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      // Filter harvests by selected month and year
+      final filteredHarvests = harvests.where((harvest) {
+        final harvestedAt = harvest['harvested_at'];
+        if (harvestedAt != null) {
+          final date = DateTime.tryParse(harvestedAt);
+          if (date != null) {
+            return date.month == _selectedMonth && date.year == _selectedYear;
+          }
+        }
+        return false;
+      }).toList();
+      
+      if (!mounted) return;
+      
+      // Show harvest list dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.list_alt, color: Color(0xFF245C4C)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Daftar Panen ${_months[_selectedMonth - 1]} $_selectedYear',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: filteredHarvests.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'Belum ada data panen',
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: filteredHarvests.length,
+                  itemBuilder: (context, index) {
+                    final harvest = filteredHarvests[index];
+                    final floorNumber = harvest['floor_no'] ?? index + 1;
+                    final amount = harvest['nests_count'] ?? harvest['amount'] ?? harvest['total'] ?? 0;
+                    final date = harvest['harvested_at'] ?? harvest['harvest_date'] ?? harvest['date'] ?? '';
+                    final notes = harvest['notes'] ?? '';
+                    
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF245C4C),
+                          child: Text(
+                            'L$floorNumber',
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                        title: Text(
+                          '$amount sarang',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Lantai $floorNumber'),
+                            if (date.isNotEmpty) Text('Tanggal: ${date.toString().split('T')[0]}'),
+                            if (notes.isNotEmpty) Text('Catatan: $notes', style: const TextStyle(fontSize: 11)),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _editHarvest(harvest);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                              onPressed: () {
+                                _confirmDeleteHarvest(context, harvest);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      // Close loading dialog if still showing
+      if (mounted) Navigator.of(context).pop();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat daftar panen: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteHarvest(BuildContext context, Map<String, dynamic> harvest) async {
+    final floorNumber = harvest['floor_no'] ?? 1;
+    final amount = harvest['nests_count'] ?? harvest['amount'] ?? 0;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Data Panen?'),
+        content: Text('Apakah Anda yakin ingin menghapus data panen Lantai $floorNumber ($amount sarang)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      await _deleteHarvest(harvest);
+    }
+  }
+
+  Future<void> _deleteHarvest(Map<String, dynamic> harvest) async {
+    if (_authToken == null) return;
+    
+    try {
+      final harvestId = harvest['id']?.toString();
+      if (harvestId == null) {
+        throw Exception('ID panen tidak ditemukan');
+      }
+      
+      await _harvestService.delete(_authToken!, harvestId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data panen berhasil dihapus'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Refresh the list
+        Navigator.of(context).pop(); // Close current dialog
+        _showHarvestListDialog(); // Reopen with refreshed data
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menghapus data panen: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _editHarvest(Map<String, dynamic> harvest) {
+    // Pre-fill the form with harvest data
+    final floorNumber = (harvest['floor_no'] ?? 1) - 1; // Convert to 0-indexed
+    final amount = harvest['nests_count'] ?? harvest['amount'] ?? harvest['total'] ?? 0;
+    
+    if (floorNumber >= 0 && floorNumber < _floorControllers.length) {
+      setState(() {
+        _floorControllers[floorNumber].text = amount.toString();
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Data Lantai ${floorNumber + 1} dimuat untuk diedit. Silakan ubah dan simpan.'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      
+      // Scroll to the floor input
+      // You may want to add a scroll controller to scroll to specific floor
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -479,11 +1145,11 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         title: Text('Input Panen - $_cageName'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Color(0xFF245C4C),
+        foregroundColor: const Color(0xFF245C4C),
         actions: [
           IconButton(
             onPressed: _showInfoDialog,
-            icon: Icon(Icons.help_outline),
+            icon: const Icon(Icons.help_outline),
           ),
         ],
         flexibleSpace: Container(
@@ -500,7 +1166,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         ),
       ),
       body: _isLoading
-        ? Center(
+        ? const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -511,63 +1177,200 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             ),
           )
         : SingleChildScrollView(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Input Total Sarang per Lantai',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF245C4C),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Pre-Harvest: Input Data Sarang',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF245C4C),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _hasExistingData 
+                                ? 'Edit data sarang burung walet untuk setiap lantai'
+                                : 'Masukkan total jumlah sarang burung walet untuk setiap lantai',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_hasExistingData)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange[300]!),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.edit, size: 16, color: Colors.orange[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Mode Edit',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
 
-                  SizedBox(height: 8),
-
-                  Text(
-                    'Masukkan total jumlah sarang untuk setiap lantai terlebih dahulu',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Date Selection
-                  Container(
+                  SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _showDatePicker,
-                      icon: Icon(Icons.calendar_month, size: 18),
+                      icon: const Icon(Icons.calendar_month, size: 18),
                       label: Text(
                         'Periode: ${_months[_selectedMonth - 1]} $_selectedYear',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Color(0xFF245C4C),
+                        foregroundColor: const Color(0xFF245C4C),
                         elevation: 2,
-                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: Color(0xFF245C4C).withOpacity(0.3)),
+                          side: BorderSide(color: const Color(0xFF245C4C).withOpacity(0.3)),
                         ),
                       ),
                     ),
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // Node Selection
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF245C4C).withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.router, color: Color(0xFF245C4C), size: 20),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Node IoT',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF245C4C),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_nodes.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.warning_amber, color: Colors.orange[700], size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Tidak ada node tersedia untuk kandang ini',
+                                    style: TextStyle(fontSize: 12, color: Colors.orange[700]),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          DropdownButtonFormField<String>(
+                            value: _selectedNode != null ? _selectedNode!['id']?.toString() : null,
+                            decoration: InputDecoration(
+                              labelText: 'Pilih Node',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            items: _nodes.map((node) {
+                              final nodeId = node['id']?.toString() ?? '';
+                              final nodeName = node['node_code'] ?? 'Node ${node['node_type'] ?? 'Unknown'}';
+                              final nodeType = node['node_type'] ?? 'unknown';
+                              return DropdownMenuItem<String>(
+                                value: nodeId,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      nodeType == 'gateway' ? Icons.router :
+                                      nodeType == 'nest' ? Icons.nest_cam_wired_stand :
+                                      nodeType == 'lmb' ? Icons.lightbulb :
+                                      nodeType == 'pump' ? Icons.water_drop :
+                                      Icons.device_unknown,
+                                      size: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      nodeName,
+                                      style: const TextStyle(fontSize: 14),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedNode = _nodes.firstWhere((node) => node['id']?.toString() == value);
+                              });
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Silakan pilih node';
+                              }
+                              return null;
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
 
                   // Floor inputs
                   ...List.generate(_cageFloors, (floorIndex) {
                     return Container(
-                      margin: EdgeInsets.only(bottom: 16),
-                      padding: EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
@@ -576,7 +1379,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                             color: Colors.grey.withOpacity(0.1),
                             spreadRadius: 1,
                             blurRadius: 4,
-                            offset: Offset(0, 2),
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
@@ -589,23 +1392,23 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                 width: 32,
                                 height: 32,
                                 decoration: BoxDecoration(
-                                  color: Color(0xFF245C4C),
+                                  color: const Color(0xFF245C4C),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Center(
                                   child: Text(
                                     '${floorIndex + 1}',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Text(
                                 'Lantai ${floorIndex + 1}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Color(0xFF245C4C),
@@ -614,45 +1417,98 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                             ],
                           ),
                           
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                           
-                          TextFormField(
-                            controller: _floorControllers[floorIndex],
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'Total Sarang',
-                              hintText: 'Masukkan jumlah sarang',
-                              suffixText: 'sarang',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _floorControllers[floorIndex],
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'Total Sarang',
+                                    hintText: 'Masukkan jumlah sarang',
+                                    suffixText: 'sarang',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Color(0xFF245C4C)),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return null; // Allow empty for optional floors
+                                    }
+                                    int? intValue = int.tryParse(value);
+                                    if (intValue == null || intValue < 0) {
+                                      return 'Masukkan angka yang valid';
+                                    }
+                                    return null;
+                                  },
+                                ),
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Color(0xFF245C4C)),
+                              const SizedBox(width: 8),
+                              Column(
+                                children: [
+                                  // Plus button
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF245C4C),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () {
+                                        int currentValue = int.tryParse(_floorControllers[floorIndex].text) ?? 0;
+                                        setState(() {
+                                          _floorControllers[floorIndex].text = (currentValue + 1).toString();
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // Minus button
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[400],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.remove, color: Colors.white, size: 20),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () {
+                                        int currentValue = int.tryParse(_floorControllers[floorIndex].text) ?? 0;
+                                        if (currentValue > 0) {
+                                          setState(() {
+                                            _floorControllers[floorIndex].text = (currentValue - 1).toString();
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return null; // Allow empty for optional floors
-                              }
-                              int? intValue = int.tryParse(value);
-                              if (intValue == null || intValue < 0) {
-                                return 'Masukkan angka yang valid';
-                              }
-                              return null;
-                            },
+                            ],
                           ),
                         ],
                       ),
                     );
                   }),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Pie Chart Section
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -661,11 +1517,11 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                           color: Colors.grey.withOpacity(0.1),
                           spreadRadius: 1,
                           blurRadius: 4,
-                          offset: Offset(0, 2),
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: Column(
+                    child: const Column(
                       children: [
                         Text(
                           'Analisis Panen',
@@ -679,20 +1535,20 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                     ),
                   ),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Total summary
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Color(0xFF245C4C).withOpacity(0.1),
+                      color: const Color(0xFF245C4C).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Color(0xFF245C4C).withOpacity(0.3)),
+                      border: Border.all(color: const Color(0xFF245C4C).withOpacity(0.3)),
                     ),
                     child: Column(
                       children: [
-                        Text(
+                        const Text(
                           'Total Sarang Keseluruhan',
                           style: TextStyle(
                             fontSize: 16,
@@ -700,10 +1556,10 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                             color: Color(0xFF245C4C),
                           ),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                           '$_totalSarang sarang',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF245C4C),
@@ -713,18 +1569,18 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                     ),
                   ),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Action buttons
                   Column(
                     children: [
-                      // Confirm Save Button
-                      Container(
+                      // Save Pre-Harvest Data Button
+                      SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: (_totalSarang > 0 && !_isSaving) ? _saveHarvestData : null,
                           icon: _isSaving 
-                            ? SizedBox(
+                            ? const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(
@@ -732,12 +1588,12 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                 ),
                               )
-                            : Icon(Icons.check, size: 18),
-                          label: Text(_isSaving ? 'Menyimpan...' : 'Konfirmasi & Simpan'),
+                            : const Icon(Icons.save, size: 18),
+                          label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Data Pre-Harvest'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _hasSavedData ? Color(0xff245C4C) : Color(0xFF245C4C),
+                            backgroundColor: const Color(0xFF245C4C),
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -745,48 +1601,75 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                         ),
                       ),
                       
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       
-                      // Secondary buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: (_hasSavedData && _totalSarang > 0) ? _showOptimalHarvestSummary : null,
-                              icon: Icon(Icons.agriculture, size: 18),
-                              label: Text('Panen Optimal'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _hasSavedData ? Color(0xff245C4C) : Colors.grey,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
+                      // Show Recommendation Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: (_hasSavedData && _totalSarang > 0) ? _showOptimalHarvestSummary : null,
+                          icon: const Icon(Icons.agriculture, size: 18),
+                          label: const Text('Lihat Rekomendasi Panen'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _hasSavedData ? const Color(0xFFffc200) : Colors.grey,
+                            foregroundColor: _hasSavedData ? Colors.black : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _hasSavedData ? _proceedToDetail : null,
-                              icon: Icon(Icons.arrow_forward, size: 18),
-                              label: Text('Detail (Opsional)'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _hasSavedData ? Color(0xff245C4C) : Colors.grey,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 12),
+                      
+                      // Proceed to Post-Harvest Input
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _hasSavedData ? _proceedToDetail : null,
+                          icon: const Icon(Icons.arrow_forward, size: 18),
+                          label: const Text('Lanjut ke Input Hasil Panen →'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _hasSavedData ? const Color(0xFF245C4C) : Colors.grey,
+                            side: BorderSide(
+                              color: _hasSavedData ? const Color(0xFF245C4C) : Colors.grey,
+                              width: 2,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                        ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 12),
+                      
+                      // View/Manage Harvest List Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _showHarvestListDialog,
+                          icon: const Icon(Icons.list_alt, size: 18),
+                          label: const Text('Kelola Daftar Panen'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.orange[700],
+                            side: BorderSide(
+                              color: Colors.orange[700]!,
+                              width: 2,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
 
-                  SizedBox(height: 80),
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
