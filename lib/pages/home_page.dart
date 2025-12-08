@@ -101,7 +101,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Refresh data when app comes back to foreground
       print('[HOME] App resumed, refreshing data...');
       if (_authToken != null && mounted) {
-        _loadKandangFromAPI();
+        _refreshSensorDataOnly();
       }
     }
   }
@@ -215,6 +215,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         print('No kandang data loaded from API');
       } else {
         print('Successfully loaded ${_kandangList.length} kandang from API');
+        // Start periodic refresh only after successful initial load
+        _startPeriodicRefresh();
       }
     } catch (e) {
       print('Error initializing data: $e');
@@ -270,14 +272,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         });
       }
       
-      // Update UI immediately with basic house data
-      if (mounted) {
-        setState(() {
-          _kandangList = kandangList;
-        });
-      }
-      
-      print('Displayed ${kandangList.length} houses, now loading sensor data...');
+      print('Created ${kandangList.length} houses, now loading sensor data...');
       
       // Second pass: Load sensor data for each house
       for (int i = 0; i < houses.length; i++) {
@@ -412,25 +407,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           print('Failed to load nodes for RBW ${house['id']}: $e');
         }
 
-        // Update the existing house in kandangList with sensor data
+        // Update the house in kandangList with sensor data
         print('Updating house ${i} with hasDeviceInstalled=$hasDeviceInstalled, sensors=${sensorsCollected.length}');
-        if (mounted) {
-          setState(() {
-            _kandangList[i]['deviceData'] = deviceData;
-            _kandangList[i]['hasDeviceInstalled'] = hasDeviceInstalled;
-            _kandangList[i]['nodeIds'] = nodeIds;
-            _kandangList[i]['sensors'] = sensorsCollected;
-          });
-          print('Updated UI for house ${i}');
-        }
+        kandangList[i]['deviceData'] = deviceData;
+        kandangList[i]['hasDeviceInstalled'] = hasDeviceInstalled;
+        kandangList[i]['nodeIds'] = nodeIds;
+        kandangList[i]['sensors'] = sensorsCollected;
       }
       
       print('Finished loading sensor data for all houses');
       
-      // No need to set kandangList again as we updated in-place
-      
-      // Start periodic refresh for real-time sensor data
-      _startPeriodicRefresh();
+      // Single setState call at the end with complete data
+      if (mounted) {
+        setState(() {
+          _kandangList = kandangList;
+        });
+      }
       
       print('Loaded ${kandangList.length} kandang from API');
     } catch (e) {
@@ -454,6 +446,77 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  // Optimized method to refresh only sensor data without rebuilding entire house list
+  Future<void> _refreshSensorDataOnly() async {
+    if (_authToken == null || _kandangList.isEmpty) return;
+    
+    try {
+      // Only update sensor readings for existing houses without triggering UI rebuild
+      for (int i = 0; i < _kandangList.length; i++) {
+        final house = _kandangList[i];
+        final nodeIds = house['nodeIds'] as List<String>? ?? [];
+        
+        if (nodeIds.isEmpty) continue;
+        
+        try {
+          // Fetch node state for pump and audio status
+          String mistSprayStatus = 'Inactive';
+          String speakerStatus = 'Inactive';
+          
+          if (nodeIds.isNotEmpty) {
+            final nodeId = nodeIds.first;
+            final nodeDetailRes = await _nodeService.getById(_authToken!, nodeId).timeout(
+              const Duration(seconds: 3),
+              onTimeout: () => {'success': false},
+            );
+            
+            if (nodeDetailRes['success'] == true && nodeDetailRes['data'] != null) {
+              final nodeData = nodeDetailRes['data'];
+              final statePump = nodeData['state_pump'];
+              mistSprayStatus = (statePump == 1 || statePump == '1' || statePump == true) ? 'Active' : 'Inactive';
+              
+              final stateAudio = nodeData['state_audio'];
+              final stateAudioLmb = nodeData['state_audio_lmb'];
+              final stateAudioNest = nodeData['state_audio_nest'];
+              
+              final anyAudioActive = (stateAudio == 1 || stateAudio == '1' || stateAudio == true) ||
+                                    (stateAudioLmb == 1 || stateAudioLmb == '1' || stateAudioLmb == true) ||
+                                    (stateAudioNest == 1 || stateAudioNest == '1' || stateAudioNest == true);
+              
+              speakerStatus = anyAudioActive ? 'Active' : 'Inactive';
+            }
+          }
+          
+          // Get existing sensors from state
+          List<Map<String, dynamic>> sensorsCollected = List<Map<String, dynamic>>.from(house['sensors'] ?? []);
+          
+          // Aggregate latest readings
+          Map<String, dynamic> deviceData = Map<String, dynamic>.from(_fallbackDeviceData);
+          if (sensorsCollected.isNotEmpty) {
+            deviceData = await _aggregateLatestReadingsFromQuery(sensorsCollected, mistSprayStatus, speakerStatus).timeout(
+              const Duration(seconds: 5),
+              onTimeout: () => Map<String, dynamic>.from(_fallbackDeviceData),
+            );
+          } else {
+            deviceData['mist_spray'] = mistSprayStatus;
+            deviceData['speaker'] = speakerStatus;
+          }
+          
+          // Update only deviceData without triggering full rebuild
+          if (mounted) {
+            setState(() {
+              _kandangList[i]['deviceData'] = deviceData;
+            });
+          }
+        } catch (e) {
+          print('Error refreshing sensor data for house $i: $e');
+        }
+      }
+    } catch (e) {
+      print('Error in _refreshSensorDataOnly: $e');
+    }
+  }
+
   // Removed _loadSensorDataForHouse method since DeviceInstallationService was deprecated
   // TODO: Replace with sensor readings API calls when needed
 
@@ -461,10 +524,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Cancel existing timer if any
     _refreshTimer?.cancel();
 
-    // Refresh sensor data every 10 seconds for real-time updates
-    _refreshTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+    // Refresh sensor data every 10 minutes for real-time updates
+    _refreshTimer = Timer.periodic(const Duration(minutes: 10), (timer) async {
       if (_authToken != null && mounted) {
-        await _loadKandangFromAPI();
+        await _refreshSensorDataOnly();
       }
     });
   }

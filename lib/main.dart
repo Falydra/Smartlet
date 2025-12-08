@@ -1,10 +1,13 @@
 
 import 'package:flutter/material.dart';
+import 'utils/local_notification_helper.dart';
+import 'utils/notification_manager.dart';
 
 import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/analysis_page.dart';
 import 'package:swiftlead/pages/community_page.dart';
 import 'package:swiftlead/pages/control_page.dart';
+import 'package:swiftlead/pages/sensor_detail_page.dart';
 import 'package:swiftlead/pages/login_page.dart';
 import 'package:swiftlead/pages/pest_page.dart';
 import 'package:swiftlead/pages/profile_page.dart';
@@ -20,11 +23,16 @@ import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/pages/cage_selection_page.dart';
 import 'package:swiftlead/pages/device_installation_page.dart';
 import 'package:swiftlead/pages/sales_page.dart';
+import 'package:swiftlead/pages/service_requests_page.dart';
+import 'package:swiftlead/pages/create_service_request_page.dart';
+import 'package:swiftlead/pages/service_request_detail_page.dart';
+import 'package:swiftlead/pages/installation_manager_page.dart';
+import 'package:swiftlead/pages/user_manager_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
- 
-
+  // Firebase removed — app uses API-based authentication and storage.
+  await LocalNotificationHelper().init();
   runApp(const MyApp());
 }
 
@@ -45,6 +53,11 @@ class MyApp extends StatelessWidget {
         ),
       ),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        // Preload NotificationManager singleton to ensure listeners attached early
+        NotificationManager();
+        return child!;
+      },
       routes: {
         '/': (context) => const SplashScreen(),
         '/landing-page': (context) => const LandingPage(),
@@ -66,11 +79,17 @@ class MyApp extends StatelessWidget {
           );
         },
         '/home-page': (context) => const HomePage(),
+        '/service-requests': (context) => const ServiceRequestsPage(),
+        '/create-service-request': (context) => const CreateServiceRequestPage(),
+        '/service-request-detail': (context) => const ServiceRequestDetailPage(),
+  '/installation-manager': (context) => const InstallationManagerPage(),
+  '/user-manager': (context) => const UserManagerPage(),
         '/blog-page': (context) => const BlogPage(),
         '/store-page': (context) => const SalesPage(),
        
         '/community-page': (context) => const CommunityPage(),
         '/control-page': (context) => const ControlPage(),
+  '/sensor-detail': (context) => const SensorDetailPage(),
         '/profile-page': (context) => const ProfilePage(),
         '/temp-page': (context) => const TempPage(),
         '/pest-page': (context) => const PestPage(),

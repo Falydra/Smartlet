@@ -39,7 +39,10 @@ class AddHarvestPage extends StatefulWidget {
 class _AddHarvestPageState extends State<AddHarvestPage> {
   final _formKey = GlobalKey<FormState>();
   late List<TextEditingController> _floorControllers;
-  late List<TextEditingController> _notesControllers;
+  
+  // Breakdown data for each floor (Mangkok, Sudut, Oval, Patahan)
+  List<Map<String, int>> _floorBreakdown = [];
+  
   int _currentIndex = 2;
 
   // API Services
@@ -158,9 +161,13 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     }
 
     _floorControllers =
-        List.generate(_cageFloors, (index) => TextEditingController(text: '0'));
-    _notesControllers =
         List.generate(_cageFloors, (index) => TextEditingController());
+    
+    // Initialize breakdown data for each floor
+    _floorBreakdown = List.generate(
+        _cageFloors, 
+        (index) => {'mangkok': 0, 'sudut': 0, 'oval': 0, 'patahan': 0}
+    );
     await _loadExistingHarvestData();
 
     if (mounted) setState(() => _isLoading = false);
@@ -225,10 +232,19 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
               if (floorNo > 0 && floorNo <= _cageFloors) {
                 _floorControllers[floorNo - 1].text = nestsCount.toString();
                 
-                // Extract user notes if available
-                final notesMatch = RegExp(r'notes:(.+?)(?:\||$)').firstMatch(notes);
-                if (notesMatch != null) {
-                  _notesControllers[floorNo - 1].text = notesMatch.group(1) ?? '';
+                // Extract breakdown data if available
+                final mangkokMatch = RegExp(r'Mangkok:(\d+)').firstMatch(notes);
+                final sudutMatch = RegExp(r'Sudut:(\d+)').firstMatch(notes);
+                final ovalMatch = RegExp(r'Oval:(\d+)').firstMatch(notes);
+                final patahanMatch = RegExp(r'Patahan:(\d+)').firstMatch(notes);
+                
+                if (mangkokMatch != null || sudutMatch != null || ovalMatch != null || patahanMatch != null) {
+                  _floorBreakdown[floorNo - 1] = {
+                    'mangkok': int.tryParse(mangkokMatch?.group(1) ?? '0') ?? 0,
+                    'sudut': int.tryParse(sudutMatch?.group(1) ?? '0') ?? 0,
+                    'oval': int.tryParse(ovalMatch?.group(1) ?? '0') ?? 0,
+                    'patahan': int.tryParse(patahanMatch?.group(1) ?? '0') ?? 0,
+                  };
                 }
               }
             }
@@ -245,9 +261,6 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
   @override
   void dispose() {
     for (var controller in _floorControllers) {
-      controller.dispose();
-    }
-    for (var controller in _notesControllers) {
       controller.dispose();
     }
     super.dispose();
@@ -341,11 +354,17 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
         final floorHarvest = int.tryParse(_floorControllers[floor].text) ?? 0;
         if (floorHarvest == 0) continue;
 
-        // Build notes with optional user input
+        // Build notes with breakdown data if available
         String notesText = 'POST_HARVEST|ratio:${(harvestRatio * 100).toStringAsFixed(1)}%|followed:${followedRecommendation ? 'yes' : 'no'}';
-        final userNotes = _notesControllers[floor].text.trim();
-        if (userNotes.isNotEmpty) {
-          notesText += '|notes:$userNotes';
+        
+        // Add breakdown to notes if user filled it
+        final breakdown = _floorBreakdown[floor];
+        final hasBreakdown = breakdown.values.any((v) => v > 0);
+        if (hasBreakdown) {
+          notesText += '|Mangkok:${breakdown['mangkok']}';
+          notesText += '|Sudut:${breakdown['sudut']}';
+          notesText += '|Oval:${breakdown['oval']}';
+          notesText += '|Patahan:${breakdown['patahan']}';
         }
 
         final apiPayload = <String, dynamic>{
@@ -414,6 +433,276 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
             backgroundColor: Colors.red),
       );
     }
+  }
+
+  // Check if floor has breakdown data
+  bool _hasBreakdown(int floorIndex) {
+    if (floorIndex < 0 || floorIndex >= _floorBreakdown.length) return false;
+    final breakdown = _floorBreakdown[floorIndex];
+    return breakdown.values.any((v) => v > 0);
+  }
+
+  // Build breakdown chip widget
+  Widget _buildBreakdownChip(String label, int value, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey,
+          ),
+        ),
+        Text(
+          value.toString(),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF245C4C),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Show breakdown dialog for a specific floor
+  void _showBreakdownDialog(int floorIndex) {
+    // Safety check
+    if (floorIndex < 0 || floorIndex >= _floorBreakdown.length) return;
+    
+    final floorNo = floorIndex + 1;
+    final currentTotal = int.tryParse(_floorControllers[floorIndex].text) ?? 0;
+    
+    // Create temporary controllers with current values
+    final mangkokController = TextEditingController(
+      text: _floorBreakdown[floorIndex]['mangkok'].toString()
+    );
+    final sudutController = TextEditingController(
+      text: _floorBreakdown[floorIndex]['sudut'].toString()
+    );
+    final ovalController = TextEditingController(
+      text: _floorBreakdown[floorIndex]['oval'].toString()
+    );
+    final patahanController = TextEditingController(
+      text: _floorBreakdown[floorIndex]['patahan'].toString()
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.pie_chart, color: Color(0xFF245C4C), size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Detail Breakdown Lantai $floorNo',
+              style: const TextStyle(
+                color: Color(0xFF245C4C),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (currentTotal > 0)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7CA),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFffc200)),
+                  ),
+                  child: Text(
+                    'Total sarang: $currentTotal',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF245C4C),
+                    ),
+                  ),
+                ),
+              
+              TextField(
+                controller: mangkokController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Mangkok',
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(12),
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF245C4C),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              TextField(
+                controller: sudutController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Sudut',
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(12),
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFffc200),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              TextField(
+                controller: ovalController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Oval',
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(12),
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF168AB5),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              TextField(
+                controller: patahanController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Patahan',
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(12),
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFC20000),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              if (currentTotal > 0)
+                Text(
+                  '💡 Total breakdown harus sama dengan $currentTotal sarang',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final m = int.tryParse(mangkokController.text) ?? 0;
+              final s = int.tryParse(sudutController.text) ?? 0;
+              final o = int.tryParse(ovalController.text) ?? 0;
+              final p = int.tryParse(patahanController.text) ?? 0;
+              final breakdownTotal = m + s + o + p;
+
+              // Validate if total is entered
+              if (currentTotal > 0 && breakdownTotal != currentTotal) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Total breakdown ($breakdownTotal) harus sama dengan total sarang ($currentTotal)',
+                    ),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              // Save breakdown
+              setState(() {
+                _floorBreakdown[floorIndex] = {
+                  'mangkok': m,
+                  'sudut': s,
+                  'oval': o,
+                  'patahan': p,
+                };
+              });
+
+              Navigator.pop(context);
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Detail breakdown Lantai $floorNo berhasil disimpan'),
+                  backgroundColor: const Color(0xFF245C4C),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF245C4C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -824,19 +1113,55 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
               onChanged: (value) => setState(() {}),
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _notesControllers[floorIndex],
-              maxLines: 2,
-              decoration: InputDecoration(
-                labelText: 'Catatan (Opsional)',
-                hintText: 'Contoh: Mangkok bagus, beberapa patahan',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF245C4C))),
+            
+            // Detail Button
+            OutlinedButton.icon(
+              onPressed: () => _showBreakdownDialog(floorIndex),
+              icon: const Icon(Icons.settings, size: 18),
+              label: Text(
+                _hasBreakdown(floorIndex) ? 'Detail ✓' : 'Detail',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: _hasBreakdown(floorIndex) ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _hasBreakdown(floorIndex) 
+                    ? const Color(0xFF245C4C) 
+                    : Colors.grey[700],
+                side: BorderSide(
+                  color: _hasBreakdown(floorIndex) 
+                      ? const Color(0xFF245C4C) 
+                      : Colors.grey[400]!,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
+            
+            // Show breakdown summary if filled
+            if (_hasBreakdown(floorIndex) && floorIndex < _floorBreakdown.length)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F8FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF245C4C).withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildBreakdownChip('M', _floorBreakdown[floorIndex]['mangkok']!, const Color(0xFF245C4C)),
+                    _buildBreakdownChip('S', _floorBreakdown[floorIndex]['sudut']!, const Color(0xFFffc200)),
+                    _buildBreakdownChip('O', _floorBreakdown[floorIndex]['oval']!, const Color(0xFF168AB5)),
+                    _buildBreakdownChip('P', _floorBreakdown[floorIndex]['patahan']!, const Color(0xFFC20000)),
+                  ],
+                ),
+              ),
+            
             if (_isFloorTotalExceeded(floorIndex))
               Padding(
                 padding: const EdgeInsets.only(top: 8),

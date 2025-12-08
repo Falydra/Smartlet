@@ -57,7 +57,7 @@ class _BlogPageState extends State<BlogPage> {
                 padding: EdgeInsets.only(left: width(context) * 0.07, right: width(context) * 0.07),
                 child: Container(
                 
-                child:  Text("1. Pembuatan & Persiapan Tempat Sarang Burung Walet .", style: TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w500),)
+                child:  const Text("1. Pembuatan & Persiapan Tempat Sarang Burung Walet .", style: TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w500),)
                 
                 ),
               ),

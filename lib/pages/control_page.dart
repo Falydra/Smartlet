@@ -1048,28 +1048,55 @@ class _ControlPageState extends State<ControlPage> {
                 ),
                 const SizedBox(height: 12),
                 ...devices
-                    .map((device) => CheckboxListTile(
-                          title: Text(device['name'],
-                              style: const TextStyle(fontSize: 14)),
-                          subtitle: device['subtitle'] != null
-                              ? Text(device['subtitle'],
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey[600]))
-                              : null,
-                          value: selectedDevices.contains(device['id']),
-                          activeColor: const Color(0xFF245C4C),
-                          onChanged: (bool? value) {
-                            setDialogState(() {
-                              if (value == true) {
-                                selectedDevices.add(device['id']);
-                              } else {
-                                selectedDevices.remove(device['id']);
-                              }
-                            });
-                          },
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ))
+                    .map((device) {
+                      // Check if device is already active
+                      bool isActive = false;
+                      if (device['id'] == 'pump') {
+                        isActive = _pumpState == true;
+                      } else if (device['id'] == 'audio_both') {
+                        isActive = _audioBothState == true;
+                      } else if (device['id'] == 'audio_lmb') {
+                        isActive = _audioLmbState == true;
+                      } else if (device['id'] == 'audio_nest') {
+                        isActive = _audioNestState == true;
+                      }
+
+                      return CheckboxListTile(
+                        title: Text(
+                          device['name'],
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isActive ? Colors.grey : Colors.black,
+                          ),
+                        ),
+                        subtitle: device['subtitle'] != null
+                            ? Text(
+                                isActive
+                                    ? '${device['subtitle']} (Sudah aktif)'
+                                    : device['subtitle'],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              )
+                            : null,
+                        value: selectedDevices.contains(device['id']),
+                        activeColor: const Color(0xFF245C4C),
+                        onChanged: isActive
+                            ? null // Disable checkbox if already active
+                            : (bool? value) {
+                                setDialogState(() {
+                                  if (value == true) {
+                                    selectedDevices.add(device['id']);
+                                  } else {
+                                    selectedDevices.remove(device['id']);
+                                  }
+                                });
+                              },
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      );
+                    })
                     .toList(),
                 const SizedBox(height: 16),
                 Container(
@@ -1827,9 +1854,16 @@ class _ControlPageState extends State<ControlPage> {
             _audioLmbState = true;
             _audioNestState = true;
           } else {
-            // Clear timer when manually turned off
+            // When turning off All Speaker, turn off individual speakers too
+            _audioLmbState = false;
+            _audioNestState = false;
+            // Clear all audio timers
             _audioBothTimerEnd = null;
+            _audioLmbTimerEnd = null;
+            _audioNestTimerEnd = null;
             TimerBackgroundService.clearTimer('audio_both');
+            TimerBackgroundService.clearTimer('audio_lmb');
+            TimerBackgroundService.clearTimer('audio_nest');
           }
         });
 
@@ -1899,8 +1933,13 @@ class _ControlPageState extends State<ControlPage> {
       if (res['success'] == true) {
         setState(() {
           _audioLmbState = value;
-          // Clear timer when manually turned off
-          if (!value) {
+          // Update All Speaker state - only true if BOTH speakers are on
+          if (value) {
+            // When turning on LMB, check if Nest is also on
+            _audioBothState = (_audioNestState == true);
+          } else {
+            // When turning off LMB, All Speaker should be off
+            _audioBothState = false;
             _audioLmbTimerEnd = null;
             TimerBackgroundService.clearTimer('audio_lmb');
           }
@@ -1972,8 +2011,13 @@ class _ControlPageState extends State<ControlPage> {
       if (res['success'] == true) {
         setState(() {
           _audioNestState = value;
-          // Clear timer when manually turned off
-          if (!value) {
+          // Update All Speaker state - only true if BOTH speakers are on
+          if (value) {
+            // When turning on Nest, check if LMB is also on
+            _audioBothState = (_audioLmbState == true);
+          } else {
+            // When turning off Nest, All Speaker should be off
+            _audioBothState = false;
             _audioNestTimerEnd = null;
             TimerBackgroundService.clearTimer('audio_nest');
           }
@@ -2930,82 +2974,7 @@ class _ControlPageState extends State<ControlPage> {
                                   height: 0,
                                 ),
                                 // Test notification button
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    await LocalNotificationHelper()
-                                        .showWithSound(
-                                      title: '🔔 Test Notification',
-                                      body:
-                                          'Notification berhasil! Timer akan menampilkan notifikasi seperti ini.',
-                                      payload: 'test',
-                                    );
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Notification sent! Check your notification panel.'),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  icon: const Icon(Icons.notifications_active,
-                                      size: 18),
-                                  label: const Text('Test'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              width: double.infinity,
-                              height: 1,
-                              color: Colors.grey[300],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.location_on,
-                                    color: Color(0xFF245C4C), size: 16),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    _cageAddress,
-                                    style: TextStyle(
-                                        fontSize: 12, color: Colors.grey[700]),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Last Update: ' +
-                                        (_latestSensorData != null
-                                            ? _formatTime(DateTime.tryParse(
-                                                    (_latestSensorData![
-                                                                'recorded_at'] ??
-                                                            '')
-                                                        .toString()) ??
-                                                DateTime.now())
-                                            : 'No data'),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ),
+                               
                                 ElevatedButton.icon(
                                   onPressed: _isLoading
                                       ? null

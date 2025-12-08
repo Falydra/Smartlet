@@ -32,7 +32,7 @@ class _BlogMenuState extends State<BlogMenu> {
                  padding: EdgeInsets.only(bottom: height(context) * 0.02),
                  child: GestureDetector(
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => BlogPage()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const BlogPage()));
                   },
                    child: Container(
                     
@@ -43,10 +43,10 @@ class _BlogMenuState extends State<BlogMenu> {
                                  
                     decoration: BoxDecoration(
                     
-                      color: Color(0xFFFFF7CA),
+                      color: const Color(0xFFFFF7CA),
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: List<BoxShadow>.from([
-                        BoxShadow(
+                        const BoxShadow(
                           color: Colors.black26,
                           blurRadius: 2,
                           offset: Offset(2, 2),
@@ -58,7 +58,7 @@ class _BlogMenuState extends State<BlogMenu> {
                           Container(
                            width: width(context) * 0.8,
                           height: height(context) * 0.20,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             image: DecorationImage(
                               image: AssetImage("assets/img/Frame_19.png"),
                               fit: BoxFit.cover
@@ -83,12 +83,12 @@ class _BlogMenuState extends State<BlogMenu> {
                                       borderRadius: BorderRadius.circular(8),
                                     
                                     ),
-                                    child: Row(
+                                    child: const Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                                       children: [
                           
                                       Icon(Icons.visibility, color: Color((0xFF0010a2)), size: 10,),
-                                      const Text("1,2rb", style: TextStyle(fontSize: 10, color: Color(0xFF0010a2), ),
+                                      Text("1,2rb", style: TextStyle(fontSize: 10, color: Color(0xFF0010a2), ),
                                        textAlign: TextAlign.center,)
                                     ],),
                                   ),
@@ -105,8 +105,8 @@ class _BlogMenuState extends State<BlogMenu> {
                                 width: width(context) * 0.8,
                                 height: height(context) * 0.05,
                                 alignment: Alignment.centerLeft,
-                                padding: EdgeInsets.only(left: 8),  
-                                decoration: BoxDecoration(
+                                padding: const EdgeInsets.only(left: 8),  
+                                decoration: const BoxDecoration(
                                   color: Color(0xffe9f9ff), 
                       
                                 ),
@@ -136,10 +136,10 @@ class _BlogMenuState extends State<BlogMenu> {
                                
                   decoration: BoxDecoration(
                   
-                    color: Color(0xFFFFF7CA),
+                    color: const Color(0xFFFFF7CA),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: List<BoxShadow>.from([
-                      BoxShadow(
+                      const BoxShadow(
                         color: Colors.black26,
                         blurRadius: 2,
                         offset: Offset(2, 2),
@@ -151,7 +151,7 @@ class _BlogMenuState extends State<BlogMenu> {
                         Container(
                          width: width(context) * 0.8,
                         height: height(context) * 0.20,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           image: DecorationImage(
                             image: AssetImage("assets/img/images_(1).jpg"),
                             fit: BoxFit.cover
@@ -176,12 +176,12 @@ class _BlogMenuState extends State<BlogMenu> {
                                     borderRadius: BorderRadius.circular(8),
                                   
                                   ),
-                                  child: Row(
+                                  child: const Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                                     children: [
                         
                                     Icon(Icons.visibility, color: Color((0xFF0010a2)), size: 10,),
-                                    const Text("1,2rb", style: TextStyle(fontSize: 10, color: Color(0xFF0010a2), ),
+                                    Text("1,2rb", style: TextStyle(fontSize: 10, color: Color(0xFF0010a2), ),
                                      textAlign: TextAlign.center,)
                                   ],),
                                 ),
@@ -198,8 +198,8 @@ class _BlogMenuState extends State<BlogMenu> {
                                 width: width(context) * 0.8,
                                 height: height(context) * 0.05,
                                 alignment: Alignment.centerLeft,
-                                padding: EdgeInsets.only(left: 8),  
-                                decoration: BoxDecoration(
+                                padding: const EdgeInsets.only(left: 8),  
+                                decoration: const BoxDecoration(
                                   color: Color(0xffe9f9ff), 
                       
                                 ),
@@ -228,10 +228,10 @@ class _BlogMenuState extends State<BlogMenu> {
                                
                   decoration: BoxDecoration(
                   
-                    color: Color(0xFFFFF7CA),
+                    color: const Color(0xFFFFF7CA),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: List<BoxShadow>.from([
-                      BoxShadow(
+                      const BoxShadow(
                         color: Colors.black26,
                         blurRadius: 2,
                         offset: Offset(2, 2),
@@ -243,7 +243,7 @@ class _BlogMenuState extends State<BlogMenu> {
                         Container(
                          width: width(context) * 0.8,
                         height: height(context) * 0.20,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           image: DecorationImage(
                             image: AssetImage("assets/img/download_(3).jpg"),
                             fit: BoxFit.cover
@@ -268,12 +268,12 @@ class _BlogMenuState extends State<BlogMenu> {
                                     borderRadius: BorderRadius.circular(8),
                                   
                                   ),
-                                  child: Row(
+                                  child: const Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                                     children: [
                         
                                     Icon(Icons.visibility, color: Color((0xFF0010a2)), size: 10,),
-                                    const Text("1,2rb", style: TextStyle(fontSize: 10, color: Color(0xFF0010a2), ),
+                                    Text("1,2rb", style: TextStyle(fontSize: 10, color: Color(0xFF0010a2), ),
                                      textAlign: TextAlign.center,)
                                   ],),
                                 ),
@@ -290,8 +290,8 @@ class _BlogMenuState extends State<BlogMenu> {
                                 width: width(context) * 0.8,
                                 height: height(context) * 0.05,
                                 alignment: Alignment.centerLeft,
-                                padding: EdgeInsets.only(left: 8),  
-                                decoration: BoxDecoration(
+                                padding: const EdgeInsets.only(left: 8),  
+                                decoration: const BoxDecoration(
                                   color: Color(0xffe9f9ff), 
                       
                                 ),

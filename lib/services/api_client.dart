@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async' as async;
 import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
@@ -23,12 +24,12 @@ class NetworkException implements Exception {
   String toString() => 'NetworkException: $message';
 }
 
-class TimeoutException implements Exception {
+class RequestTimeoutException implements Exception {
   final String message;
-  TimeoutException(this.message);
+  RequestTimeoutException(this.message);
 
   @override
-  String toString() => 'TimeoutException: $message';
+  String toString() => 'RequestTimeoutException: $message';
 }
 
 // Base API client with common functionality
@@ -37,7 +38,7 @@ class ApiClient {
   static const Duration _uploadTimeout = Duration(seconds: ApiConstants.uploadTimeout);
 
   // GET request
-  static Future<Map<String, dynamic>> get(
+  static Future<dynamic> get(
     String url, {
     Map<String, String>? headers,
     Map<String, String>? queryParams,
@@ -57,13 +58,13 @@ class ApiClient {
       throw NetworkException(ApiConstants.networkError);
     } on http.ClientException {
       throw NetworkException(ApiConstants.networkError);
-    } on TimeoutException {
-      throw TimeoutException(ApiConstants.timeoutError);
+    } on async.TimeoutException {
+      throw RequestTimeoutException(ApiConstants.timeoutError);
     }
   }
 
   // POST request
-  static Future<Map<String, dynamic>> post(
+  static Future<dynamic> post(
     String url, {
     Map<String, String>? headers,
     dynamic body,
@@ -82,13 +83,13 @@ class ApiClient {
       throw NetworkException(ApiConstants.networkError);
     } on http.ClientException {
       throw NetworkException(ApiConstants.networkError);
-    } on TimeoutException {
-      throw TimeoutException(ApiConstants.timeoutError);
+    } on async.TimeoutException {
+      throw RequestTimeoutException(ApiConstants.timeoutError);
     }
   }
 
   // PUT request
-  static Future<Map<String, dynamic>> put(
+  static Future<dynamic> put(
     String url, {
     Map<String, String>? headers,
     dynamic body,
@@ -107,13 +108,13 @@ class ApiClient {
       throw NetworkException(ApiConstants.networkError);
     } on http.ClientException {
       throw NetworkException(ApiConstants.networkError);
-    } on TimeoutException {
-      throw TimeoutException(ApiConstants.timeoutError);
+    } on async.TimeoutException {
+      throw RequestTimeoutException(ApiConstants.timeoutError);
     }
   }
 
   // PATCH request
-  static Future<Map<String, dynamic>> patch(
+  static Future<dynamic> patch(
     String url, {
     Map<String, String>? headers,
     dynamic body,
@@ -132,13 +133,13 @@ class ApiClient {
       throw NetworkException(ApiConstants.networkError);
     } on http.ClientException {
       throw NetworkException(ApiConstants.networkError);
-    } on TimeoutException {
-      throw TimeoutException(ApiConstants.timeoutError);
+    } on async.TimeoutException {
+      throw RequestTimeoutException(ApiConstants.timeoutError);
     }
   }
 
   // DELETE request
-  static Future<Map<String, dynamic>> delete(
+  static Future<dynamic> delete(
     String url, {
     Map<String, String>? headers,
     dynamic body,
@@ -157,13 +158,13 @@ class ApiClient {
       throw NetworkException(ApiConstants.networkError);
     } on http.ClientException {
       throw NetworkException(ApiConstants.networkError);
-    } on TimeoutException {
-      throw TimeoutException(ApiConstants.timeoutError);
+    } on async.TimeoutException {
+      throw RequestTimeoutException(ApiConstants.timeoutError);
     }
   }
 
   // Multipart request for file uploads
-  static Future<Map<String, dynamic>> multipartRequest(
+  static Future<dynamic> multipartRequest(
     String url,
     String method, {
     Map<String, String>? headers,
@@ -193,13 +194,13 @@ class ApiClient {
       throw NetworkException(ApiConstants.networkError);
     } on http.ClientException {
       throw NetworkException(ApiConstants.networkError);
-    } on TimeoutException {
-      throw TimeoutException(ApiConstants.timeoutError);
+    } on async.TimeoutException {
+      throw RequestTimeoutException(ApiConstants.timeoutError);
     }
   }
 
   // Handle HTTP response
-  static Map<String, dynamic> _handleResponse(http.Response response) {
+  static dynamic _handleResponse(http.Response response) {
     final statusCode = response.statusCode;
     
     try {

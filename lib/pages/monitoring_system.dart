@@ -4,8 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 class Monitoring extends StatefulWidget {
   final FirebaseDatabase secondaryDatabase;
 
-  const Monitoring({Key? key, required this.secondaryDatabase})
-      : super(key: key);
+  const Monitoring({super.key, required this.secondaryDatabase});
 
   @override
   State<Monitoring> createState() => _MonitoringState();

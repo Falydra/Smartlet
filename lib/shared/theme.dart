@@ -5,7 +5,7 @@ double defaultRadius = 10.0;
 
 Color blue50 = const Color(0xffe6e7f6);
 Color blue300 = const Color(0xff245C4C);
-Color blue400 = Color.fromARGB(255, 44, 125, 102);
+Color blue400 = const Color.fromARGB(255, 44, 125, 102);
 Color blue500 = const Color(0xff245C4C);
 Color blue700 = const Color(0xff000B73);
 Color blue900 = const Color(0xff000744);

@@ -76,6 +76,9 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
   // Floor data template
   List<Map<String, dynamic>> _floorData = [];
+  
+  // Store harvest IDs for deletion management
+  Map<int, List<String>> _floorHarvestIds = {};
 
   @override
   void initState() {
@@ -197,14 +200,16 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
   Future<void> _loadHarvestData() async {
     try {
       // Build API-only harvest aggregate for selected month/year
+      // Organize by MONTH, not by floor
+      // SIMPLIFIED LOGIC: Just count nests from pre-harvest and post-harvest
+      double preHarvestTotal = 0.0;
+      double postHarvestTotal = 0.0;
+      double recommendedHarvest = 0.0;
+      double harvestRatio = 0.0;
+      bool followedRecommendation = false;
+
+      // For breakdown display (optional, parsed from notes if available)
       double mangkok = 0.0, sudut = 0.0, oval = 0.0, patahan = 0.0;
-      double preHarvestMangkok = 0.0,
-          preHarvestSudut = 0.0,
-          preHarvestOval = 0.0,
-          preHarvestPatahan = 0.0;
-      bool hasDetailedData = false;
-      bool hasPostHarvestData = false;
-      bool hasPreHarvestBreakdown = false;
 
       // Prepare floorData template
       List<Map<String, dynamic>> floorData = List.generate(
@@ -216,19 +221,17 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                 'oval': '0.0',
                 'patahan': '0.0',
               });
-
-      double preHarvestTotal = 0.0;
-      double recommendedHarvest = 0.0;
-      double actualHarvest = 0.0;
-      double harvestRatio = 0.0;
-      bool followedRecommendation = false;
+      
+      // Clear and prepare harvest IDs map
+      Map<int, List<String>> floorHarvestIds = {};
 
       if (_authToken != null) {
         try {
           final harvests =
               await _harvestService.getAll(_authToken!, limit: 1000);
 
-          // First pass: collect pre-harvest and post-harvest data
+          // SIMPLE LOGIC: Pre-harvest vs Post-harvest based on notes
+          // Post-harvest OVERRIDES pre-harvest
           for (var harvest in harvests) {
             // Try several possible date fields
             DateTime? harvestDate;
@@ -252,371 +255,151 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               final nestsCount =
                   (harvest['nests_count'] as num?)?.toDouble() ?? 0.0;
 
-              // Check if this is a pre-harvest plan (notes start with PRE_HARVEST_PLAN)
+              // SIMPLE: If notes starts with PRE_HARVEST_PLAN = pre-harvest
+              // Everything else = post-harvest
               if (notes.startsWith('PRE_HARVEST_PLAN')) {
-                // Parse pre-harvest data from notes: PRE_HARVEST_PLAN|recommended:X|total:Y
+                // PRE-HARVEST
                 preHarvestTotal += nestsCount;
-
-                // Extract recommended value from notes
-                final recMatch = RegExp(r'recommended:(\d+)').firstMatch(notes);
+                final recMatch = RegExp(r'recommended:(\\d+(?:\\.\\d+)?)').firstMatch(notes);
                 if (recMatch != null) {
-                  recommendedHarvest +=
-                      double.tryParse(recMatch.group(1) ?? '0') ?? 0.0;
+                  recommendedHarvest += double.tryParse(recMatch.group(1) ?? '0') ?? 0.0;
                 }
-
-                // Try to parse breakdown from notes if available
-                if (notes.contains('Mangkok:') || notes.contains('mangkok:')) {
-                  hasPreHarvestBreakdown = true;
-                  final mangkokMatch =
-                      RegExp(r'Mangkok:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-                  final sudutMatch =
-                      RegExp(r'Sudut:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-                  final ovalMatch =
-                      RegExp(r'Oval:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-                  final patahanMatch =
-                      RegExp(r'Patahan:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-
-                  double mangkokCount = mangkokMatch != null
-                      ? (double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-                  double sudutCount = sudutMatch != null
-                      ? (double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-                  double ovalCount = ovalMatch != null
-                      ? (double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-                  double patahanCount = patahanMatch != null
-                      ? (double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-
-                  // Accumulate pre-harvest breakdown
-                  preHarvestMangkok += mangkokCount;
-                  preHarvestSudut += sudutCount;
-                  preHarvestOval += ovalCount;
-                  preHarvestPatahan += patahanCount;
-
-                  // Update floor data with detailed breakdown (only if no post-harvest yet)
-                  if (floorNo > 0 &&
-                      floorNo <= _selectedCageFloors &&
-                      !hasPostHarvestData) {
-                    floorData[floorNo - 1]['mangkok'] =
-                        mangkokCount.toStringAsFixed(1);
-                    floorData[floorNo - 1]['sudut'] =
-                        sudutCount.toStringAsFixed(1);
-                    floorData[floorNo - 1]['oval'] =
-                        ovalCount.toStringAsFixed(1);
-                    floorData[floorNo - 1]['patahan'] =
-                        patahanCount.toStringAsFixed(1);
-                  }
-
-                  print(
-                      'Parsed PRE_HARVEST: Floor $floorNo - M:$mangkokCount S:$sudutCount O:$ovalCount P:$patahanCount');
-                } else {
-                  // No detailed breakdown, use total for mangkok column
-                  if (floorNo > 0 &&
-                      floorNo <= _selectedCageFloors &&
-                      !hasPostHarvestData) {
-                    floorData[floorNo - 1]['mangkok'] =
-                        nestsCount.toStringAsFixed(1);
-                  }
-                }
-              }
-              // Check if this is a post-harvest (notes start with POST_HARVEST)
-              else if (notes.startsWith('POST_HARVEST')) {
-                hasPostHarvestData = true;
-                hasDetailedData = true;
-
-                // NEW FORMAT: POST_HARVEST|ratio:X%|followed:yes/no
-                // Use nests_count directly as the actual harvest amount
-                actualHarvest += nestsCount;
-
-                // Extract ratio if available
-                final ratioMatch = RegExp(r'ratio:([\d.]+)').firstMatch(notes);
-                if (ratioMatch != null) {
-                  harvestRatio =
-                      (double.tryParse(ratioMatch.group(1) ?? '0') ?? 0.0) /
-                          100.0;
-                }
-
-                // Extract followed recommendation flag
-                final followedMatch =
-                    RegExp(r'followed:(yes|no)').firstMatch(notes);
-                if (followedMatch != null && followedMatch.group(1) == 'yes') {
-                  followedRecommendation = true;
-                }
-
-                // Try to parse breakdown from notes if available
-                if (notes.contains('Mangkok:') || notes.contains('mangkok:')) {
-                  final mangkokMatch =
-                      RegExp(r'Mangkok:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-                  final sudutMatch =
-                      RegExp(r'Sudut:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-                  final ovalMatch =
-                      RegExp(r'Oval:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-                  final patahanMatch =
-                      RegExp(r'Patahan:\s*(\d+)', caseSensitive: false)
-                          .firstMatch(notes);
-
-                  double mangkokCount = mangkokMatch != null
-                      ? (double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-                  double sudutCount = sudutMatch != null
-                      ? (double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-                  double ovalCount = ovalMatch != null
-                      ? (double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-                  double patahanCount = patahanMatch != null
-                      ? (double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0)
-                      : 0.0;
-
-                  // Add to total breakdown
-                  mangkok += mangkokCount;
-                  sudut += sudutCount;
-                  oval += ovalCount;
-                  patahan += patahanCount;
-
-                  // Update floor data with detailed breakdown
-                  if (floorNo > 0 && floorNo <= _selectedCageFloors) {
-                    floorData[floorNo - 1]['mangkok'] =
-                        mangkokCount.toStringAsFixed(1);
-                    floorData[floorNo - 1]['sudut'] =
-                        sudutCount.toStringAsFixed(1);
-                    floorData[floorNo - 1]['oval'] =
-                        ovalCount.toStringAsFixed(1);
-                    floorData[floorNo - 1]['patahan'] =
-                        patahanCount.toStringAsFixed(1);
-                  }
-
-                  print(
-                      'Parsed POST_HARVEST: Floor $floorNo - M:$mangkokCount S:$sudutCount O:$ovalCount P:$patahanCount');
-                } else {
-                  // No detailed breakdown, divide equally among 4 types for pie chart
-                  // This ensures the pie chart shows all harvested nests
-                  double perType = nestsCount / 4.0;
-                  mangkok += perType;
-                  sudut += perType;
-                  oval += perType;
-                  patahan += perType;
-
-                  // Update floor data - show total in mangkok column for display
-                  if (floorNo > 0 && floorNo <= _selectedCageFloors) {
-                    floorData[floorNo - 1]['mangkok'] =
-                        nestsCount.toStringAsFixed(1);
-                  }
-
-                  print(
-                      'POST_HARVEST without breakdown: Floor $floorNo - Total:$nestsCount (divided equally for pie chart)');
-                }
-              }
-              // Parse standard harvest data format: "Mangkok: X, Sudut: Y, Oval: Z, Patahan: W"
-              else if (notes.contains('Mangkok:') ||
-                  notes.contains('mangkok:')) {
-                hasPostHarvestData = true;
-                hasDetailedData = true;
-                actualHarvest += nestsCount;
-
-                // Parse the breakdown from notes
-                final mangkokMatch =
-                    RegExp(r'Mangkok:\s*(\d+)', caseSensitive: false)
-                        .firstMatch(notes);
-                final sudutMatch =
-                    RegExp(r'Sudut:\s*(\d+)', caseSensitive: false)
-                        .firstMatch(notes);
-                final ovalMatch = RegExp(r'Oval:\s*(\d+)', caseSensitive: false)
-                    .firstMatch(notes);
-                final patahanMatch =
-                    RegExp(r'Patahan:\s*(\d+)', caseSensitive: false)
-                        .firstMatch(notes);
-
-                double mangkokCount = mangkokMatch != null
-                    ? (double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0)
-                    : 0.0;
-                double sudutCount = sudutMatch != null
-                    ? (double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0)
-                    : 0.0;
-                double ovalCount = ovalMatch != null
-                    ? (double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0)
-                    : 0.0;
-                double patahanCount = patahanMatch != null
-                    ? (double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0)
-                    : 0.0;
-
-                // Add to total breakdown
-                mangkok += mangkokCount;
-                sudut += sudutCount;
-                oval += ovalCount;
-                patahan += patahanCount;
-
-                // Update floor data with detailed breakdown
                 if (floorNo > 0 && floorNo <= _selectedCageFloors) {
-                  floorData[floorNo - 1]['mangkok'] =
-                      mangkokCount.toStringAsFixed(1);
-                  floorData[floorNo - 1]['sudut'] =
-                      sudutCount.toStringAsFixed(1);
-                  floorData[floorNo - 1]['oval'] = ovalCount.toStringAsFixed(1);
-                  floorData[floorNo - 1]['patahan'] =
-                      patahanCount.toStringAsFixed(1);
+                  floorData[floorNo - 1]['mangkok'] = nestsCount.toStringAsFixed(1);
+                  // Store harvest ID for deletion management
+                  final harvestId = harvest['id']?.toString();
+                  if (harvestId != null) {
+                    floorHarvestIds.putIfAbsent(floorNo, () => []).add(harvestId);
+                  }
                 }
-
-                print(
-                    'Parsed harvest: Floor $floorNo - M:$mangkokCount S:$sudutCount O:$ovalCount P:$patahanCount');
-              }
-              // Catch any other harvest data without specific format
-              else if (nestsCount > 0) {
-                // This is harvest data without specific format markers
-                // Treat as post-harvest and divide equally for pie chart
-                hasPostHarvestData = true;
-                actualHarvest += nestsCount;
-
-                // Divide equally among 4 types for pie chart
-                double perType = nestsCount / 4.0;
-                mangkok += perType;
-                sudut += perType;
-                oval += perType;
-                patahan += perType;
-
-                // Update floor data - show total in mangkok column for display
-                if (floorNo > 0 && floorNo <= _selectedCageFloors) {
-                  floorData[floorNo - 1]['mangkok'] =
-                      nestsCount.toStringAsFixed(1);
+                print('[PRE] Floor $floorNo: $nestsCount nests');
+              } else if (nestsCount > 0) {
+                // POST-HARVEST (overrides pre-harvest)
+                // ALWAYS use nestsCount as the source of truth
+                postHarvestTotal += nestsCount;
+                
+                // Try to parse breakdown if available for pie chart distribution
+                // Check for ANY breakdown keyword (Mangkok, Sudut, Oval, or Patahan)
+                if (notes.contains('Mangkok:') || notes.contains('Sudut:') || 
+                    notes.contains('Oval:') || notes.contains('Patahan:')) {
+                  final m = double.tryParse(RegExp(r'Mangkok:\s*(\d+(?:\.\d+)?)', caseSensitive: false).firstMatch(notes)?.group(1) ?? '0') ?? 0.0;
+                  final s = double.tryParse(RegExp(r'Sudut:\s*(\d+(?:\.\d+)?)', caseSensitive: false).firstMatch(notes)?.group(1) ?? '0') ?? 0.0;
+                  final o = double.tryParse(RegExp(r'Oval:\s*(\d+(?:\.\d+)?)', caseSensitive: false).firstMatch(notes)?.group(1) ?? '0') ?? 0.0;
+                  final p = double.tryParse(RegExp(r'Patahan:\s*(\d+(?:\.\d+)?)', caseSensitive: false).firstMatch(notes)?.group(1) ?? '0') ?? 0.0;
+                  
+                  // Verify breakdown matches nestsCount
+                  double breakdownTotal = m + s + o + p;
+                  if ((breakdownTotal - nestsCount).abs() < 0.1) {
+                    // Breakdown is valid, use it
+                    mangkok += m; sudut += s; oval += o; patahan += p;
+                    if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                      floorData[floorNo - 1]['mangkok'] = m.toStringAsFixed(1);
+                      floorData[floorNo - 1]['sudut'] = s.toStringAsFixed(1);
+                      floorData[floorNo - 1]['oval'] = o.toStringAsFixed(1);
+                      floorData[floorNo - 1]['patahan'] = p.toStringAsFixed(1);
+                      // Store harvest ID for deletion management
+                      final harvestId = harvest['id']?.toString();
+                      if (harvestId != null) {
+                        floorHarvestIds.putIfAbsent(floorNo, () => []).add(harvestId);
+                      }
+                    }
+                    print('[POST] Floor $floorNo: $nestsCount nests with breakdown M:$m S:$s O:$o P:$p');
+                  } else {
+                    // Breakdown doesn't match nestsCount, ignore breakdown
+                    // Don't add to breakdown variables - this will show total without breakdown
+                    print('[POST] Floor $floorNo: $nestsCount nests (breakdown mismatch: $breakdownTotal)');
+                    if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                      floorData[floorNo - 1]['mangkok'] = nestsCount.toStringAsFixed(1);
+                      // Store harvest ID for deletion management
+                      final harvestId = harvest['id']?.toString();
+                      if (harvestId != null) {
+                        floorHarvestIds.putIfAbsent(floorNo, () => []).add(harvestId);
+                      }
+                    }
+                  }
+                } else {
+                  // No breakdown in notes
+                  // Don't add to breakdown variables - this will show total without breakdown
+                  if (floorNo > 0 && floorNo <= _selectedCageFloors) {
+                    floorData[floorNo - 1]['mangkok'] = nestsCount.toStringAsFixed(1);
+                    // Store harvest ID for deletion management
+                    final harvestId = harvest['id']?.toString();
+                    if (harvestId != null) {
+                      floorHarvestIds.putIfAbsent(floorNo, () => []).add(harvestId);
+                    }
+                  }
+                  print('[POST] Floor $floorNo: $nestsCount nests (no breakdown)');
                 }
-
-                print(
-                    'Generic harvest data: Floor $floorNo - Total:$nestsCount (divided equally for pie chart)');
               }
             }
           }
 
-          print(
-              'Loaded harvest data from API for house $_selectedHouseId: post-harvest total=$actualHarvest pre=$preHarvestTotal rec=$recommendedHarvest');
+          print('[RESULT] Pre: $preHarvestTotal, Post: $postHarvestTotal, Rec: $recommendedHarvest');
         } catch (apiError) {
           print('Error loading harvests from API: $apiError');
         }
       }
 
-      // Try to get pre-harvest data from temporary storage if not loaded from API
-      if (preHarvestTotal == 0.0) {
-        try {
-          final tempData = AddHarvestPage.getTempPreHarvestData();
-          if (tempData.isNotEmpty) {
-            preHarvestTotal =
-                (tempData['totalPreHarvest'] as num?)?.toDouble() ?? 0.0;
-            recommendedHarvest =
-                (tempData['totalRecommended'] as num?)?.toDouble() ?? 0.0;
-            print(
-                'Loaded pre-harvest from temp storage: pre=$preHarvestTotal rec=$recommendedHarvest');
-          }
-        } catch (e) {
-          print('Error loading temp pre-harvest data: $e');
-        }
-      }
-
-      // If recommended/ratio missing, derive them
+      // Calculate defaults
       if (recommendedHarvest == 0.0 && preHarvestTotal > 0.0) {
-        recommendedHarvest = (preHarvestTotal * 0.75); // Changed to 75%
+        recommendedHarvest = (preHarvestTotal * 0.75);
       }
 
-      if (harvestRatio == 0.0 && preHarvestTotal > 0.0 && actualHarvest > 0.0) {
-        double variance = preHarvestTotal > 0
-            ? ((actualHarvest - recommendedHarvest).abs() / preHarvestTotal)
-            : 0.0;
-        if (variance <= 0.1) {
-          harvestRatio = 0.75;
-          followedRecommendation = true;
+      // Determine what to display:
+      // - If we have both pre and post, check if post-harvest is complete
+      // - Post-harvest is considered complete if it's >= 50% of pre-harvest
+      // - Otherwise, we're still in progress, show pre-harvest data
+      double displayTotal;
+      bool hasBreakdown = (mangkok > 0 || sudut > 0 || oval > 0 || patahan > 0);
+      
+      if (postHarvestTotal > 0 && preHarvestTotal > 0) {
+        // We have both pre and post data
+        if (postHarvestTotal >= preHarvestTotal * 0.5) {
+          // Post-harvest looks complete, use it
+          // If we have breakdown data, use breakdown sum (this excludes non-breakdown entries)
+          // Otherwise use postHarvestTotal (includes all entries)
+          displayTotal = hasBreakdown ? (mangkok + sudut + oval + patahan) : postHarvestTotal;
+          print('[DISPLAY] Using POST (complete): $displayTotal (breakdown: $hasBreakdown)');
         } else {
-          harvestRatio =
-              preHarvestTotal > 0 ? (actualHarvest / preHarvestTotal) : 0.0;
+          // Post-harvest is too small compared to pre-harvest, likely incomplete
+          // Show pre-harvest instead
+          displayTotal = preHarvestTotal;
+          // Clear breakdown since we're not using post-harvest
+          hasBreakdown = false;
+          print('[DISPLAY] Using PRE (post incomplete: $postHarvestTotal < ${preHarvestTotal * 0.5})');
         }
-      }
-
-      // Determine what to display in pie chart
-      double generalTotal = 0.0;
-
-      if (hasPostHarvestData && actualHarvest > 0.0) {
-        // POST-HARVEST exists: show post-harvest data in pie chart
-        // Use actual breakdown if we parsed it, otherwise divide equally
-        if (mangkok > 0 || sudut > 0 || oval > 0 || patahan > 0) {
-          // We have detailed breakdown from parsing notes
-          generalTotal = mangkok + sudut + oval + patahan;
-          hasDetailedData = true;
-          print(
-              'Using parsed harvest breakdown: M:$mangkok S:$sudut O:$oval P:$patahan Total:$generalTotal');
-        } else {
-          // No detailed breakdown, divide equally among 4 types for visualization
-          final perType = actualHarvest / 4.0;
-          mangkok = perType;
-          sudut = perType;
-          oval = perType;
-          patahan = perType;
-          generalTotal = actualHarvest;
-          hasDetailedData = true;
-          print(
-              'Using POST_HARVEST data for pie chart: $actualHarvest divided equally');
-        }
-      } else if (preHarvestTotal > 0.0) {
-        // Only PRE-HARVEST exists: show pre-harvest data in pie chart
-        // Use actual breakdown if we parsed it, otherwise divide equally
-        if (hasPreHarvestBreakdown &&
-            (preHarvestMangkok > 0 ||
-                preHarvestSudut > 0 ||
-                preHarvestOval > 0 ||
-                preHarvestPatahan > 0)) {
-          // We have detailed breakdown from parsing PRE_HARVEST notes
-          mangkok = preHarvestMangkok;
-          sudut = preHarvestSudut;
-          oval = preHarvestOval;
-          patahan = preHarvestPatahan;
-          generalTotal = mangkok + sudut + oval + patahan;
-          hasDetailedData = true;
-          print(
-              'Using parsed PRE_HARVEST breakdown: M:$mangkok S:$sudut O:$oval P:$patahan Total:$generalTotal');
-        } else {
-          // No detailed breakdown, divide equally among 4 types for visualization
-          final perType = preHarvestTotal / 4.0;
-          mangkok = perType;
-          sudut = perType;
-          oval = perType;
-          patahan = perType;
-          generalTotal = preHarvestTotal;
-          hasDetailedData = true;
-          print(
-              'Using PRE_HARVEST data for pie chart: $preHarvestTotal divided equally');
-        }
+      } else if (postHarvestTotal > 0) {
+        // Only post-harvest data
+        // If we have breakdown data, use breakdown sum (this excludes non-breakdown entries)
+        // Otherwise use postHarvestTotal (includes all entries)
+        displayTotal = hasBreakdown ? (mangkok + sudut + oval + patahan) : postHarvestTotal;
+        print('[DISPLAY] Using POST (only): $displayTotal (breakdown: $hasBreakdown)');
       } else {
-        // No data at all
-        generalTotal = 0.0;
-        hasDetailedData = false;
-        print('No harvest data found for this period');
+        // Only pre-harvest data or no data
+        displayTotal = preHarvestTotal;
+        print('[DISPLAY] Using PRE (only): $preHarvestTotal');
       }
 
       if (mounted) {
         setState(() {
           _harvestData = {
-            'mangkok': mangkok,
-            'sudut': sudut,
-            'oval': oval,
-            'patahan': patahan,
+            'mangkok': hasBreakdown ? mangkok : 0.0,
+            'sudut': hasBreakdown ? sudut : 0.0,
+            'oval': hasBreakdown ? oval : 0.0,
+            'patahan': hasBreakdown ? patahan : 0.0,
           };
-          _generalTotalSarang = generalTotal;
+          _generalTotalSarang = displayTotal;
           _preHarvestTotal = preHarvestTotal;
           _recommendedHarvest = recommendedHarvest;
-          _actualHarvest = actualHarvest;
+          _actualHarvest = postHarvestTotal;
           _harvestRatio = harvestRatio;
           _followedRecommendation = followedRecommendation;
           _floorData = floorData;
+          _floorHarvestIds = floorHarvestIds;
         });
       }
 
-      print(
-          'Analysis data loaded: $_harvestData, hasDetailedData: $hasDetailedData');
+      print('[FINAL] Display: $displayTotal, Breakdown: $hasBreakdown (M:$mangkok S:$sudut O:$oval P:$patahan)');
     } catch (e) {
       print('Error loading harvest data: $e');
       // Set default zero data on error
@@ -640,7 +423,15 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
   }
 
   double get _totalHarvest {
-    return _harvestData.values.fold(0.0, (sum, value) => sum + value);
+    // Calculate from _floorData (same as table and pie chart)
+    double total = 0.0;
+    for (var floor in _floorData) {
+      total += double.tryParse(floor['mangkok'].toString()) ?? 0.0;
+      total += double.tryParse(floor['sudut'].toString()) ?? 0.0;
+      total += double.tryParse(floor['oval'].toString()) ?? 0.0;
+      total += double.tryParse(floor['patahan'].toString()) ?? 0.0;
+    }
+    return total;
   }
 
   String get _totalIncome {
@@ -649,21 +440,29 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
   }
 
   List<PieChartSectionData> _getChartData() {
-    // Use API-derived floor data to determine whether detailed data exists
-    bool hasDetailedData = _floorData.any((f) {
-      double m = double.tryParse(f['mangkok']?.toString() ?? '0') ?? 0.0;
-      double s = double.tryParse(f['sudut']?.toString() ?? '0') ?? 0.0;
-      double o = double.tryParse(f['oval']?.toString() ?? '0') ?? 0.0;
-      double p = double.tryParse(f['patahan']?.toString() ?? '0') ?? 0.0;
-      return m > 0 || s > 0 || o > 0 || p > 0;
-    });
+    // USE THE SAME DATA SOURCE AS THE TABLE (_floorData)
+    // Calculate totals from _floorData which is what the table displays
+    double mangkok = 0.0, sudut = 0.0, oval = 0.0, patahan = 0.0;
+    
+    for (var floor in _floorData) {
+      mangkok += double.tryParse(floor['mangkok'].toString()) ?? 0.0;
+      sudut += double.tryParse(floor['sudut'].toString()) ?? 0.0;
+      oval += double.tryParse(floor['oval'].toString()) ?? 0.0;
+      patahan += double.tryParse(floor['patahan'].toString()) ?? 0.0;
+    }
+    
+    bool hasBreakdown = (sudut > 0 || oval > 0 || patahan > 0);
+    final totalNests = mangkok + sudut + oval + patahan;
 
-    if (_totalHarvest == 0 || !hasDetailedData) {
+    print('[PIE CHART] From _floorData - Total: $totalNests, hasBreakdown: $hasBreakdown, M:$mangkok S:$sudut O:$oval P:$patahan');
+
+    // If no total, show placeholder
+    if (totalNests == 0) {
       return [
         PieChartSectionData(
           value: 1,
           color: Colors.grey[300]!,
-          title: hasDetailedData ? 'No Data' : 'Input Detail\nTerlebih Dahulu',
+          title: 'No Data\nInput Pre-Harvest',
           radius: 60,
           titleStyle: const TextStyle(
             fontSize: 10,
@@ -674,21 +473,34 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
       ];
     }
 
-    // Use nest counts instead of weight for pie chart
+    // If we have total but no breakdown (only mangkok), show as single section
+    if (!hasBreakdown) {
+      return [
+        PieChartSectionData(
+          value: totalNests,
+          color: Colors.orange[300]!,
+          title: 'Total: ${totalNests.toInt()} sarang\nKlik "Detail"\nuntuk breakdown',
+          radius: 60,
+          titleStyle: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ];
+    }
+
+    // Build sections from _floorData (same as table)
     List<PieChartSectionData> sections = [];
-    final totalNests = _harvestData['mangkok'] +
-        _harvestData['sudut'] +
-        _harvestData['oval'] +
-        _harvestData['patahan'];
 
-    if (_harvestData['mangkok'] > 0) {
+    if (mangkok > 0) {
       final percentage = totalNests > 0
-          ? (_harvestData['mangkok'] / totalNests * 100).toStringAsFixed(1)
+          ? (mangkok / totalNests * 100).toStringAsFixed(1)
           : '0';
       sections.add(PieChartSectionData(
-        value: _harvestData['mangkok'],
+        value: mangkok,
         color: const Color(0xFF245C4C),
-        title: '${_harvestData['mangkok'].toInt()}\n($percentage%)',
+        title: '${mangkok.toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -698,14 +510,14 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
       ));
     }
 
-    if (_harvestData['sudut'] > 0) {
+    if (sudut > 0) {
       final percentage = totalNests > 0
-          ? (_harvestData['sudut'] / totalNests * 100).toStringAsFixed(1)
+          ? (sudut / totalNests * 100).toStringAsFixed(1)
           : '0';
       sections.add(PieChartSectionData(
-        value: _harvestData['sudut'],
+        value: sudut,
         color: const Color(0xFFffc200),
-        title: '${_harvestData['sudut'].toInt()}\n($percentage%)',
+        title: '${sudut.toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -715,14 +527,14 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
       ));
     }
 
-    if (_harvestData['oval'] > 0) {
+    if (oval > 0) {
       final percentage = totalNests > 0
-          ? (_harvestData['oval'] / totalNests * 100).toStringAsFixed(1)
+          ? (oval / totalNests * 100).toStringAsFixed(1)
           : '0';
       sections.add(PieChartSectionData(
-        value: _harvestData['oval'],
+        value: oval,
         color: const Color(0xFF168AB5),
-        title: '${_harvestData['oval'].toInt()}\n($percentage%)',
+        title: '${oval.toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -732,14 +544,14 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
       ));
     }
 
-    if (_harvestData['patahan'] > 0) {
+    if (patahan > 0) {
       final percentage = totalNests > 0
-          ? (_harvestData['patahan'] / totalNests * 100).toStringAsFixed(1)
+          ? (patahan / totalNests * 100).toStringAsFixed(1)
           : '0';
       sections.add(PieChartSectionData(
-        value: _harvestData['patahan'],
+        value: patahan,
         color: const Color(0xFFC20000),
-        title: '${_harvestData['patahan'].toInt()}\n($percentage%)',
+        title: '${patahan.toInt()}\n($percentage%)',
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 10,
@@ -749,22 +561,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
       ));
     }
 
-    // Return the "No Data" chart if no sections have data
-    return sections.isEmpty
-        ? [
-            PieChartSectionData(
-              value: 1,
-              color: Colors.grey[300]!,
-              title: 'No Data',
-              radius: 60,
-              titleStyle: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ]
-        : sections;
+    return sections;
   }
 
   void _showDatePicker() {
@@ -837,6 +634,443 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               foregroundColor: Colors.white,
             ),
             child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHarvestManager() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.delete_sweep, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Kelola Panen',
+              style: TextStyle(
+                color: Color(0xFF245C4C),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Hapus data panen ${_months[_selectedMonth - 1]} $_selectedYear',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_floorHarvestIds.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    'Tidak ada data panen untuk dihapus',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              else
+                ..._floorData.map((floor) {
+                  final floorNo = floor['floor'] as int;
+                  final hasData = _floorHarvestIds.containsKey(floorNo) &&
+                      _floorHarvestIds[floorNo]!.isNotEmpty;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: hasData
+                            ? const Color(0xFF245C4C)
+                            : Colors.grey[300],
+                        child: Text(
+                          '$floorNo',
+                          style: TextStyle(
+                            color: hasData ? Colors.white : Colors.grey[600],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        'Lantai $floorNo',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        hasData
+                            ? '${_floorHarvestIds[floorNo]!.length} entri panen'
+                            : 'Tidak ada data',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      trailing: hasData
+                          ? IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () async {
+                                // Confirm deletion
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Konfirmasi Hapus'),
+                                    content: Text(
+                                      'Hapus semua data panen lantai $floorNo?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('Batal'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                        ),
+                                        child: const Text('Hapus'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (confirm == true) {
+                                  await _deleteFloorHarvests(floorNo);
+                                }
+                              },
+                            )
+                          : null,
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
+          ),
+          if (_floorHarvestIds.isNotEmpty)
+            ElevatedButton(
+              onPressed: () async {
+                // Confirm delete all
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Konfirmasi Hapus Semua'),
+                    content: const Text(
+                      'Hapus SEMUA data panen bulan ini?\nTindakan ini tidak dapat dibatalkan.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Batal'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Hapus Semua'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await _deleteAllHarvests();
+                  if (mounted) Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Hapus Semua'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteFloorHarvests(int floorNo) async {
+    if (!_floorHarvestIds.containsKey(floorNo)) return;
+
+    try {
+      final harvestIds = _floorHarvestIds[floorNo]!;
+      int successCount = 0;
+      List<String> errors = [];
+
+      for (final harvestId in harvestIds) {
+        try {
+          final result = await _harvestService.delete(_authToken!, harvestId);
+          if (result['success'] == true) {
+            successCount++;
+          } else {
+            errors.add(result['error'] ?? 'Unknown error');
+            print('Error deleting harvest $harvestId: ${result['error']}');
+          }
+        } catch (e) {
+          errors.add(e.toString());
+          print('Exception deleting harvest $harvestId: $e');
+        }
+      }
+
+      if (mounted) {
+        if (successCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Berhasil menghapus $successCount data lantai $floorNo'),
+              backgroundColor: const Color(0xFF245C4C),
+            ),
+          );
+        } else if (errors.isNotEmpty) {
+          // Show specific error message
+          String errorMsg = errors.first;
+          if (errorMsg.contains('403') || errorMsg.contains('forbidden')) {
+            errorMsg = 'Tidak memiliki izin untuk menghapus data panen';
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMsg),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+
+      // Reload harvest data
+      await _loadHarvestData();
+    } catch (e) {
+      print('Error deleting floor harvests: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Terjadi kesalahan saat menghapus data'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAllHarvests() async {
+    try {
+      int successCount = 0;
+      List<String> errors = [];
+
+      for (final harvestIds in _floorHarvestIds.values) {
+        for (final harvestId in harvestIds) {
+          try {
+            final result = await _harvestService.delete(_authToken!, harvestId);
+            if (result['success'] == true) {
+              successCount++;
+            } else {
+              errors.add(result['error'] ?? 'Unknown error');
+              print('Error deleting harvest $harvestId: ${result['error']}');
+            }
+          } catch (e) {
+            errors.add(e.toString());
+            print('Exception deleting harvest $harvestId: $e');
+          }
+        }
+      }
+
+      if (mounted) {
+        if (successCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Berhasil menghapus $successCount data panen'),
+              backgroundColor: const Color(0xFF245C4C),
+            ),
+          );
+        } else if (errors.isNotEmpty) {
+          // Show specific error message
+          String errorMsg = errors.first;
+          if (errorMsg.contains('403') || errorMsg.contains('forbidden')) {
+            errorMsg = 'Tidak memiliki izin untuk menghapus data panen.\nHubungi administrator untuk akses penghapusan.';
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMsg),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+
+      // Reload harvest data
+      await _loadHarvestData();
+    } catch (e) {
+      print('Error deleting all harvests: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Terjadi kesalahan saat menghapus data'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDetailInputDialog() async {
+    // Controllers for the breakdown input
+    final mangkokController = TextEditingController();
+    final sudutController = TextEditingController();
+    final ovalController = TextEditingController();
+    final patahanController = TextEditingController();
+
+    // Pre-fill if we have total but no breakdown
+    final totalNests = _generalTotalSarang;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.edit, color: Color(0xFF245C4C), size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Input Detail Jenis Sarang',
+              style: TextStyle(
+                color: Color(0xFF245C4C),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Total sarang: ${totalNests.toInt()}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: mangkokController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Mangkok',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.circle, color: Color(0xFF245C4C)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: sudutController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Sudut',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.circle, color: Color(0xFFffc200)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ovalController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Oval',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.circle, color: Color(0xFF168AB5)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: patahanController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Patahan',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.circle, color: Color(0xFFC20000)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '💡 Total harus sama dengan ${totalNests.toInt()} sarang',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Validate and save the breakdown
+              final mangkok = double.tryParse(mangkokController.text) ?? 0.0;
+              final sudut = double.tryParse(sudutController.text) ?? 0.0;
+              final oval = double.tryParse(ovalController.text) ?? 0.0;
+              final patahan = double.tryParse(patahanController.text) ?? 0.0;
+              final inputTotal = mangkok + sudut + sudut + oval + patahan;
+
+              if ((inputTotal - totalNests).abs() > 0.1) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'Total input (${inputTotal.toInt()}) harus sama dengan total sarang (${totalNests.toInt()})'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              // Update the harvest data with breakdown
+              setState(() {
+                _harvestData = {
+                  'mangkok': mangkok,
+                  'sudut': sudut,
+                  'oval': oval,
+                  'patahan': patahan,
+                };
+              });
+
+              // TODO: Save this breakdown to API by updating the harvest notes
+              // For now, just update the UI
+              Navigator.pop(context);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Detail sarang berhasil diinput'),
+                  backgroundColor: Color(0xFF245C4C),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF245C4C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Simpan'),
           ),
         ],
       ),
@@ -1108,33 +1342,46 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                     ),
                   ),
 
-                  // Legend
+                  // Legend - Calculate from _floorData (same as table)
                   Expanded(
                     flex: 2,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLegendItem(
-                            'Mangkok',
-                            '${_harvestData['mangkok'].toInt()} sarang',
-                            const Color(0xFF245C4C)),
-                        const SizedBox(height: 8),
-                        _buildLegendItem(
-                            'Sudut',
-                            '${_harvestData['sudut'].toInt()} sarang',
-                            const Color(0xFFffc200)),
-                        const SizedBox(height: 8),
-                        _buildLegendItem(
-                            'Oval',
-                            '${_harvestData['oval'].toInt()} sarang',
-                            const Color(0xFF168AB5)),
-                        const SizedBox(height: 8),
-                        _buildLegendItem(
-                            'Patahan',
-                            '${_harvestData['patahan'].toInt()} sarang',
-                            const Color(0xFFC20000)),
-                      ],
+                    child: Builder(
+                      builder: (context) {
+                        // Calculate totals from _floorData
+                        double mangkok = 0.0, sudut = 0.0, oval = 0.0, patahan = 0.0;
+                        for (var floor in _floorData) {
+                          mangkok += double.tryParse(floor['mangkok'].toString()) ?? 0.0;
+                          sudut += double.tryParse(floor['sudut'].toString()) ?? 0.0;
+                          oval += double.tryParse(floor['oval'].toString()) ?? 0.0;
+                          patahan += double.tryParse(floor['patahan'].toString()) ?? 0.0;
+                        }
+                        
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLegendItem(
+                                'Mangkok',
+                                '${mangkok.toInt()} sarang',
+                                const Color(0xFF245C4C)),
+                            const SizedBox(height: 8),
+                            _buildLegendItem(
+                                'Sudut',
+                                '${sudut.toInt()} sarang',
+                                const Color(0xFFffc200)),
+                            const SizedBox(height: 8),
+                            _buildLegendItem(
+                                'Oval',
+                                '${oval.toInt()} sarang',
+                                const Color(0xFF168AB5)),
+                            const SizedBox(height: 8),
+                            _buildLegendItem(
+                                'Patahan',
+                                '${patahan.toInt()} sarang',
+                                const Color(0xFFC20000)),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -1185,7 +1432,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                           ),
                         ),
                         Text(
-                          '${_generalTotalSarang.toInt()}',
+                          '${_totalHarvest.toInt()}',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1193,7 +1440,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                           ),
                         ),
                         Text(
-                          'Optimal: ${_preHarvestTotal > 0 ? (_preHarvestTotal * 0.75).toInt() : (_generalTotalSarang * 0.75).toInt()}',
+                          'Optimal: ${_preHarvestTotal > 0 ? (_preHarvestTotal * 0.75).toInt() : (_totalHarvest * 0.75).toInt()}',
                           style: const TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w500,
@@ -1241,6 +1488,44 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                     color: Color(0xFF245C4C),
                   ),
                 ),
+                // Add Harvest Manager button
+                IconButton(
+                  onPressed: _showHarvestManager,
+                  icon: const Icon(
+                    Icons.settings,
+                    color: Color(0xFF245C4C),
+                    size: 20,
+                  ),
+                  tooltip: 'Kelola Panen',
+                ),
+                // Show "Add Detail" button if we have total but no breakdown
+                if (_generalTotalSarang > 0 &&
+                    _harvestData['mangkok'] == 0 &&
+                    _harvestData['sudut'] == 0 &&
+                    _harvestData['oval'] == 0 &&
+                    _harvestData['patahan'] == 0)
+                  TextButton.icon(
+                    onPressed: _showDetailInputDialog,
+                    icon: const Icon(Icons.add_circle_outline,
+                        size: 16, color: Color(0xFFffc200)),
+                    label: const Text(
+                      'Detail',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFffc200),
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      backgroundColor: const Color(0xFFFFF7CA),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Color(0xFFffc200)),
+                      ),
+                    ),
+                  ),
               ],
             ),
 
@@ -1543,75 +1828,80 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
         },
         items: [
           BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.home,
-                label: 'Beranda',
-                currentIndex: _currentIndex,
-                itemIndex: 0,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/home-page');
-                  setState(() {
-                    _currentIndex = 0;
-                  });
-                },
-              ),
-              label: ''),
+            icon: CustomBottomNavigationItem(
+              icon: Icons.home,
+              label: 'Beranda',
+              currentIndex: _currentIndex,
+              itemIndex: 0,
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/home-page');
+                setState(() {
+                  _currentIndex = 0;
+                });
+              },
+            ),
+            label: '',
+          ),
           BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.devices,
-                label: 'Kontrol',
-                currentIndex: _currentIndex,
-                itemIndex: 1,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
-                  setState(() {
-                    _currentIndex = 1;
-                  });
-                },
-              ),
-              label: ''),
+            icon: CustomBottomNavigationItem(
+              icon: Icons.devices,
+              label: 'Kontrol',
+              currentIndex: _currentIndex,
+              itemIndex: 1,
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/control-page');
+                setState(() {
+                  _currentIndex = 1;
+                });
+              },
+            ),
+            label: '',
+          ),
           BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.agriculture,
-                label: 'Panen',
-                currentIndex: _currentIndex,
-                itemIndex: 2,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
-                  setState(() {
-                    _currentIndex = 2;
-                  });
-                },
-              ),
-              label: ''),
+            icon: CustomBottomNavigationItem(
+              icon: Icons.agriculture,
+              label: 'Panen',
+              currentIndex: _currentIndex,
+              itemIndex: 2,
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                setState(() {
+                  _currentIndex = 2;
+                });
+              },
+            ),
+            label: '',
+          ),
           BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.sell,
-                label: 'Jual',
-                currentIndex: _currentIndex,
-                itemIndex: 3,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/store-page');
-                  setState(() {
-                    _currentIndex = 3;
-                  });
-                },
-              ),
-              label: ''),
+            icon: CustomBottomNavigationItem(
+              icon: Icons.sell,
+              label: 'Jual',
+              currentIndex: _currentIndex,
+              itemIndex: 3,
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/store-page');
+                setState(() {
+                  _currentIndex = 3;
+                });
+              },
+            ),
+            label: '',
+          ),
           BottomNavigationBarItem(
-              icon: CustomBottomNavigationItem(
-                icon: Icons.person,
-                label: 'Profil',
-                currentIndex: _currentIndex,
-                itemIndex: 4,
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, '/profile-page');
-                  setState(() {
-                    _currentIndex = 4;
-                  });
-                },
-              ),
-              label: ''),
+            icon: CustomBottomNavigationItem(
+              icon: Icons.person,
+              label: 'Profil',
+              currentIndex: _currentIndex,
+              itemIndex: 4,
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/profile-page');
+                setState(() {
+                  _currentIndex = 4;
+                });
+              },
+            ),
+            label: '',
+          ),
         ],
       ),
     );
