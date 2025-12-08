@@ -111,6 +111,7 @@ class HarvestService {
       );
       
       print('HarvestService.delete - Response status: ${response.statusCode}');
+      print('HarvestService.delete - Response body: ${response.body}');
       
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {'success': true};
@@ -119,12 +120,14 @@ class HarvestService {
           final errorData = jsonDecode(response.body);
           return {
             'success': false,
-            'error': errorData['error'] ?? errorData['message'] ?? 'Unknown error',
+            'error': errorData['error'] ?? errorData['message'] ?? 'HTTP ${response.statusCode}',
+            'statusCode': response.statusCode,
           };
         } catch (e) {
           return {
             'success': false,
-            'error': 'HTTP ${response.statusCode}',
+            'error': 'HTTP ${response.statusCode}: ${response.body}',
+            'statusCode': response.statusCode,
           };
         }
       }
