@@ -5,7 +5,7 @@ import 'api_constants.dart';
 class NodeService {
   final String baseUrl = ApiConstants.apiBaseUrl;
 
-  /// Create a node under an RBW (POST /rbw/{rbw_id}/nodes)
+
   Future<Map<String, dynamic>> createUnderRbw(String token, String rbwId, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/rbw/$rbwId/nodes');
@@ -22,7 +22,7 @@ class NodeService {
     }
   }
 
-  /// List nodes under an RBW (GET /rbw/{rbw_id}/nodes)
+
   Future<Map<String, dynamic>> listByRbw(String token, String rbwId, {Map<String, String>? queryParams}) async {
     try {
       final uri = Uri.parse('$baseUrl/rbw/$rbwId/nodes').replace(queryParameters: queryParams);
@@ -61,7 +61,7 @@ class NodeService {
     }
   }
 
-  /// List all nodes with optional query parameters (GET /nodes?rbw_id={rbwId})
+
   Future<Map<String, dynamic>> getAllNodes(String token, {Map<String, String>? queryParams}) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes').replace(queryParameters: queryParams);
@@ -100,7 +100,7 @@ class NodeService {
     }
   }
 
-  /// Get node details (GET /nodes/{id})
+
   Future<Map<String, dynamic>> getById(String token, String id) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id');
@@ -121,7 +121,7 @@ class NodeService {
     }
   }
 
-  /// List sensors attached to a node (via GET /nodes/{id} and extracting sensors)
+
   Future<Map<String, dynamic>> listSensorsByNode(String token, String nodeId) async {
     final res = await getById(token, nodeId);
     if (res['success'] == true) {
@@ -132,7 +132,7 @@ class NodeService {
     return res;
   }
 
-  /// Get sensors from specific node endpoint (GET /nodes/{node_id}/sensors)
+
   Future<Map<String, dynamic>> getSensorsByNode(String token, String nodeId) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$nodeId/sensors');
@@ -153,7 +153,7 @@ class NodeService {
     }
   }
 
-  /// Update node (PATCH /nodes/{id})
+
   Future<Map<String, dynamic>> update(String token, String id, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id');
@@ -170,7 +170,7 @@ class NodeService {
     }
   }
 
-  /// Delete node (DELETE /nodes/{id})
+
   Future<Map<String, dynamic>> delete(String token, String id) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id');
@@ -187,7 +187,7 @@ class NodeService {
     }
   }
 
-  /// Update audio state (PATCH /nodes/{id}/audio)
+
   Future<Map<String, dynamic>> patchAudio(String token, String id, bool state) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/audio');
@@ -208,7 +208,7 @@ class NodeService {
     }
   }
 
-  /// Get audio state (GET /nodes/{id}/audio)
+
   Future<Map<String, dynamic>> getAudioState(String token, String id) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/audio');
@@ -229,9 +229,9 @@ class NodeService {
     }
   }
 
-  /// Control audio with specific action (PATCH /nodes/{id}/audio)
-  /// Actions: audio_set_lmb, call_bird
-  /// value: 1 (on) or 0 (off)
+
+
+
   Future<Map<String, dynamic>> controlAudio(String token, String id, String action, int value) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/audio');
@@ -262,11 +262,11 @@ class NodeService {
     }
   }
 
-  /// Update pump state (PATCH /nodes/{id}/pump)
+
   Future<Map<String, dynamic>> patchPump(String token, String id, bool state) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/pump');
-      final response = await http.patch(uri, headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"}, body: jsonEncode({'state': state}));
+      final response = await http.patch(uri, headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"}, body: jsonEncode({'action': 'sprayer_set', 'value': state ? 1 : 0}));
 
       if (response.statusCode == 200) {
         try {
@@ -283,7 +283,7 @@ class NodeService {
     }
   }
 
-  /// Update node status (PATCH /nodes/{id}/status)
+
   Future<Map<String, dynamic>> patchStatus(String token, String id, String status) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/status');
@@ -304,7 +304,7 @@ class NodeService {
     }
   }
 
-  /// Node heartbeat (POST /nodes/{id}/heartbeat)
+
   Future<Map<String, dynamic>> heartbeat(String token, String id, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/heartbeat');

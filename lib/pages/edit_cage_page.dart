@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class EditCagePage extends StatefulWidget {
   final Map<String, dynamic> cage;
-  // cage should contain keys like: apiId (String) or local id, name, address, floors, latitude, longitude, description, code
+
   const EditCagePage({super.key, required this.cage});
 
   @override
@@ -80,7 +79,7 @@ class _EditCagePageState extends State<EditCagePage> {
         'description': _descriptionController.text.trim(),
       };
 
-      // If cage has apiId -> update via API
+
       if (widget.cage['isFromAPI'] == true && widget.cage['apiId'] != null && token != null) {
         final id = widget.cage['apiId'].toString();
         final hs = HouseService();
@@ -97,7 +96,7 @@ class _EditCagePageState extends State<EditCagePage> {
         }
       }
 
-      // Otherwise, update local SharedPreferences
+
       final prefs = await SharedPreferences.getInstance();
       final idRaw = widget.cage['id']?.toString() ?? '';
       final idx = int.tryParse(idRaw.replaceAll(RegExp(r'[^0-9]'), ''));
@@ -208,7 +207,26 @@ class _MapPickerPage extends StatefulWidget {
 
 class _MapPickerPageState extends State<_MapPickerPage> {
   LatLng? _picked;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
+  final Set<Marker> _markers = {};
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+  }
+
+  void _onMapTapped(LatLng position) {
+    setState(() {
+      _picked = position;
+      _markers.clear();
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: position,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +234,7 @@ class _MapPickerPageState extends State<_MapPickerPage> {
       appBar: AppBar(
         title: const Text('Pilih Lokasi'),
         backgroundColor: const Color(0xFF245C4C),
+        foregroundColor: Colors.white,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, _picked),
@@ -223,34 +242,18 @@ class _MapPickerPageState extends State<_MapPickerPage> {
           )
         ],
       ),
-      body: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          center: widget.initialPosition,
+      body: GoogleMap(
+        onMapCreated: _onMapCreated,
+        initialCameraPosition: CameraPosition(
+          target: widget.initialPosition,
           zoom: 15,
-          onTap: (tapPosition, point) {
-            setState(() {
-              _picked = LatLng(point.latitude, point.longitude);
-            });
-          },
         ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            subdomains: const ['a', 'b', 'c'],
-          ),
-          if (_picked != null)
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: _picked!,
-                  width: 80,
-                  height: 80,
-                  builder: (ctx) => const Icon(Icons.location_on, color: Colors.red, size: 40),
-                ),
-              ],
-            ),
-        ],
+        onTap: _onMapTapped,
+        markers: _markers,
+        myLocationEnabled: true,
+        myLocationButtonEnabled: true,
+        zoomControlsEnabled: true,
+        mapToolbarEnabled: false,
       ),
     );
   }

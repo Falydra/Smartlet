@@ -29,7 +29,7 @@ class _RegisterPageState extends State<RegisterPage> {
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   @override
-  // Menghindari memori bocor
+
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -46,7 +46,7 @@ class _RegisterPageState extends State<RegisterPage> {
         children: [
           Container(
             margin: EdgeInsets.only(top: width(context) * 0.25),
-            // decoration: BoxDecoration(border: Border.all(width: 2)),
+
             width: width(context) * 0.375,
             child: const Image(
               image: AssetImage("assets/img/logo2.png"),
@@ -61,17 +61,17 @@ class _RegisterPageState extends State<RegisterPage> {
                 const Text(
                   "Daftarkan Akun anda",
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Color(0xff000744)),
+                  style: TextStyle(fontSize: 18, color: Color(0xff245C4C)),
                 ),
                 const SizedBox(
                   height: 10,
                 ),
 
-                // name
+
                 const Text(
                   "Nama Lengkap",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _nameController,
@@ -80,19 +80,19 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     hintText: 'Nama Lengkap',
                     hintStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
-                        color: Color(0xff545FC1)),
+                        color: Color(0xff245C4C)),
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 15, horizontal: 18),
                   ),
@@ -101,11 +101,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   height: 10,
                 ),
 
-                // email
+
                 const Text(
                   "Email",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _emailController,
@@ -114,32 +114,32 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     hintText: 'Email',
                     hintStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
-                        color: Color(0xff545FC1)),
+                        color: Color(0xff245C4C)),
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-                // email
+
                 const SizedBox(
                   height: 10,
                 ),
-                // password
+
                 const Text(
                   "Password",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _passwordController,
@@ -149,33 +149,33 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     hintText: 'Password',
                     hintStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
-                        color: Color(0xff545FC1)),
+                        color: Color(0xff245C4C)),
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-                // password
-                // Konfirmasi password
+
+
                 const SizedBox(
                   height: 10,
                 ),
-                // password
+
                 const Text(
                   "Konfirmasi Password",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff0010A2)),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _confirmPasswordController,
@@ -185,24 +185,24 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(
                             color: Color(
-                                0xff0010A2)) // Ganti dengan warna yang diinginkan
+                                0xff245C4C)) // Ganti dengan warna yang diinginkan
                         ),
                     hintText: 'Konfirmasi Password',
                     hintStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
-                        color: Color(0xff545FC1)),
+                        color: Color(0xff245C4C)),
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-                // password
+
                 const SizedBox(
                   height: 20,
                 ),
@@ -216,7 +216,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(10.0),
                       ),
                       backgroundColor:
-                          const Color(0xFF0010A2), // Background color
+                          const Color(0xff245C4C), // Background color
                       foregroundColor: Colors.white,
                       minimumSize: Size(width(context) * 0.75, height(context
                         ) * 0.075) // Text color
@@ -234,7 +234,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Sudah punya akun? ", style: TextStyle(color: Color(0xff000744), fontSize: 16, fontWeight: FontWeight.w500),),
+                    const Text("Sudah punya akun? ", style: TextStyle(color: Color(0xff245C4C), fontSize: 16, fontWeight: FontWeight.w500),),
                     TextButton(
                       onPressed: () {
                         Navigator.push(context,
@@ -243,13 +243,13 @@ class _RegisterPageState extends State<RegisterPage> {
                             controller: TextEditingController(),
                           );
                         }));
-                        // Navigator.pop(context);
+
                       },
                       style: TextButton.styleFrom(
                           padding: EdgeInsets.zero),
                       child: const Text("Klik Disini",
                           style: TextStyle(
-                              color: Color(0xff545FC1),
+                              color: Color(0xff245C4C),
                               fontSize: 16,
                               fontWeight: FontWeight.w500, fontFamily: "TT Norms")),
                     ),
@@ -264,7 +264,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _signup() async {
-    // Validation
+
     if (_nameController.text.isEmpty || 
         _emailController.text.isEmpty || 
         _passwordController.text.isEmpty ||
@@ -292,8 +292,12 @@ class _RegisterPageState extends State<RegisterPage> {
     String password = _passwordController.text;
 
     try {
-      // Try API registration only
-      final apiResponse = await _apiAuth.register(name, email, password);
+
+      final apiResponse = await _apiAuth.register(
+        name: name,
+        email: email,
+        password: password,
+      );
 
       if (apiResponse['success'] == true) {
         if (!mounted) return;
@@ -304,11 +308,21 @@ class _RegisterPageState extends State<RegisterPage> {
         if (apiResponse['message'] != null) {
           errorMessage = apiResponse['message'];
         }
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
         _showErrorDialog(errorMessage);
         return;
       }
     } catch (e) {
       print("API Registration failed: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       _showErrorDialog("Registrasi gagal. Periksa koneksi internet dan coba lagi.");
     }
 
@@ -349,7 +363,7 @@ class _RegisterPageState extends State<RegisterPage> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // Navigate to login page
+
               Navigator.pushReplacement(context, 
                 MaterialPageRoute(builder: (context) {
                   return LoginPage(controller: TextEditingController());

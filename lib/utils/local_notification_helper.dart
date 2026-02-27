@@ -17,10 +17,10 @@ class LocalNotificationHelper {
 
     print('[NOTIFICATION] Initializing notification helper...');
 
-    // Android configuration with notification icon
+
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // iOS configuration
+
     const iosInit = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -35,14 +35,14 @@ class LocalNotificationHelper {
     final initialized = await _plugin.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap
+
         print('[NOTIFICATION] Notification tapped: ${response.payload}');
       },
     );
 
     print('[NOTIFICATION] Initialize result: $initialized');
 
-    // Request Android 13+ permissions
+
     await _requestPermissions();
 
     _initialized = true;
@@ -73,7 +73,7 @@ class LocalNotificationHelper {
     }
   }
 
-  /// Show a basic notification (like WhatsApp)
+
   Future<void> show({
     required String title,
     required String body,
@@ -123,7 +123,7 @@ class LocalNotificationHelper {
     }
   }
 
-  /// Show notification with custom sound and vibration pattern
+
   Future<void> showWithSound({
     required String title,
     required String body,
@@ -176,7 +176,7 @@ class LocalNotificationHelper {
     }
   }
 
-  /// Show notification with progress (for timer countdown)
+
   Future<void> showProgress({
     required String title,
     required int progress,
@@ -209,17 +209,17 @@ class LocalNotificationHelper {
     );
   }
 
-  /// Cancel a specific notification
+
   Future<void> cancel(int id) async {
     await _plugin.cancel(id);
   }
 
-  /// Cancel all notifications
+
   Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
 
-  /// Schedule a notification (for future delivery)
+
   Future<void> schedule({
     required String title,
     required String body,
@@ -246,14 +246,14 @@ class LocalNotificationHelper {
       presentSound: true,
     );
 
-    // Note: Using const here is fine because no dynamic values in AndroidNotificationDetails
+
     const notifDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
 
-    // Note: This requires timezone plugin for proper scheduling
-    // For now, using simple show method
+
+
     await _plugin.show(
       id ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,

@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
-/// SensorService aligned with current API constants
+
 class SensorService {
   final String baseUrl = ApiConstants.apiBaseUrl;
 
-  /// Get readings for a sensor (GET /sensors/{sensorId}/readings)
+
   Future<Map<String, dynamic>> getReadings(
     String token,
     String sensorId, {
@@ -29,7 +29,7 @@ class SensorService {
     }
   }
 
-  /// Get latest reading for a sensor (GET /sensors/{sensorId}/readings/latest)
+
   Future<Map<String, dynamic>> getLatestReading(String token, String sensorId) async {
     final uri = Uri.parse(ApiConstants.sensorLatest(sensorId));
     final response = await http.get(uri, headers: ApiConstants.authHeadersOnly(token));
@@ -46,7 +46,7 @@ class SensorService {
     }
   }
 
-  /// Create a sensor reading (POST /sensors/{sensorId}/readings)
+
   Future<Map<String, dynamic>> createReading(String token, String sensorId, Map<String, dynamic> payload) async {
     final uri = Uri.parse(ApiConstants.sensorReadings(sensorId));
     final response = await http.post(uri, headers: ApiConstants.authHeaders(token), body: jsonEncode(payload));

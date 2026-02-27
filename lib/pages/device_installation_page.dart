@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// Deprecated DeviceInstallationService removed; use ServiceRequestService to create installation requests.
+
 import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
@@ -55,8 +55,8 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
     if (_authToken == null) return;
 
     try {
-      // TODO: Use NodeService.listByRbw to check existing nodes for this RBW
-      // Placeholder sets no devices
+
+
       setState(() {
         _hasDevices = false;
         _installedDevices = [];
@@ -66,7 +66,7 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
     }
   }
 
-  // Manual installation removed; installation should be done via service request and technician workflow.
+
 
   Future<void> _requestInstallation() async {
     if (_authToken == null) return;
@@ -171,7 +171,7 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // House Info
+
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -212,7 +212,7 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
 
               const SizedBox(height: 24),
 
-              // Installed Devices List
+
               if (_hasDevices) ...[
                 const Text(
                   'Installed Devices',
@@ -246,7 +246,7 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
 
               const SizedBox(height: 24),
 
-              // Request Professional Installation
+
               const Text(
                 'Professional Installation',
                 style: TextStyle(

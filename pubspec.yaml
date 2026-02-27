@@ -51,8 +51,8 @@ dependencies:
   web_socket_channel: ^2.3.0
   image_picker: ^1.0.4
   http: ^0.13.6
-  flutter_map: ^4.0.0
-  latlong2: ^0.8.2
+  google_maps_flutter: ^2.5.0
+  google_maps_flutter_web: ^0.5.4+2
   flutter_local_notifications: ^17.2.1
   pdf: ^3.11.1
   path_provider: ^2.1.1

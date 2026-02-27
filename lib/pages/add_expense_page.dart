@@ -22,23 +22,23 @@ class _AddExpensePageState extends State<AddExpensePage> {
   String? _authToken;
   bool _isLoading = false;
   
-  // Form fields
+
   final TextEditingController _descriptionController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   
-  // Item list for invoice-like expense tracking
+
   List<Map<String, dynamic>> _items = [];
   
-  // Current item being added
+
   final TextEditingController _itemNameController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   
-  // House selection
+
   List<dynamic> _houses = [];
   String? _selectedHouseId;
 
-  // Category selection
+
   List<dynamic> _categories = [];
   String? _selectedCategoryId;
 
@@ -80,7 +80,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
       final categories = await _categoryService.getAll(_authToken!);
       print('[CATEGORIES] Received ${categories.length} categories');
       
-      // Filter to only show expense categories (those WITHOUT "Penjualan" in name)
+
       final expenseCategories = categories.where((cat) {
         final name = (cat['name'] ?? '').toString().toLowerCase();
         return !name.contains('penjualan');
@@ -91,7 +91,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
       if (mounted) {
         setState(() {
           _categories = expenseCategories;
-          // Auto-select first category if available and none selected
+
           if (_categories.isNotEmpty && _selectedCategoryId == null) {
             _selectedCategoryId = _categories.first['id']?.toString();
             print('[CATEGORIES] Auto-selected: $_selectedCategoryId');
@@ -145,7 +145,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
         'subtotal': quantity * price,
       });
       
-      // Clear fields
+
       _itemNameController.clear();
       _quantityController.clear();
       _priceController.clear();
@@ -178,17 +178,25 @@ class _AddExpensePageState extends State<AddExpensePage> {
     setState(() => _isLoading = true);
 
     try {
-      final data = {
-        'house_id': _selectedHouseId,
-        'category_id': _selectedCategoryId,
-        'type': 'expense',
-        'description': _descriptionController.text,
-        'transaction_date': _selectedDate.toIso8601String(),
-        'items': _items,
-        'total_amount': _grandTotal,
-      };
 
-      final result = await _transactionService.createExpense(_authToken!, data);
+      if (_selectedHouseId == null || _selectedHouseId!.isEmpty) {
+        throw Exception('Rumah walet belum dipilih');
+      }
+      if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) {
+        throw Exception('Kategori belum dipilih');
+      }
+
+
+      final result = await _transactionService.createExpense(
+        token: _authToken!,
+        rbwId: _selectedHouseId!,
+        categoryId: _selectedCategoryId!,
+        amount: _grandTotal,
+        description: _descriptionController.text.isNotEmpty 
+            ? _descriptionController.text 
+            : null,
+        transactionDate: _selectedDate,
+      );
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -202,12 +210,26 @@ class _AddExpensePageState extends State<AddExpensePage> {
           );
           Navigator.pop(context, true);
         } else {
-          // Check if it's a 500 error
+
           final statusCode = result['statusCode'];
           String errorMessage = result['message'] ?? 'Gagal menyimpan pengeluaran';
           
-          if (statusCode == 500) {
-            errorMessage = 'Server error: Backend belum siap atau ada bug di server.\n\nData yang dikirim sudah benar. Hubungi developer backend untuk memperbaiki endpoint POST /api/v1/transactions';
+          switch (statusCode) {
+            case 400:
+              errorMessage = 'Data tidak valid: $errorMessage';
+              break;
+            case 401:
+              errorMessage = 'Sesi berakhir. Silakan login kembali';
+              break;
+            case 404:
+              errorMessage = 'Rumah walet atau kategori tidak ditemukan';
+              break;
+            case 422:
+              errorMessage = 'Validasi gagal: $errorMessage';
+              break;
+            case 500:
+              errorMessage = 'Server error. Hubungi administrator';
+              break;
           }
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -275,7 +297,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // House Selection
+
                   const Text(
                     'Kandang',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF245C4C)),
@@ -301,7 +323,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
                   const SizedBox(height: 16),
 
-                  // Category Selection
+
                   const Text(
                     'Kategori',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF245C4C)),
@@ -355,7 +377,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
                   const SizedBox(height: 16),
 
-                  // Date Selection
+
                   const Text(
                     'Tanggal Transaksi',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF245C4C)),
@@ -384,7 +406,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
                   const SizedBox(height: 16),
 
-                  // Description
+
                   const Text(
                     'Deskripsi',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF245C4C)),
@@ -407,7 +429,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
                   const SizedBox(height: 24),
 
-                  // Add Item Section
+
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -479,7 +501,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
                   const SizedBox(height: 24),
 
-                  // Items List
+
                   if (_items.isNotEmpty) ...[
                     const Text(
                       'Daftar Item',
@@ -582,7 +604,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
                   const SizedBox(height: 32),
 
-                  // Save Button
+
                   SizedBox(
                     width: double.infinity,
                     height: 50,

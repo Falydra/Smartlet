@@ -5,7 +5,7 @@ import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/pages/edit_cage_page.dart';
-// DeviceInstallationService deprecated; use service requests + nodes API instead
+
 import 'package:swiftlead/utils/token_manager.dart';
 
 class CageSelectionPage extends StatefulWidget {
@@ -22,11 +22,11 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
   List<Map<String, dynamic>> _cageList = [];
   int _currentIndex = 0;
   
-  // API Services
+
   final HouseService _houseService = HouseService();
-  // Removed DeviceInstallationService; replace future install checks using NodeService if needed
+
   
-  // Authentication
+
   String? _authToken;
   bool _isLoading = true;
 
@@ -45,17 +45,17 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       _authToken = await TokenManager.getToken();
       
       if (_authToken != null) {
-        // Try to load from API first
+
         await _loadCagesFromAPI();
       }
       
-      // If API failed or no token, fallback to local data
+
       if (_cageList.isEmpty) {
         await _loadCages();
       }
     } catch (e) {
       print('Error initializing cage data: $e');
-      // Fallback to local data
+
       await _loadCages();
     }
     
@@ -70,16 +70,16 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       
       List<Map<String, dynamic>> cageList = [];
       for (var house in houses) {
-        // Check device installation status
+
         bool hasDeviceInstalled = false;
         List<String> installationCodes = [];
-        // TODO: Call NodeService.listByRbw to determine installed nodes
-        // Placeholder: leave hasDeviceInstalled false until nodes are fetched
+
+
         
         cageList.add({
           'id': 'house_${house['id']}',
           'apiId': house['id'].toString(),
-          // API uses 'name', 'address', 'total_floors' per the backend example
+
           'name': house['name'] ?? 'Kandang ${house['total_floors'] ?? house['floor_count'] ?? 1} Lantai',
           'address': house['address'] ?? house['location'] ?? 'Lokasi tidak tersedia',
           'floors': house['total_floors'] ?? house['floor_count'] ?? 3,
@@ -102,7 +102,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       print('Loaded ${cageList.length} cages from API');
     } catch (e) {
       print('Error loading cages from API: $e');
-      // Don't throw, let it fallback to local data
+
     }
   }
 
@@ -111,11 +111,11 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
     final prefs = await SharedPreferences.getInstance();
     List<Map<String, dynamic>> cageList = [];
     
-    // Get kandang count
+
     int kandangCount = prefs.getInt('kandang_count') ?? 0;
     
     if (kandangCount > 0) {
-      // Load all kandang from new format
+
       for (int i = 1; i <= kandangCount; i++) {
         final name = prefs.getString('kandang_${i}_name');
         final address = prefs.getString('kandang_${i}_address');
@@ -123,7 +123,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         final description = prefs.getString('kandang_${i}_description');
         final image = prefs.getString('kandang_${i}_image');
         
-        // Include all kandang entries, even empty ones
+
         if (floors != null) {
           final isEmpty = name == null || name.isEmpty || address == null || address.isEmpty;
           cageList.add({
@@ -138,7 +138,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         }
       }
     } else {
-      // Check for legacy single kandang data
+
       final savedAddress = prefs.getString('cage_address');
       final savedFloors = prefs.getInt('cage_floors');
       final savedImage = prefs.getString('cage_image');
@@ -226,10 +226,10 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
 
   Future<void> _deleteCage(Map<String, dynamic> cage) async {
     try {
-      // Check if this cage is from API and has an API ID
+
       if (cage['isFromAPI'] == true && cage['apiId'] != null && _authToken != null) {
         try {
-          // Ensure apiId is an int before calling the service
+
           final dynamic rawId = cage['apiId'];
           final String apiId = rawId?.toString() ?? '';
 
@@ -237,7 +237,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
             throw Exception('Invalid apiId for cage: ${cage['apiId']}');
           }
 
-          // Delete from database first (uses UUID string id)
+
           final apiResponse = await _houseService.delete(_authToken!, apiId);
 
           if (apiResponse['success'] == true || apiResponse['message'] != null || apiResponse['data'] != null) {
@@ -248,7 +248,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         } catch (apiError) {
           print('Error deleting house from API: $apiError');
           
-          // Show error message but ask if user wants to delete locally anyway
+
           final shouldDeleteLocal = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
@@ -278,22 +278,22 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         }
       }
       
-      // Handle local storage cleanup for local cages or fallback
+
       final prefs = await SharedPreferences.getInstance();
     final cageId = cage['id'].toString();
       
-      // Extract the cage number from the ID (e.g., "kandang_1" -> 1)
+
       final cageNumber = int.tryParse(cageId.replaceAll('kandang_', '').replaceAll('cage_', '').replaceAll('house_', ''));
       
       if (cageNumber != null) {
-        // Remove the specific cage data
+
         await prefs.remove('kandang_${cageNumber}_name');
         await prefs.remove('kandang_${cageNumber}_address');
         await prefs.remove('kandang_${cageNumber}_floors');
         await prefs.remove('kandang_${cageNumber}_description');
         await prefs.remove('kandang_${cageNumber}_image');
         
-        // Also remove legacy data if it matches
+
         final legacyAddress = prefs.getString('cage_address');
         final legacyFloors = prefs.getInt('cage_floors');
         
@@ -303,14 +303,14 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
           await prefs.remove('cage_image');
         }
         
-        // Update kandang count by removing gaps and reorganizing
+
         await _reorganizeKandangData();
       }
       
-      // Reload the cage list from API to get updated data
+
       await _initializeData();
       
-      // Show success message
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Kandang berhasil dihapus'),
@@ -335,7 +335,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       
       List<Map<String, dynamic>> validKandang = [];
       
-      // Collect all valid kandang data
+
       for (int i = 1; i <= kandangCount; i++) {
         final name = prefs.getString('kandang_${i}_name');
         final address = prefs.getString('kandang_${i}_address');
@@ -354,7 +354,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         }
       }
       
-      // Clear all existing kandang data
+
       for (int i = 1; i <= kandangCount; i++) {
         await prefs.remove('kandang_${i}_name');
         await prefs.remove('kandang_${i}_address');
@@ -363,7 +363,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         await prefs.remove('kandang_${i}_image');
       }
       
-      // Save reorganized data
+
       for (int i = 0; i < validKandang.length; i++) {
         final kandang = validKandang[i];
         final newIndex = i + 1;
@@ -377,7 +377,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
         }
       }
       
-      // Update kandang count
+
       await prefs.setInt('kandang_count', validKandang.length);
     } catch (e) {
       print('Error reorganizing kandang data: $e');
@@ -451,7 +451,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                           child: InkWell(
                             onTap: () {
                               if (cage['isEmpty'] == true) {
-                                // Navigate to cage data page to complete the data
+
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -459,7 +459,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                   ),
                                 );
                               } else {
-                                // Navigate to analysis page
+
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
@@ -550,7 +550,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                       ],
                                     ),
                                   ),
-                                  // Edit button
+
                                   IconButton(
                                     onPressed: () async {
                                       final result = await Navigator.push(
@@ -558,7 +558,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                         MaterialPageRoute(builder: (context) => EditCagePage(cage: cage)),
                                       );
                                       if (result == true) {
-                                        // refresh list after successful edit
+
                                         await _initializeData();
                                       }
                                     },
@@ -568,7 +568,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                       size: 20,
                                     ),
                                   ),
-                                  // Delete button
+
                                   IconButton(
                                     onPressed: () => _showDeleteDialog(cage),
                                     icon: Icon(
@@ -591,7 +591,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                     ),
             ),
 
-            // Add Cage Button
+
             SizedBox(
               width: double.infinity,
               height: 50,

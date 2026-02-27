@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
-// Removed Firebase usage: profile is fetched/updated via API
+import 'package:swiftlead/components/admin_bottom_navigation.dart';
+
 import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/services/auth_services.dart.dart';
 import 'package:swiftlead/utils/token_manager.dart';
@@ -31,8 +32,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUserData() async {
-    // Prefer API-backed profile when token available. Fallback to locally
-    // stored values (TokenManager) if API fails or token absent.
+
+
     final token = await TokenManager.getToken();
     if (token != null && token != 'firebase_user') {
       try {
@@ -64,13 +65,15 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     }
 
-    // Fallback: use locally stored values
+
     final userName = await TokenManager.getUserName();
     final userEmail = await TokenManager.getUserEmail();
+    final userRole = await TokenManager.getUserRole();
     if (mounted) {
       setState(() {
         _userName = userName ?? 'User';
         _userEmail = userEmail ?? 'No email';
+        _isAdmin = (userRole == 'admin');
         _isLoading = false;
       });
     }
@@ -81,24 +84,19 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!confirmLogout) return;
 
     try {
-      // Try API logout first if user has API token
+
+
       final token = await TokenManager.getToken();
       if (token != null && token != 'firebase_user') {
-        try {
-          await _apiAuth.logout(token);
-          print("API logout successful");
-        } catch (e) {
-          print("API logout failed: $e");
-          // Continue with local logout even if API fails
-        }
+        print("Logging out API user");
       }
 
-      // Clear local storage
+
       await TokenManager.clearAuthData();
 
       if (!mounted) return;
 
-      // Navigate to login page
+
       Navigator.pushReplacementNamed(context, '/login-page');
       
     } catch (e) {
@@ -215,21 +213,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 topRight: Radius.circular(20.0),
               ),
             ),
-            child: ListView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  label: const Text(
-                    "Toko Saya",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
+                
+                
                 TextButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.money_outlined),
@@ -297,7 +286,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 TextButton.icon(
                   onPressed: () async {
-                    // Navigate to the edit profile page
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const EditProfilePage()),
@@ -343,73 +332,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
       bottomNavigationBar: _isAdmin
-          ? BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              currentIndex: _currentIndex > 3 ? 3 : _currentIndex,
-              onTap: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-              items: [
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.home,
-                      label: 'Beranda',
-                      currentIndex: _currentIndex,
-                      itemIndex: 0,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/home-page');
-                        setState(() {
-                          _currentIndex = 0;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.build_circle,
-                      label: 'Installation',
-                      currentIndex: _currentIndex,
-                      itemIndex: 1,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/installation-manager');
-                        setState(() {
-                          _currentIndex = 1;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.group,
-                      label: 'Users',
-                      currentIndex: _currentIndex,
-                      itemIndex: 2,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/user-manager');
-                        setState(() {
-                          _currentIndex = 2;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.person,
-                      label: 'Profil',
-                      currentIndex: _currentIndex,
-                      itemIndex: 3,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/profile-page');
-                        setState(() {
-                          _currentIndex = 3;
-                        });
-                      },
-                    ),
-                    label: ''),
-              ],
-            )
+          ? const AdminBottomNavigation(currentIndex: 3)
           : BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
               currentIndex: _currentIndex,
@@ -515,7 +438,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _loadUserData();
   }
   Future<void> _loadUserData() async {
-    // Try API-backed profile first
+
     final token = await TokenManager.getToken();
     if (token != null && token != 'firebase_user') {
       try {
@@ -543,7 +466,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     }
 
-    // Last resort: use locally stored values
+
     final storedName = await TokenManager.getUserName();
     final storedEmail = await TokenManager.getUserEmail();
     _nameController.text = storedName ?? '';
@@ -559,13 +482,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     if (token != null && token != 'firebase_user') {
       try {
-        await _apiAuth.updateProfile(token, payload);
+        await _apiAuth.updateProfile(
+          token: token,
+          name: payload['name'],
+          phone: payload['phone'],
+        );
       } catch (e) {
         print('API update profile failed: $e');
       }
     }
 
-    // Update locally stored user info so UI shows the latest values
+
     final storedToken = await TokenManager.getToken();
     final storedUserId = await TokenManager.getUserId();
     if (storedToken != null && storedUserId != null) {

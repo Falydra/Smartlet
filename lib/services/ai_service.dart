@@ -2,23 +2,23 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
-/// Service for AI Engine integration
-/// Provides anomaly detection, nest grade prediction, pump automation, and comprehensive analysis
+
+
 class AIService {
-  // Singleton pattern
+
   static final AIService _instance = AIService._internal();
   factory AIService() => _instance;
   AIService._internal();
 
-  /// 1. Anomaly Detection
-  /// Detects abnormal sensor readings in real-time
-  ///
-  /// Parameters:
-  /// - token: Authentication token
-  /// - nodeId: UUID of the IoT node
-  /// - sensorData: Map of sensor readings (temp, humidity, ammonia, co2, lux)
-  ///
-  /// Returns: Map with 'anomaly_detected' (bool) and 'anomalies' (List)
+
+
+
+
+
+
+
+
+
   Future<Map<String, dynamic>> detectAnomaly(
     String token,
     String nodeId,
@@ -55,7 +55,7 @@ class AIService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Handle both direct response and {data: ...} wrapper
+
         final result = data['data'] ?? data;
 
         print('[AI SERVICE] Anomaly result: $result');
@@ -85,18 +85,18 @@ class AIService {
     }
   }
 
-  /// 2. Predict Grade
-  /// Predicts the quality grade of bird nest harvest based on current sensor readings
-  ///
-  /// Parameters:
-  /// - token: Authentication token
-  /// - temperature: Temperature in Celsius
-  /// - humidity: Humidity percentage (0-100)
-  /// - ammonia: Ammonia level in ppm
-  /// - rbwId: Optional RBW UUID for context
-  /// - nodeId: Optional Node UUID for context
-  ///
-  /// Returns: Map with 'grade' (bagus/sedang/buruk), 'confidence', and 'probabilities'
+
+
+
+
+
+
+
+
+
+
+
+
   Future<Map<String, dynamic>> predictGrade(
     String token, {
     required double temperature,
@@ -168,18 +168,18 @@ class AIService {
     }
   }
 
-  /// 3. Pump Control Recommendation
-  /// Gets AI recommendation for mist spray pump control
-  ///
-  /// Parameters:
-  /// - token: Authentication token
-  /// - temperature: Temperature in Celsius
-  /// - humidity: Humidity percentage (0-100)
-  /// - ammonia: Ammonia level in ppm
-  /// - rbwId: Optional RBW UUID for context
-  /// - nodeId: Optional Node UUID for context
-  ///
-  /// Returns: Map with 'pump_state' (ON/OFF), 'confidence', and 'duration_minutes'
+
+
+
+
+
+
+
+
+
+
+
+
   Future<Map<String, dynamic>> getPumpRecommendation(
     String token, {
     required double temperature,
@@ -255,18 +255,18 @@ class AIService {
     }
   }
 
-  /// 4. Comprehensive Analysis
-  /// Gets complete AI analysis of environmental conditions
-  ///
-  /// Parameters:
-  /// - token: Authentication token
-  /// - temperature: Temperature in Celsius
-  /// - humidity: Humidity percentage (0-100)
-  /// - ammonia: Ammonia level in ppm
-  /// - rbwId: Optional RBW UUID for context
-  /// - nodeId: Optional Node UUID for context
-  ///
-  /// Returns: Map with 'overall_health_score', 'sensors', 'grade_prediction', 'pump_recommendation', and 'recommendations'
+
+
+
+
+
+
+
+
+
+
+
+
   Future<Map<String, dynamic>> getComprehensiveAnalysis(
     String token, {
     required double temperature,
@@ -352,20 +352,20 @@ class AIService {
     }
   }
 
-  /// Helper: Check if anomaly detection result has critical issues
+
   bool hasCriticalAnomalies(Map<String, dynamic> anomalyResult) {
     if (anomalyResult['anomaly_detected'] != true) return false;
 
     final anomalies = anomalyResult['anomalies'] as List?;
     if (anomalies == null || anomalies.isEmpty) return false;
 
-    // Check for critical severity
+
     return anomalies.any((a) =>
         (a['severity'] ?? '').toString().toLowerCase() == 'critical' ||
         (a['severity'] ?? '').toString().toLowerCase() == 'high');
   }
 
-  /// Helper: Get human-readable anomaly summary
+
   String getAnomalySummary(Map<String, dynamic> anomalyResult) {
     if (anomalyResult['anomaly_detected'] != true) {
       return 'Semua sensor normal';
@@ -386,7 +386,7 @@ class AIService {
     return messages;
   }
 
-  /// Helper: Get grade color for UI
+
   String getGradeColor(String grade) {
     switch (grade.toUpperCase()) {
       case 'A':

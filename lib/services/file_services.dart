@@ -6,7 +6,7 @@ import 'api_constants.dart';
 class FileService {
   final String baseUrl = ApiConstants.apiBaseUrl;
 
-  // Upload profile image
+
   Future<Map<String, dynamic>> uploadProfileImage(String token, File file) async {
   final request = http.MultipartRequest("POST", Uri.parse(ApiConstants.fileProfileImage));
   request.headers.addAll(ApiConstants.authHeadersOnly(token));
@@ -16,7 +16,7 @@ class FileService {
     return jsonDecode(body);
   }
 
-  // Upload harvest image
+
   Future<Map<String, dynamic>> uploadHarvestImage(String token, File file, {int? harvestId}) async {
   final request = http.MultipartRequest("POST", Uri.parse(ApiConstants.fileHarvestImage));
   request.headers.addAll(ApiConstants.authHeadersOnly(token));
@@ -31,7 +31,7 @@ class FileService {
     return jsonDecode(body);
   }
 
-  // Upload generic file
+
   Future<Map<String, dynamic>> uploadFile(String token, File file, {
     String? category,
     String? description,
@@ -53,7 +53,7 @@ class FileService {
     return jsonDecode(body);
   }
 
-  // Delete file
+
   Future<Map<String, dynamic>> deleteFile(String token, String fileUrl) async {
     final response = await http.delete(
       Uri.parse(ApiConstants.fileDelete),
@@ -63,7 +63,7 @@ class FileService {
     return jsonDecode(response.body);
   }
 
-  // Get presigned URL for direct upload
+
   Future<Map<String, dynamic>> getPresignedUrl(String token, {
     required String objectName,
     int expires = 3600,

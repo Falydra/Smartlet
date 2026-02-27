@@ -30,15 +30,15 @@ class GeneralHarvestInputPage extends StatefulWidget {
 class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controllers for general input per floor
+
   late List<TextEditingController> _floorControllers;
   
-  // API Services
+
   final HouseService _houseService = HouseService();
   final HarvestService _harvestService = HarvestService();
   final NodeService _nodeService = NodeService();
   
-  // State management
+
   bool _isLoading = true;
   bool _isSaving = false;
   bool _hasSavedData = false;
@@ -46,20 +46,20 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   Map<int, String> _existingRecordIds = {}; // Store existing harvest record IDs by floor number
   String? _authToken;
   
-  // House data
+
   List<dynamic> _houses = [];
   Map<String, dynamic>? _selectedHouse;
   String _cageName = 'Kandang 1';
   int _cageFloors = 3;
   
-  // Node data
+
   List<dynamic> _nodes = [];
   Map<String, dynamic>? _selectedNode;
   
-  // Navigation
+
   int _currentIndex = 2;
   
-  // Date selection
+
   late int _selectedMonth;
   late int _selectedYear;
 
@@ -71,7 +71,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   @override
   void initState() {
     super.initState();
-    // Initialize date from parameters or use current date
+
     _selectedMonth = widget.selectedMonth ?? DateTime.now().month;
     _selectedYear = widget.selectedYear ?? DateTime.now().year;
     _initializeData();
@@ -85,17 +85,17 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     }
     
     try {
-      // Get authentication token
+
       _authToken = await TokenManager.getToken();
       
       if (_authToken == null) {
         throw Exception('Token autentikasi tidak tersedia. Silakan login kembali.');
       }
       
-      // Load houses from API only - no local fallback
+
       await _loadHouses();
       
-      // Set selected house from widget.houseId or first house
+
       if (widget.houseId != null && _houses.isNotEmpty) {
         try {
           _selectedHouse = _houses.firstWhere(
@@ -103,7 +103,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
           );
         } catch (e) {
           print('House with id ${widget.houseId} not found in API response: $e');
-          // Use first house if provided houseId not found
+
           if (_houses.isNotEmpty) {
             _selectedHouse = _houses.first;
           }
@@ -116,11 +116,11 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         throw Exception('Tidak ada data kandang tersedia');
       }
       
-      // Update cage name and floors from API data
+
       _cageName = _selectedHouse!['name'] ?? _cageName;
       _cageFloors = _selectedHouse!['total_floors'] ?? _selectedHouse!['floor_count'] ?? _cageFloors;
       
-      // Load nodes for the selected house
+
       await _loadNodes(rbwId: _selectedHouse!['id']?.toString());
       
     } catch (e) {
@@ -135,18 +135,18 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       }
     }
     
-    // Initialize controllers for each floor based on the actual floor count
+
     _floorControllers = List.generate(
       _cageFloors,
       (index) => TextEditingController(text: '0'),
     );
     
-    // Add listeners to update total automatically
+
     for (var controller in _floorControllers) {
       controller.addListener(_updateTotals);
     }
     
-    // Load existing pre-harvest data for this period (must be after controllers are created)
+
     await _loadExistingPreHarvestData();
     
     if (mounted) {
@@ -182,7 +182,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         if (mounted) {
           setState(() {
             _nodes = nodes;
-            // Auto-select first node if available
+
             if (_nodes.isNotEmpty) {
               _selectedNode = _nodes.first;
             }
@@ -209,7 +209,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       
       print('Loading existing pre-harvest data for rbwId=$rbwId, month=$_selectedMonth, year=$_selectedYear');
       
-      // Load harvests for this house and period
+
       final harvests = await _harvestService.getAll(
         _authToken!,
         rbwId: rbwId,
@@ -219,7 +219,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       
       bool foundData = false;
       
-      // Look for PRE_HARVEST_PLAN records for this month/year
+
       for (var harvest in harvests) {
         final harvestedAt = harvest['harvested_at'];
         if (harvestedAt != null) {
@@ -233,23 +233,23 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             
             print('Checking record: floor=$floorNo, notes=$notes');
             
-            // Store the record ID for later updates
+
             final recordId = harvest['id']?.toString();
             if (recordId != null && floorNo > 0) {
               _existingRecordIds[floorNo] = recordId;
               print('Stored record ID for floor $floorNo: $recordId');
             }
             
-            // Check if this is a PRE_HARVEST_PLAN record
+
             if (notes.startsWith('PRE_HARVEST_PLAN')) {
               foundData = true;
               
-              // Use nests_count from the record (this is the count for THIS floor, not total)
+
               final nestsCount = (harvest['nests_count'] as num?)?.toInt() ?? 0;
               
               print('Parsed pre-harvest floor $floorNo: nests_count=$nestsCount');
               
-              // Pre-fill the controller for this floor
+
               if (floorNo > 0 && floorNo <= _cageFloors) {
                 final floorIndex = floorNo - 1;
                 _floorControllers[floorIndex].text = nestsCount.toString();
@@ -262,7 +262,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       }
       
       if (foundData) {
-        // Recalculate totals after loading
+
         _updateTotals();
         
         if (mounted) {
@@ -411,7 +411,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   void _updateTotals() {
     if (mounted) {
       setState(() {
-        // Update UI when controllers change
+
       });
     }
   }
@@ -437,13 +437,13 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       }
 
       try {
-        // Calculate recommended harvest (75% of total)
+
         int recommendedHarvest = (_totalSarang * 0.75).round();
 
-        // Save general totals to SharedPreferences and try to send to API
+
         
 
-        // Try to send pre-harvest plan to backend. No local fallback.
+
         if (_authToken == null) {
           if (mounted) {
             setState(() {
@@ -459,7 +459,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
           return;
         }
 
-        // Determine rbw id to send (now as string to support UUID)
+
         String? rbwId;
         if (_selectedHouse != null) {
           rbwId = _selectedHouse!['id']?.toString();
@@ -480,10 +480,10 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
           return;
         }
 
-        // Create harvest timestamp (first day of selected month at 00:00 UTC)
+
         final harvestedAt = DateTime.utc(_selectedYear, _selectedMonth, 1).toIso8601String();
 
-        // Check if node is selected
+
         if (_selectedNode == null || _selectedNode!['id'] == null) {
           if (mounted) {
             setState(() {
@@ -501,8 +501,8 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
         final nodeId = _selectedNode!['id']?.toString();
 
-        // Save pre-harvest plan: create one harvest record per floor
-        // Use notes field to indicate this is a pre-harvest plan
+
+
         try {
           int successCount = 0;
           List<String> errors = [];
@@ -513,14 +513,14 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             
             final floorRecommended = (floorTotal * 0.75).round();
             
-            // Build payload with node_id
+
             final apiPayload = <String, dynamic>{
               'rbw_id': rbwId,
               'node_id': nodeId, // Required: node from node management table
               'floor_no': floor + 1,
               'harvested_at': harvestedAt,
               'nests_count': floorTotal,
-              // weight_kg omitted for pre-harvest (not yet harvested)
+
               'grade': 'good', // Default grade for pre-harvest plan
               'notes': 'PRE_HARVEST_PLAN|recommended:$floorRecommended|total:$_totalSarang',
             };
@@ -528,17 +528,17 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             print('Saving pre-harvest for floor ${floor + 1}: $apiPayload');
             print('Payload JSON: ${jsonEncode(apiPayload)}');
             
-            // Check if this floor has an existing record
+
             final floorNum = floor + 1;
             Map<String, dynamic> response;
             
             if (_existingRecordIds.containsKey(floorNum)) {
-              // UPDATE existing record
+
               final recordId = _existingRecordIds[floorNum]!;
               print('Updating existing record $recordId for floor $floorNum');
               response = await _harvestService.update(_authToken!, recordId, apiPayload);
             } else {
-              // CREATE new record
+
               print('Creating new pre-harvest record for floor $floorNum');
               response = await _harvestService.create(_authToken!, apiPayload);
             }
@@ -553,7 +553,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               errors.add('Lantai ${floor + 1}: $fullError');
               print('Floor ${floor + 1} failed: $fullError');
               
-              // Show detailed error dialog for debugging
+
               if (mounted && errors.length == 1) {
                 showDialog(
                   context: context,
@@ -606,7 +606,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               ),
             );
           } else {
-            // No floors saved
+
             if (mounted) {
               setState(() {
                 _isSaving = false;
@@ -672,7 +672,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     int totalSarang = _totalSarang;
     int optimalHarvest = (totalSarang * 0.75).round(); // 75% of total
     
-    // Calculate per-floor recommendations
+
     List<Map<String, int>> floorRecommendations = [];
     for (int i = 0; i < _cageFloors; i++) {
       int floorTotal = int.tryParse(_floorControllers[i].text) ?? 0;
@@ -698,7 +698,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Summary Card
+
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -854,7 +854,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
   void _proceedToDetail() {
     if (_formKey.currentState!.validate()) {
-      // Prepare floor limits for detail page
+
       Map<int, int> floorLimits = {};
       for (int i = 0; i < _cageFloors; i++) {
         floorLimits[i] = int.tryParse(_floorControllers[i].text) ?? 0;
@@ -870,13 +870,13 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         return;
       }
 
-      // Get house ID as string to support UUID
+
       String? selectedHouseId;
       if (_selectedHouse != null) {
         selectedHouseId = _selectedHouse!['id']?.toString();
       }
 
-      // Navigate to detail harvest page
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -891,8 +891,8 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         ),
       ).then((result) {
         if (result == true) {
-          // If harvest was saved successfully, go back to previous page
-          // Pass back the general totals for optimal harvest calculation
+
+
           Navigator.pop(context, {
             'success': true,
             'generalTotal': _totalSarang,
@@ -906,7 +906,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   Future<void> _showHarvestListDialog() async {
     if (_authToken == null) return;
     
-    // Show loading dialog
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -916,17 +916,17 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     );
     
     try {
-      // Load harvest records for selected house and period
+
       final rbwId = _selectedHouse?['id']?.toString() ?? '';
       final harvests = await _harvestService.getAll(
         _authToken!,
         rbwId: rbwId,
       );
       
-      // Close loading dialog
+
       if (mounted) Navigator.of(context).pop();
       
-      // Filter harvests by selected month and year
+
       final filteredHarvests = harvests.where((harvest) {
         final harvestedAt = harvest['harvested_at'];
         if (harvestedAt != null) {
@@ -940,7 +940,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       
       if (!mounted) return;
       
-      // Show harvest list dialog
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1037,7 +1037,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         ),
       );
     } catch (e) {
-      // Close loading dialog if still showing
+
       if (mounted) Navigator.of(context).pop();
       
       if (mounted) {
@@ -1098,7 +1098,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
           ),
         );
         
-        // Refresh the list
+
         Navigator.of(context).pop(); // Close current dialog
         _showHarvestListDialog(); // Reopen with refreshed data
       }
@@ -1115,7 +1115,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
   }
 
   void _editHarvest(Map<String, dynamic> harvest) {
-    // Pre-fill the form with harvest data
+
     final floorNumber = (harvest['floor_no'] ?? 1) - 1; // Convert to 0-indexed
     final amount = harvest['nests_count'] ?? harvest['amount'] ?? harvest['total'] ?? 0;
     
@@ -1132,8 +1132,8 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         ),
       );
       
-      // Scroll to the floor input
-      // You may want to add a scroll controller to scroll to specific floor
+
+
     }
   }
 
@@ -1239,7 +1239,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
                   const SizedBox(height: 16),
 
-                  // Date Selection
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -1264,7 +1264,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
                   const SizedBox(height: 16),
 
-                  // Node Selection
+
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -1366,7 +1366,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
                   const SizedBox(height: 24),
 
-                  // Floor inputs
+
                   ...List.generate(_cageFloors, (floorIndex) {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 16),
@@ -1453,7 +1453,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                               const SizedBox(width: 8),
                               Column(
                                 children: [
-                                  // Plus button
+
                                   Container(
                                     width: 40,
                                     height: 40,
@@ -1473,7 +1473,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  // Minus button
+
                                   Container(
                                     width: 40,
                                     height: 40,
@@ -1505,7 +1505,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
                   const SizedBox(height: 16),
 
-                  // Pie Chart Section
+
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -1537,7 +1537,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
                   const SizedBox(height: 16),
 
-                  // Total summary
+
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -1571,10 +1571,10 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
                   const SizedBox(height: 24),
 
-                  // Action buttons
+
                   Column(
                     children: [
-                      // Save Pre-Harvest Data Button
+
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -1603,7 +1603,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                       
                       const SizedBox(height: 12),
                       
-                      // Show Recommendation Button
+
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -1623,7 +1623,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                       
                       const SizedBox(height: 12),
                       
-                      // Proceed to Post-Harvest Input
+
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -1646,7 +1646,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                       
                       const SizedBox(height: 12),
                       
-                      // View/Manage Harvest List Button
+
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(

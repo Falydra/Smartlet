@@ -34,7 +34,7 @@ class _ServiceRequestsPageState extends State<ServiceRequestsPage> {
         _items = res['data'] as List<dynamic>;
       });
     } else {
-      // ignore: avoid_print
+
       print('ServiceRequestsPage._load error: ${res['message']}');
     }
 

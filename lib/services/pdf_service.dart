@@ -17,7 +17,7 @@ class PdfService {
   }) async {
     final pdf = pw.Document();
 
-    // Currency formatter
+
     String formatCurrency(double amount) {
       return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(
             RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -25,7 +25,7 @@ class PdfService {
           )}';
     }
 
-    // Date formatter (without locale to avoid initialization issues)
+
     String formatDate(DateTime date) {
       final months = [
         'Januari',
@@ -44,27 +44,22 @@ class PdfService {
       return '${date.day} ${months[date.month - 1]} ${date.year}';
     }
 
-    // Group transactions by category
+
     Map<String, double> incomeByCategory = {};
     Map<String, double> expenseByCategory = {};
 
     for (var transaction in transactions) {
-      final categoryName =
-          transaction['category_name']?.toString() ?? 'Tanpa Kategori';
-      // Match the field used in sales_page.dart
-      final amount = (transaction['total'] as num?)?.toDouble() ??
-          (transaction['total_amount'] as num?)?.toDouble() ??
-          (transaction['total_price'] as num?)?.toDouble() ??
-          0.0;
+      final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+      final type = transaction['type']?.toString() ?? '';
+      final description = transaction['description']?.toString() ?? 'Transaksi';
 
-      // Check if it's income or expense
-      final category = categoryName.toLowerCase();
-      if (category.contains('penjualan') || category.contains('pendapatan')) {
-        incomeByCategory[categoryName] =
-            (incomeByCategory[categoryName] ?? 0) + amount;
-      } else {
-        expenseByCategory[categoryName] =
-            (expenseByCategory[categoryName] ?? 0) + amount;
+
+      if (type == 'income') {
+        incomeByCategory[description] =
+            (incomeByCategory[description] ?? 0) + amount;
+      } else if (type == 'expense') {
+        expenseByCategory[description] =
+            (expenseByCategory[description] ?? 0) + amount;
       }
     }
 
@@ -74,7 +69,7 @@ class PdfService {
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
           return [
-            // Header
+
             pw.Container(
               alignment: pw.Alignment.center,
               child: pw.Column(
@@ -102,7 +97,7 @@ class PdfService {
             pw.Divider(thickness: 2),
             pw.SizedBox(height: 16),
 
-            // Period Information
+
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -151,7 +146,7 @@ class PdfService {
 
             pw.SizedBox(height: 24),
 
-            // Income Section
+
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
@@ -231,7 +226,7 @@ class PdfService {
 
             pw.SizedBox(height: 16),
 
-            // Expense Section
+
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
@@ -311,7 +306,7 @@ class PdfService {
 
             pw.SizedBox(height: 24),
 
-            // Net Profit
+
             pw.Container(
               padding: const pw.EdgeInsets.all(16),
               decoration: pw.BoxDecoration(
@@ -348,7 +343,7 @@ class PdfService {
 
             pw.SizedBox(height: 32),
 
-            // Transaction Details Table
+
             pw.Text(
               'Detail Transaksi',
               style: pw.TextStyle(
@@ -358,11 +353,11 @@ class PdfService {
             ),
             pw.SizedBox(height: 8),
 
-            // Table
+
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.grey400),
               children: [
-                // Header
+
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: PdfColors.grey300),
                   children: [
@@ -404,30 +399,22 @@ class PdfService {
                     ),
                   ],
                 ),
-                // Data rows
+
                 ...transactions.map((transaction) {
-                  final categoryName =
-                      transaction['category_name']?.toString() ??
-                          'Tanpa Kategori';
-                  final category = categoryName.toLowerCase();
-                  final isIncome = category.contains('penjualan') ||
-                      category.contains('pendapatan');
-                  final date = transaction['date']?.toString() ?? '-';
-                  final note = transaction['note']?.toString() ??
-                      transaction['description']?.toString() ??
-                      '-';
-                  // Match the field used in sales_page.dart
-                  final amount = (transaction['total'] as num?)?.toDouble() ??
-                      (transaction['total_amount'] as num?)?.toDouble() ??
-                      (transaction['total_price'] as num?)?.toDouble() ??
-                      0.0;
+                  final type = transaction['type']?.toString() ?? '';
+                  final isIncome = type == 'income';
+                  final dateStr = transaction['transaction_date']?.toString() ?? '';
+                  final date = dateStr.isNotEmpty ? dateStr.split('T')[0] : '-';
+                  final note = transaction['description']?.toString() ?? '-';
+                  final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+                  final categoryName = isIncome ? 'Pendapatan' : 'Pengeluaran';
 
                   return pw.TableRow(
                     children: [
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Text(
-                          date.split('T')[0],
+                          date,
                           style: const pw.TextStyle(fontSize: 9),
                           textAlign: pw.TextAlign.center,
                         ),
@@ -468,7 +455,7 @@ class PdfService {
 
             pw.SizedBox(height: 24),
 
-            // Footer
+
             pw.Divider(),
             pw.SizedBox(height: 8),
             pw.Text(
@@ -481,7 +468,7 @@ class PdfService {
       ),
     );
 
-    // Save PDF to device
+
     final now = DateTime.now();
     final dateStr =
         '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}';
@@ -489,7 +476,7 @@ class PdfService {
         'Financial_Statement_${houseName.replaceAll(' ', '_')}_${period.replaceAll(' ', '_')}_$dateStr.pdf';
 
     try {
-      // Try to get the Downloads directory, fallback to temporary directory
+
       Directory? directory;
       try {
         directory = Directory('/storage/emulated/0/Download');
@@ -502,13 +489,13 @@ class PdfService {
 
       final filePath = '${directory.path}/$filename';
 
-      // Save PDF to file
+
       final file = File(filePath);
       await file.writeAsBytes(await pdf.save());
 
       print('PDF saved to: $filePath');
 
-      // Return the file path so the caller can decide what to do
+
       return filePath;
     } catch (e) {
       print('Error saving PDF: $e');
@@ -516,7 +503,7 @@ class PdfService {
     }
   }
 
-  // Helper method to open the PDF file
+
   static Future<bool> openPdfFile(String filePath) async {
     try {
       final result = await OpenFile.open(filePath);
@@ -527,7 +514,7 @@ class PdfService {
     }
   }
 
-  // Helper method to share the PDF file
+
   static Future<void> sharePdfFile(String filePath, String text) async {
     try {
       await Share.shareXFiles(

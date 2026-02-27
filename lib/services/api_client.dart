@@ -4,7 +4,7 @@ import 'dart:async' as async;
 import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
-// Custom exceptions for better error handling
+
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -32,12 +32,12 @@ class RequestTimeoutException implements Exception {
   String toString() => 'RequestTimeoutException: $message';
 }
 
-// Base API client with common functionality
+
 class ApiClient {
   static const Duration _timeout = Duration(seconds: ApiConstants.defaultTimeout);
   static const Duration _uploadTimeout = Duration(seconds: ApiConstants.uploadTimeout);
 
-  // GET request
+
   static Future<dynamic> get(
     String url, {
     Map<String, String>? headers,
@@ -63,7 +63,7 @@ class ApiClient {
     }
   }
 
-  // POST request
+
   static Future<dynamic> post(
     String url, {
     Map<String, String>? headers,
@@ -88,7 +88,7 @@ class ApiClient {
     }
   }
 
-  // PUT request
+
   static Future<dynamic> put(
     String url, {
     Map<String, String>? headers,
@@ -113,7 +113,7 @@ class ApiClient {
     }
   }
 
-  // PATCH request
+
   static Future<dynamic> patch(
     String url, {
     Map<String, String>? headers,
@@ -138,7 +138,7 @@ class ApiClient {
     }
   }
 
-  // DELETE request
+
   static Future<dynamic> delete(
     String url, {
     Map<String, String>? headers,
@@ -163,7 +163,7 @@ class ApiClient {
     }
   }
 
-  // Multipart request for file uploads
+
   static Future<dynamic> multipartRequest(
     String url,
     String method, {
@@ -199,7 +199,7 @@ class ApiClient {
     }
   }
 
-  // Handle HTTP response
+
   static dynamic _handleResponse(http.Response response) {
     final statusCode = response.statusCode;
     
@@ -218,7 +218,7 @@ class ApiClient {
     } catch (e) {
       if (e is ApiException) rethrow;
       
-      // Handle non-JSON responses
+
       if (statusCode >= 200 && statusCode < 300) {
         return {'success': true, 'data': response.body};
       } else {
@@ -231,7 +231,7 @@ class ApiClient {
     }
   }
 
-  // Helper method to build query parameters
+
   static Map<String, String> buildQueryParams(Map<String, dynamic> params) {
     final queryParams = <String, String>{};
     params.forEach((key, value) {
@@ -242,9 +242,9 @@ class ApiClient {
     return queryParams;
   }
 
-  // Helper method to validate file for upload
+
   static bool isValidImageFile(File file, {int? maxSizeBytes}) {
-    // Check file size
+
     final fileSize = file.lengthSync();
     final maxSize = maxSizeBytes ?? ApiConstants.maxFileSize;
     
@@ -252,7 +252,7 @@ class ApiClient {
       return false;
     }
 
-    // Basic file extension check (not foolproof, but better than nothing)
+
     final fileName = file.path.toLowerCase();
     return fileName.endsWith('.jpg') ||
            fileName.endsWith('.jpeg') ||

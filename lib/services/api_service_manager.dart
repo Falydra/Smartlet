@@ -6,9 +6,9 @@ import 'request_services.dart';
 import 'file_services.dart';
 import 'health_check_service.dart';
 
-// Centralized API service manager
+
 class ApiServiceManager {
-  // Service instances
+
   static final AuthService _authService = AuthService();
   static final HouseService _houseService = HouseService();
   static final SensorService _sensorService = SensorService();
@@ -17,7 +17,7 @@ class ApiServiceManager {
   static final FileService _fileService = FileService();
   static final HealthCheckService _healthCheckService = HealthCheckService();
 
-  // Getters for service instances
+
   static AuthService get auth => _authService;
   static HouseService get house => _houseService;
   static SensorService get sensor => _sensorService;
@@ -26,7 +26,7 @@ class ApiServiceManager {
   static FileService get file => _fileService;
   static HealthCheckService get health => _healthCheckService;
 
-  // System health check - useful for app initialization
+
   static Future<bool> isSystemReady() async {
     try {
       return await _healthCheckService.isSystemHealthy();
@@ -35,7 +35,7 @@ class ApiServiceManager {
     }
   }
 
-  // Comprehensive system status
+
   static Future<Map<String, dynamic>> getSystemStatus() async {
     try {
       final health = await _healthCheckService.healthCheck();
@@ -59,7 +59,7 @@ class ApiServiceManager {
   }
 }
 
-// Type definitions for common API responses
+
 class ApiResponse<T> {
   final bool success;
   final String? message;
@@ -86,7 +86,7 @@ class ApiResponse<T> {
   }
 }
 
-// Pagination info
+
 class PaginationInfo {
   final int limit;
   final int offset;
@@ -119,7 +119,7 @@ class PaginationInfo {
   }
 }
 
-// Paginated response wrapper
+
 class PaginatedResponse<T> {
   final List<T> data;
   final PaginationInfo pagination;

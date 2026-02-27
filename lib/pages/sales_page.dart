@@ -16,15 +16,15 @@ class SalesPage extends StatefulWidget {
 }
 
 class _SalesPageState extends State<SalesPage> {
-  // Services
+
   final HouseService _houseService = HouseService();
   final TransactionService _transactionService = TransactionService();
 
-  // State management
+
   bool _isLoading = true;
   String? _authToken;
 
-  // Date selection
+
   int _selectedMonth = DateTime.now().month;
   int _selectedYear = DateTime.now().year;
 
@@ -43,7 +43,7 @@ class _SalesPageState extends State<SalesPage> {
     'Desember'
   ];
 
-  // Data
+
   List<dynamic> _transactions = [];
   List<dynamic> _houses = [];
   String? _selectedHouseId; // Track selected RBW
@@ -67,26 +67,18 @@ class _SalesPageState extends State<SalesPage> {
     }
 
     try {
-      // Get authentication token
+
       _authToken = await TokenManager.getToken();
 
       if (_authToken != null) {
-        // Load houses and sales data
-        await Future.wait([
-          _loadHouses(),
-          _loadHarvestSales(),
-        ]).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            print('Data loading timeout - continuing with empty data');
-            return [];
-          },
-        );
+
+        await _loadHouses();
+        await _loadHarvestSales();
       }
     } catch (e) {
       print('Error initializing sales data: $e');
     } finally {
-      // Always set loading to false, even if there's an error
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -101,7 +93,7 @@ class _SalesPageState extends State<SalesPage> {
       if (mounted) {
         setState(() {
           _houses = houses;
-          // Select the first house by default if not already selected
+
           if (houses.isNotEmpty && _selectedHouseId == null) {
             _selectedHouseId = houses.first['id']?.toString();
             print('[SALES PAGE] Selected default house: $_selectedHouseId');
@@ -119,7 +111,7 @@ class _SalesPageState extends State<SalesPage> {
           '[SALES PAGE] Loading transactions for ${_months[_selectedMonth - 1]} $_selectedYear');
       print('[SALES PAGE] Selected house ID: $_selectedHouseId');
 
-      // Load transactions from API with house ID
+
       final transactions = await _transactionService.getAll(
         _authToken!,
         month: _selectedMonth,
@@ -131,34 +123,27 @@ class _SalesPageState extends State<SalesPage> {
       if (transactions.isNotEmpty) {
         print('[SALES PAGE] First transaction sample: ${transactions.first}');
         print('[SALES PAGE] Sample transaction fields:');
-        print('  - category_name: ${transactions.first['category_name']}');
-        print('  - category object: ${transactions.first['category']}');
-        print('  - total: ${transactions.first['total']}');
+        print('  - type: ${transactions.first['type']}');
+        print('  - amount: ${transactions.first['amount']}');
+        print('  - description: ${transactions.first['description']}');
+        print('  - transaction_date: ${transactions.first['transaction_date']}');
         print('  - rbw_id: ${transactions.first['rbw_id']}');
       }
 
-      // Calculate totals
+
       double income = 0.0;
       double expense = 0.0;
 
       for (var transaction in transactions) {
-        final amount = (transaction['total'] as num?)?.toDouble() ??
-            (transaction['total_amount'] as num?)?.toDouble() ??
-            0.0;
-
-        // Get category name - API returns it directly as 'category_name', not nested in 'category'
-        final categoryName = (transaction['category_name']?.toString() ??
-                transaction['category']?['name']?.toString() ??
-                '')
-            .toLowerCase();
-        final isIncome = categoryName.contains('penjualan');
+        final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+        final type = transaction['type']?.toString() ?? '';
 
         print(
-            '[SALES PAGE] Transaction: category=$categoryName, isIncome=$isIncome, amount=$amount');
+            '[SALES PAGE] Transaction: type=$type, amount=$amount');
 
-        if (isIncome) {
+        if (type == 'income') {
           income += amount;
-        } else {
+        } else if (type == 'expense') {
           expense += amount;
         }
       }
@@ -268,9 +253,9 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   Future<void> _downloadEStatement(String type) async {
-    // type can be 'bulanan' or 'tahunan'
+
     try {
-      // Show loading indicator
+
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -281,7 +266,7 @@ class _SalesPageState extends State<SalesPage> {
         },
       );
 
-      // Get selected house name
+
       String houseName = 'Semua Kandang';
       if (_selectedHouseId != null) {
         final house = _houses.firstWhere(
@@ -291,12 +276,12 @@ class _SalesPageState extends State<SalesPage> {
         houseName = house['name'] ?? 'Kandang';
       }
 
-      // Format period
+
       String period = type == 'bulanan'
           ? '${_months[_selectedMonth - 1]} $_selectedYear'
           : 'Tahun $_selectedYear';
 
-      // Generate PDF
+
       final filePath = await PdfService.generateEStatement(
         period: period,
         houseName: houseName,
@@ -307,10 +292,10 @@ class _SalesPageState extends State<SalesPage> {
         type: type,
       );
 
-      // Close loading indicator
+
       if (mounted) Navigator.of(context).pop();
 
-      // Show success dialog with options
+
       if (mounted) {
         showDialog(
           context: context,
@@ -344,7 +329,7 @@ class _SalesPageState extends State<SalesPage> {
                 TextButton.icon(
                   onPressed: () async {
                     Navigator.of(context).pop();
-                    // Share the PDF
+
                     try {
                       await PdfService.sharePdfFile(
                         filePath,
@@ -367,7 +352,7 @@ class _SalesPageState extends State<SalesPage> {
                 ElevatedButton.icon(
                   onPressed: () async {
                     Navigator.of(context).pop();
-                    // Open the PDF
+
                     final opened = await PdfService.openPdfFile(filePath);
                     if (!opened && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -392,10 +377,10 @@ class _SalesPageState extends State<SalesPage> {
         );
       }
     } catch (e) {
-      // Close loading indicator if still showing
+
       if (mounted) Navigator.of(context).pop();
 
-      // Show error message
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -442,7 +427,7 @@ class _SalesPageState extends State<SalesPage> {
               ),
               const SizedBox(height: 20),
 
-              // Monthly Statement Button
+
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -469,7 +454,7 @@ class _SalesPageState extends State<SalesPage> {
               ),
               const Divider(),
 
-              // Yearly Statement Button
+
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -515,7 +500,7 @@ class _SalesPageState extends State<SalesPage> {
       ),
     );
 
-    // If data was modified, reload transactions
+
     if (result == true) {
       _loadHarvestSales();
     }
@@ -558,11 +543,11 @@ class _SalesPageState extends State<SalesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1st Content: Title with Period Selection
+
                   Center(
                     child: Column(
                       children: [
-                        // House Selector
+
                         if (_houses.isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(bottom: 12),
@@ -645,7 +630,7 @@ class _SalesPageState extends State<SalesPage> {
 
                   const SizedBox(height: 24),
 
-                  // 2nd Content: Kandang List with Sales Profit
+
                   const Text(
                     'Penjualan per Kandang',
                     style: TextStyle(
@@ -692,32 +677,18 @@ class _SalesPageState extends State<SalesPage> {
                               double houseExpense = 0.0;
 
                               for (var transaction in _transactions) {
-                                // Match by rbw_id or house_id
+
                                 final transactionHouseId =
                                     transaction['rbw_id']?.toString() ??
                                         transaction['house_id']?.toString();
                                 if (transactionHouseId ==
                                     house['id']?.toString()) {
-                                  final amount = (transaction['total'] as num?)
-                                          ?.toDouble() ??
-                                      (transaction['total_amount'] as num?)
-                                          ?.toDouble() ??
-                                      0.0;
+                                  final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+                                  final type = transaction['type']?.toString() ?? '';
 
-                                  // Get category name - API returns it directly as 'category_name'
-                                  final categoryName =
-                                      (transaction['category_name']
-                                                  ?.toString() ??
-                                              transaction['category']?['name']
-                                                  ?.toString() ??
-                                              '')
-                                          .toLowerCase();
-                                  final isIncome =
-                                      categoryName.contains('penjualan');
-
-                                  if (isIncome) {
+                                  if (type == 'income') {
                                     houseIncome += amount;
-                                  } else {
+                                  } else if (type == 'expense') {
                                     houseExpense += amount;
                                   }
                                 }
@@ -784,7 +755,7 @@ class _SalesPageState extends State<SalesPage> {
 
                   const SizedBox(height: 24),
 
-                  // 3rd Content: Rekap Transaksi
+
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -820,7 +791,7 @@ class _SalesPageState extends State<SalesPage> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Income
+
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -841,7 +812,7 @@ class _SalesPageState extends State<SalesPage> {
                         ),
                         const SizedBox(height: 8),
 
-                        // Expense
+
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -864,7 +835,7 @@ class _SalesPageState extends State<SalesPage> {
                         const Divider(color: Colors.white30),
                         const SizedBox(height: 12),
 
-                        // Net Profit
+
                         Column(
                           children: [
                             const Text(
@@ -901,7 +872,7 @@ class _SalesPageState extends State<SalesPage> {
 
                   const SizedBox(height: 24),
 
-                  // Financial Statement: Transaction List
+
                   if (_transactions.isNotEmpty) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -949,39 +920,22 @@ class _SalesPageState extends State<SalesPage> {
                       ),
                       child: Column(
                         children: _transactions.take(3).map((transaction) {
-                          // Get category name - API returns it directly as 'category_name'
-                          final categoryName =
-                              (transaction['category_name']?.toString() ??
-                                      transaction['category']?['name']
-                                          ?.toString() ??
-                                      '')
-                                  .toLowerCase();
-                          final isIncome = categoryName.contains('penjualan');
+                          final type = transaction['type']?.toString() ?? '';
+                          final isIncome = type == 'income';
 
-                          final amount =
-                              (transaction['total'] as num?)?.toDouble() ??
-                                  (transaction['total_amount'] as num?)
-                                      ?.toDouble() ??
-                                  0.0;
-                          final date = transaction['date'] != null
-                              ? DateTime.tryParse(transaction['date'])
-                              : (transaction['transaction_date'] != null
-                                  ? DateTime.tryParse(
-                                      transaction['transaction_date'])
-                                  : null);
-                          final categoryNameForDisplay =
-                              transaction['category_name']?.toString() ??
-                                  transaction['category']?['name']
-                                      ?.toString() ??
-                                  'Tanpa Kategori';
+                          final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+                          final date = transaction['transaction_date'] != null
+                              ? DateTime.tryParse(transaction['transaction_date'])
+                              : null;
+                          final categoryNameForDisplay = isIncome ? 'Pendapatan' : 'Pengeluaran';
 
-                          // Get house name - API returns it directly as 'rbw_name'
+
                           String houseName =
                               transaction['rbw_name']?.toString() ??
                                   transaction['house_name']?.toString() ??
                                   '';
 
-                          // If not in transaction, try to match from _houses list
+
                           if (houseName.isEmpty) {
                             final transactionHouseId =
                                 transaction['rbw_id']?.toString() ??
@@ -1002,7 +956,7 @@ class _SalesPageState extends State<SalesPage> {
                             ),
                             child: Row(
                               children: [
-                                // Icon
+
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
@@ -1024,7 +978,7 @@ class _SalesPageState extends State<SalesPage> {
                                 ),
                                 const SizedBox(width: 12),
 
-                                // Transaction Details
+
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -1096,7 +1050,7 @@ class _SalesPageState extends State<SalesPage> {
                                   ),
                                 ),
 
-                                // Amount
+
                                 Flexible(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -1132,7 +1086,7 @@ class _SalesPageState extends State<SalesPage> {
                       ),
                     ),
 
-                    // View All Transactions Button
+
                     if (_transactions.length > 0) ...[
                       const SizedBox(height: 12),
                       Center(
@@ -1162,10 +1116,10 @@ class _SalesPageState extends State<SalesPage> {
 
                   const SizedBox(height: 8),
 
-                  // 4th Content: Action Buttons
+
                   Column(
                     children: [
-                      // First Button: Tambah Penjualan Transaksi (Income)
+
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -1202,7 +1156,7 @@ class _SalesPageState extends State<SalesPage> {
 
                       const SizedBox(height: 16),
 
-                      // Second Button: Tambah Pengeluaran (Expense)
+
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(

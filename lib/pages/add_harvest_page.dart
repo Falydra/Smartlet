@@ -40,42 +40,42 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
   final _formKey = GlobalKey<FormState>();
   late List<TextEditingController> _floorControllers;
   
-  // Breakdown data for each floor (Mangkok, Sudut, Oval, Patahan)
+
   List<Map<String, int>> _floorBreakdown = [];
   
   int _currentIndex = 2;
 
-  // API Services
+
   final HarvestService _harvestService = HarvestService();
   final HouseService _houseService = HouseService();
   final NodeService _nodeService = NodeService();
 
-  // State management
+
   bool _isLoading = true;
   bool _hasExistingData = false;
   Map<int, String> _existingRecordIds = {};
   String? _authToken;
 
-  // House data
+
   List<dynamic> _houses = [];
   Map<String, dynamic>? _selectedHouse;
   String _cageName = 'Kandang 1';
   int _cageFloors = 3;
 
-  // Node data
+
   List<dynamic> _nodes = [];
   Map<String, dynamic>? _selectedNode;
 
-  // Floor limits from pre-harvest data
+
   Map<int, int> _floorRecommended = {};
   Map<int, int> _floorPreHarvest = {};
   double _totalPreHarvest = 0;
   double _totalRecommended = 0;
 
-  // Temporary storage for pre-harvest data
+
   static final Map<String, dynamic> _tempPreHarvestStorage = {};
 
-  // Date selection
+
   late int _selectedMonth;
   late int _selectedYear;
 
@@ -163,7 +163,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     _floorControllers =
         List.generate(_cageFloors, (index) => TextEditingController());
     
-    // Initialize breakdown data for each floor
+
     _floorBreakdown = List.generate(
         _cageFloors, 
         (index) => {'mangkok': 0, 'sudut': 0, 'oval': 0, 'patahan': 0}
@@ -232,7 +232,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
               if (floorNo > 0 && floorNo <= _cageFloors) {
                 _floorControllers[floorNo - 1].text = nestsCount.toString();
                 
-                // Extract breakdown data if available
+
                 final mangkokMatch = RegExp(r'Mangkok:(\d+)').firstMatch(notes);
                 final sudutMatch = RegExp(r'Sudut:(\d+)').firstMatch(notes);
                 final ovalMatch = RegExp(r'Oval:(\d+)').firstMatch(notes);
@@ -354,10 +354,10 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
         final floorHarvest = int.tryParse(_floorControllers[floor].text) ?? 0;
         if (floorHarvest == 0) continue;
 
-        // Build notes with breakdown data if available
+
         String notesText = 'POST_HARVEST|ratio:${(harvestRatio * 100).toStringAsFixed(1)}%|followed:${followedRecommendation ? 'yes' : 'no'}';
         
-        // Add breakdown to notes if user filled it
+
         final breakdown = _floorBreakdown[floor];
         final hasBreakdown = breakdown.values.any((v) => v > 0);
         if (hasBreakdown) {
@@ -435,14 +435,14 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     }
   }
 
-  // Check if floor has breakdown data
+
   bool _hasBreakdown(int floorIndex) {
     if (floorIndex < 0 || floorIndex >= _floorBreakdown.length) return false;
     final breakdown = _floorBreakdown[floorIndex];
     return breakdown.values.any((v) => v > 0);
   }
 
-  // Build breakdown chip widget
+
   Widget _buildBreakdownChip(String label, int value, Color color) {
     return Column(
       children: [
@@ -475,15 +475,15 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     );
   }
 
-  // Show breakdown dialog for a specific floor
+
   void _showBreakdownDialog(int floorIndex) {
-    // Safety check
+
     if (floorIndex < 0 || floorIndex >= _floorBreakdown.length) return;
     
     final floorNo = floorIndex + 1;
     final currentTotal = int.tryParse(_floorControllers[floorIndex].text) ?? 0;
     
-    // Create temporary controllers with current values
+
     final mangkokController = TextEditingController(
       text: _floorBreakdown[floorIndex]['mangkok'].toString()
     );
@@ -662,7 +662,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
               final p = int.tryParse(patahanController.text) ?? 0;
               final breakdownTotal = m + s + o + p;
 
-              // Validate if total is entered
+
               if (currentTotal > 0 && breakdownTotal != currentTotal) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -675,7 +675,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
                 return;
               }
 
-              // Save breakdown
+
               setState(() {
                 _floorBreakdown[floorIndex] = {
                   'mangkok': m,
@@ -1114,7 +1114,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
             ),
             const SizedBox(height: 12),
             
-            // Detail Button
+
             OutlinedButton.icon(
               onPressed: () => _showBreakdownDialog(floorIndex),
               icon: const Icon(Icons.settings, size: 18),
@@ -1141,7 +1141,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
               ),
             ),
             
-            // Show breakdown summary if filled
+
             if (_hasBreakdown(floorIndex) && floorIndex < _floorBreakdown.length)
               Container(
                 margin: const EdgeInsets.only(top: 8),

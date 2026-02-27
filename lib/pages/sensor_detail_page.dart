@@ -19,7 +19,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
   final Color _primary = const Color(0xFF245C4C);
   int _currentIndex = 1; // highlight Control tab by default
 
-  // Route args - use safe defaults to avoid late init errors
+
   String sensorId = '';
   String metric = 'sensor'; // temperature | humidity | ammonia
   String title = 'Sensor'; // e.g., Suhu, Kelembapan, Amonia
@@ -27,7 +27,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
   int? floor; // optional
   bool _argsInitialized = false;
 
-  // UI State
+
   String _range = '1D'; // 1D | 1W | 1M
   bool _loading = true;
   List<FlSpot> _points = [];
@@ -37,7 +37,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
   @override
   void initState() {
     super.initState();
-    // Defer reading arguments until context is available
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _initializeFromRoute();
     });
@@ -105,7 +105,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
         },
       );
       final list = (res['data'] is List) ? List<Map<String, dynamic>>.from(res['data']) : <Map<String, dynamic>>[];
-      // Sort by time ascending for LineChart
+
       list.sort((a, b) {
         final ta = DateTime.tryParse(a['recorded_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
         final tb = DateTime.tryParse(b['recorded_at']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -116,7 +116,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
         final ts = DateTime.tryParse(r['recorded_at']?.toString() ?? '');
         final v = (r['value'] as num?)?.toDouble();
         if (ts != null && v != null) {
-          // Keep absolute instant; convert only for display
+
           points.add(FlSpot(ts.millisecondsSinceEpoch.toDouble(), v));
         }
       }
@@ -140,7 +140,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Guard against building before route args are initialized
+
     if (!_argsInitialized) {
       return Scaffold(
         backgroundColor: Colors.grey[50],
@@ -191,7 +191,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
           children: [
             _header(),
             _rangeTabs(),
-            // Limit chart to ~45% of screen height, not full expanded
+
             SizedBox(
               height: MediaQuery.of(context).size.height * 0.38,
               child: _chartCard(),

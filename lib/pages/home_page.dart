@@ -10,10 +10,10 @@ import 'package:swiftlead/pages/cage_selection_page.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/services/sensor_services.dart';
-// Removed deprecated services: DeviceService (iot-devices) & DeviceInstallationService 
-// import 'package:swiftlead/services/devices.services.dart';
-// import 'package:swiftlead/services/device_installation_service.dart';
-// import 'package:swiftlead/services/sensor_services.dart'; // Unused currently; will reintroduce when wiring sensor readings
+
+
+
+
 import 'package:swiftlead/services/auth_services.dart.dart';
 import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
@@ -38,31 +38,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentKandangIndex = 0;
 
-  // API Services
+
   final HouseService _houseService = HouseService();
   final NodeService _nodeService = NodeService();
   final SensorService _sensorService = SensorService();
-  // Removed deprecated services; device management now through nodes API
-  // final DeviceService _deviceService = DeviceService();
-  // final DeviceInstallationService _installationService = DeviceInstallationService();
-  // TODO: Use SensorService for real-time readings from /sensors/{id}/readings endpoints
-  // final SensorService _sensorService = SensorService();
 
-  // State management
+
+
+
+
+
+
   bool _isLoading = true;
   String? _authToken;
-  bool _isAdmin = false;
-  List<dynamic> _adminRequests = [];
   final AlertService _alertService = AlertService();
   final NotificationManager _notif = NotificationManager();
 
-  // List of kandang (cages)
+
   List<Map<String, dynamic>> _kandangList = [];
 
-  // Real-time sensor data
+
   Timer? _refreshTimer;
 
-  // Fallback device data template (null until sensors provide values)
+
   final Map<String, dynamic> _fallbackDeviceData = {
     'temperature': null,
     'humidity': null,
@@ -71,7 +69,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     'speaker': 'Inactive',
   };
 
-  // Default harvest cycle data template
+
   final List<Map<String, dynamic>> _defaultHarvestCycle = [
     {'month': 'Jan', 'status': 'Complete', 'yield': '12kg'},
     {'month': 'Feb', 'status': 'Complete', 'yield': '15kg'},
@@ -98,7 +96,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      // Refresh data when app comes back to foreground
+
       print('[HOME] App resumed, refreshing data...');
       if (_authToken != null && mounted) {
         _refreshSensorDataOnly();
@@ -168,34 +166,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     
     try {
-      // Get authentication token
+
       _authToken = await TokenManager.getToken();
       
       if (_authToken != null) {
-        // Load profile to check role
-        try {
-          final auth = AuthService();
-          final profile = await auth.profile(_authToken!).timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              print('Profile API timeout');
-              return {'success': false};
-            },
-          );
-          final role = profile['data']?['role']?.toString();
-          _isAdmin = role == 'admin';
-          if (_isAdmin) {
-            await _loadAdminRequests().timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                print('Admin requests timeout');
-              },
-            );
-          }
-        } catch (e) {
-          print('Failed to load profile: $e');
-        }
-        // Try to load from API first with timeout
+
         await _loadKandangFromAPI().timeout(
           const Duration(seconds: 30),
           onTimeout: () {
@@ -210,19 +185,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
       }
       
-      // No fallback to local data - only use API data
+
       if (_kandangList.isEmpty) {
         print('No kandang data loaded from API');
       } else {
         print('Successfully loaded ${_kandangList.length} kandang from API');
-        // Start periodic refresh only after successful initial load
+
         _startPeriodicRefresh();
       }
     } catch (e) {
       print('Error initializing data: $e');
-      // No fallback - just leave empty
+
     } finally {
-      // Always set loading to false, even if there's an error
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -238,7 +213,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final allList = (allRes['data'] is List) ? List<Map<String, dynamic>>.from(allRes['data']) : <Map<String, dynamic>>[];
       _notif.replaceAll(allList);
     } catch (e) {
-      // ignore
+
     }
   }
 
@@ -250,7 +225,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       
       List<Map<String, dynamic>> kandangList = [];
       
-      // First pass: Create basic house cards without sensor data to show UI immediately
+
       for (var house in houses) {
         kandangList.add({
           'id': 'house_${house['id']}',
@@ -274,18 +249,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       
       print('Created ${kandangList.length} houses, now loading sensor data...');
       
-      // Second pass: Load sensor data for each house
+
       for (int i = 0; i < houses.length; i++) {
         var house = houses[i];
         print('Loading sensors for house ${i}: ${house['name']}');
         
-        // Start with fallback device data
+
         Map<String, dynamic> deviceData = Map<String, dynamic>.from(_fallbackDeviceData);
         
-        // NOTE: Previously loaded devices via deprecated /iot-devices endpoint
-        // Replace with nodes API call to get actual IoT device data
 
-        // Check device installation status - use nodes API
+
+
+
         bool hasDeviceInstalled = false;
         List<String> nodeIds = [];
         List<Map<String, dynamic>> sensorsCollected = [];
@@ -293,7 +268,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final rbwId = house['id']?.toString() ?? '';
           print('RBW ID: $rbwId');
           if (rbwId.isNotEmpty) {
-            // Load nodes using RBW-specific endpoint
+
             print('Loading nodes for RBW: $rbwId (calling /api/v1/rbw/$rbwId/nodes)');
             final nodesRes = await _nodeService.listByRbw(_authToken!, rbwId, queryParams: {'per_page': '50'}).timeout(
               const Duration(seconds: 15),
@@ -314,17 +289,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               nodeIds = nodes.map((n) => n['id']?.toString() ?? '').where((id) => id.isNotEmpty).cast<String>().toList();
               print('Node IDs: $nodeIds');
               
-              // Load sensors and readings with timeout (non-blocking)
+
               if (nodeIds.isNotEmpty) {
                 try {
-                  // Fetch node state for pump and audio status
+
                   String mistSprayStatus = 'Inactive';
                   String speakerStatus = 'Inactive';
                   
-                  // Check all nodes for any active audio states
+
                   bool anyAudioActive = false;
                   
-                  // Get the first node's state for pump (assuming single main control node)
+
                   if (nodeIds.isNotEmpty) {
                     try {
                       final nodeId = nodeIds.first;
@@ -341,16 +316,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         print('[HOME NODE STATE] state_audio_lmb: ${nodeData['state_audio_lmb']}');
                         print('[HOME NODE STATE] state_audio_nest: ${nodeData['state_audio_nest']}');
                         
-                        // Extract pump state
+
                         final statePump = nodeData['state_pump'];
                         mistSprayStatus = (statePump == 1 || statePump == '1' || statePump == true) ? 'Active' : 'Inactive';
                         
-                        // Check all 3 audio states: state_audio (All), state_audio_lmb (LMB), state_audio_nest (Nest)
+
                         final stateAudio = nodeData['state_audio'];
                         final stateAudioLmb = nodeData['state_audio_lmb'];
                         final stateAudioNest = nodeData['state_audio_nest'];
                         
-                        // Speaker is Active if ANY of the 3 audio states is true
+
                         anyAudioActive = (stateAudio == 1 || stateAudio == '1' || stateAudio == true) ||
                                         (stateAudioLmb == 1 || stateAudioLmb == '1' || stateAudioLmb == true) ||
                                         (stateAudioNest == 1 || stateAudioNest == '1' || stateAudioNest == true);
@@ -365,7 +340,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     }
                   }
                   
-                  // Fetch sensors via dedicated nodes/{node_id}/sensors endpoint
+
                   for (final nodeId in nodeIds) {
                     final sensorsRes = await _nodeService.getSensorsByNode(_authToken!, nodeId).timeout(
                       const Duration(seconds: 3),
@@ -382,7 +357,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     }
                   }
                   
-                  // Aggregate latest readings across sensors using /sensors/{id}/readings?limit=10
+
                   if (sensorsCollected.isNotEmpty) {
                     deviceData = await _aggregateLatestReadingsFromQuery(sensorsCollected, mistSprayStatus, speakerStatus).timeout(
                       const Duration(seconds: 5),
@@ -392,7 +367,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       },
                     );
                   } else {
-                    // No sensors but we have node state
+
                     deviceData['mist_spray'] = mistSprayStatus;
                     deviceData['speaker'] = speakerStatus;
                   }
@@ -403,11 +378,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             }
           }
         } catch (e) {
-          // Keep graceful degradation; just log
+
           print('Failed to load nodes for RBW ${house['id']}: $e');
         }
 
-        // Update the house in kandangList with sensor data
+
         print('Updating house ${i} with hasDeviceInstalled=$hasDeviceInstalled, sensors=${sensorsCollected.length}');
         kandangList[i]['deviceData'] = deviceData;
         kandangList[i]['hasDeviceInstalled'] = hasDeviceInstalled;
@@ -417,7 +392,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       
       print('Finished loading sensor data for all houses');
       
-      // Single setState call at the end with complete data
+
       if (mounted) {
         setState(() {
           _kandangList = kandangList;
@@ -427,31 +402,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       print('Loaded ${kandangList.length} kandang from API');
     } catch (e) {
       print('Error loading kandang from API: $e');
-      // Don't throw, let it fallback to local data
+
     }
   }
 
-  Future<void> _loadAdminRequests() async {
-    if (_authToken == null) return;
-    try {
-      final srv = ServiceRequestService();
-      final res = await srv.list(_authToken!, queryParams: {'status': 'pending', 'per_page': '10'});
-      if (res['success'] == true && res['data'] != null) {
-        setState(() {
-          _adminRequests = res['data'] as List<dynamic>;
-        });
-      }
-    } catch (e) {
-      print('Failed to load admin requests: $e');
-    }
-  }
 
-  // Optimized method to refresh only sensor data without rebuilding entire house list
   Future<void> _refreshSensorDataOnly() async {
     if (_authToken == null || _kandangList.isEmpty) return;
     
     try {
-      // Only update sensor readings for existing houses without triggering UI rebuild
+
       for (int i = 0; i < _kandangList.length; i++) {
         final house = _kandangList[i];
         final nodeIds = house['nodeIds'] as List<String>? ?? [];
@@ -459,7 +419,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (nodeIds.isEmpty) continue;
         
         try {
-          // Fetch node state for pump and audio status
+
           String mistSprayStatus = 'Inactive';
           String speakerStatus = 'Inactive';
           
@@ -487,10 +447,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             }
           }
           
-          // Get existing sensors from state
+
           List<Map<String, dynamic>> sensorsCollected = List<Map<String, dynamic>>.from(house['sensors'] ?? []);
           
-          // Aggregate latest readings
+
           Map<String, dynamic> deviceData = Map<String, dynamic>.from(_fallbackDeviceData);
           if (sensorsCollected.isNotEmpty) {
             deviceData = await _aggregateLatestReadingsFromQuery(sensorsCollected, mistSprayStatus, speakerStatus).timeout(
@@ -502,7 +462,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             deviceData['speaker'] = speakerStatus;
           }
           
-          // Update only deviceData without triggering full rebuild
+
           if (mounted) {
             setState(() {
               _kandangList[i]['deviceData'] = deviceData;
@@ -517,14 +477,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  // Removed _loadSensorDataForHouse method since DeviceInstallationService was deprecated
-  // TODO: Replace with sensor readings API calls when needed
+
+
 
   void _startPeriodicRefresh() {
-    // Cancel existing timer if any
+
     _refreshTimer?.cancel();
 
-    // Refresh sensor data every 10 minutes for real-time updates
+
     _refreshTimer = Timer.periodic(const Duration(minutes: 10), (timer) async {
       if (_authToken != null && mounted) {
         await _refreshSensorDataOnly();
@@ -545,14 +505,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Local data methods removed - only using API data now
+
 
   void _navigateToKandangManagement() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const CageSelectionPage()),
     ).then((_) {
-      // Reload kandang data from API when returning
+
       _loadKandangFromAPI();
     });
   }
@@ -654,47 +614,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Kandang Carousel Section
+
                 SizedBox(
-                  //If the device are not installed make the height * 0.55, if installed 0.38
+
                   height: height(context) * 0.38,
                   child: _kandangList.isEmpty
                       ? _buildEmptyKandangCard()
                       : _buildKandangCarousel(),
                 ),
 
-            // Admin quick actions: show pending installation requests
-            if (_isAdmin)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: width(context) * 0.05, vertical: 8),
-                child: Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Pending Installation Requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        if (_adminRequests.isEmpty) const Text('No pending requests'),
-                        ..._adminRequests.map((r) {
-                          final id = r['id']?.toString() ?? '';
-                          final issue = r['issue'] ?? r['type'] ?? 'Installation';
-                          final rbw = r['rbw']?['name'] ?? r['rbw_id'] ?? '';
-                          return ListTile(
-                            title: Text(issue.toString()),
-                            subtitle: Text('RBW: $rbw'),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => Navigator.pushNamed(context, '/service-request-detail', arguments: {'id': id}).then((_) => _loadAdminRequests()),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
 
-            // News section
             Column(
               children: [
                 Padding(
@@ -738,7 +667,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 ),
 
-                // News cards (existing code)
+
                 Padding(
                   padding: EdgeInsets.only(bottom: height(context) * 0.0001),
                   child: GestureDetector(
@@ -844,7 +773,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 ),
 
-                // Second news card (existing code)
+
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24.0, top: 24),
                   child: Container(
@@ -954,123 +883,78 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _currentIndex = index;
           });
         },
-        items: _isAdmin
-            ? [
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.home,
-                      label: 'Beranda',
-                      currentIndex: _currentIndex,
-                      itemIndex: 0,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/home-page');
-                        setState(() {
-                          _currentIndex = 0;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.build_circle,
-                      label: 'Installation',
-                      currentIndex: _currentIndex,
-                      itemIndex: 1,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/installation-manager');
-                        setState(() {
-                          _currentIndex = 1;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.group,
-                      label: 'Users',
-                      currentIndex: _currentIndex,
-                      itemIndex: 2,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/user-manager');
-                        setState(() {
-                          _currentIndex = 2;
-                        });
-                      },
-                    ),
-                    label: ''),
-              ]
-            : [
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.home,
-                      label: 'Beranda',
-                      currentIndex: _currentIndex,
-                      itemIndex: 0,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/home-page');
-                        setState(() {
-                          _currentIndex = 0;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.devices,
-                      label: 'Kontrol',
-                      currentIndex: _currentIndex,
-                      itemIndex: 1,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/control-page');
-                        setState(() {
-                          _currentIndex = 1;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.agriculture,
-                      label: 'Panen',
-                      currentIndex: _currentIndex,
-                      itemIndex: 2,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/harvest/analysis');
-                        setState(() {
-                          _currentIndex = 2;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.sell,
-                      label: 'Jual',
-                      currentIndex: _currentIndex,
-                      itemIndex: 3,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/store-page');
-                        setState(() {
-                          _currentIndex = 3;
-                        });
-                      },
-                    ),
-                    label: ''),
-                BottomNavigationBarItem(
-                    icon: CustomBottomNavigationItem(
-                      icon: Icons.person,
-                      label: 'Profil',
-                      currentIndex: _currentIndex,
-                      itemIndex: 4,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/profile-page');
-                        setState(() {
-                          _currentIndex = 4;
-                        });
-                      },
-                    ),
-                    label: ''),
-              ],
+        items: [
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.home,
+                label: 'Beranda',
+                currentIndex: _currentIndex,
+                itemIndex: 0,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/home-page');
+                  setState(() {
+                    _currentIndex = 0;
+                  });
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.devices,
+                label: 'Kontrol',
+                currentIndex: _currentIndex,
+                itemIndex: 1,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/control-page');
+                  setState(() {
+                    _currentIndex = 1;
+                  });
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.agriculture,
+                label: 'Panen',
+                currentIndex: _currentIndex,
+                itemIndex: 2,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                  setState(() {
+                    _currentIndex = 2;
+                  });
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.sell,
+                label: 'Jual',
+                currentIndex: _currentIndex,
+                itemIndex: 3,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/store-page');
+                  setState(() {
+                    _currentIndex = 3;
+                  });
+                },
+              ),
+              label: ''),
+          BottomNavigationBarItem(
+              icon: CustomBottomNavigationItem(
+                icon: Icons.person,
+                label: 'Profil',
+                currentIndex: _currentIndex,
+                itemIndex: 4,
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/profile-page');
+                  setState(() {
+                    _currentIndex = 4;
+                  });
+                },
+              ),
+              label: ''),
+        ],
       ),
     );
   }
@@ -1078,13 +962,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _buildKandangCarousel() {
     return Column(
       children: [
-        // Kandang indicator and management button
+
         Padding(
           padding: EdgeInsets.symmetric(horizontal: width(context) * 0.075),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Kandang indicators
+
               if (_kandangList.length > 1)
                 Row(
                   children: List.generate(
@@ -1104,7 +988,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               if (_kandangList.length <= 1) Container(),
 
-              // Manage kandang button
+
               TextButton.icon(
                 onPressed: _navigateToKandangManagement,
                 icon: const Icon(Icons.settings, size: 16, color: Color(0xFF245C4C)),
@@ -1121,7 +1005,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         ),
 
-        // PageView for kandang cards
+
         Expanded(
           child: PageView.builder(
             controller: _pageController,
@@ -1141,7 +1025,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _buildKandangCard(Map<String, dynamic> kandang) {
-    // Check if kandang data is empty/incomplete
+
     bool isEmpty = kandang['isEmpty'] == true;
     
     return Row(
@@ -1162,7 +1046,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: isEmpty ? _buildEmptyKandangContent(kandang) : SingleChildScrollView(
             child: Column(
             children: [
-              // Header with kandang info
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1195,7 +1079,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ],
               ),
 
-              // Device Installation Status
+
               Padding(
                 padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 8),
                 child: Row(
@@ -1250,7 +1134,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ),
 
-              // Statistics label
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
@@ -1271,7 +1155,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ],
               ),
 
-              // Device statistics with icons and data or installation prompt
+
               if (kandang['hasDeviceInstalled'] ?? false)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
@@ -1390,29 +1274,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 ),
 
-              // Harvest Cycle Table
-              // Padding(
-              //   padding:
-              //       const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
-              //   child: Column(
-              //     crossAxisAlignment: CrossAxisAlignment.start,
-              //     children: [
-              //       Text(
-              //         "Siklus Panen 2024",
-              //         style: TextStyle(
-              //           fontSize: 12,
-              //           fontWeight: FontWeight.w600,
-              //           color: Color(0xFF245C4C),
-              //         ),
-              //       ),
-              //       SizedBox(height: 8),
-              //       _buildHarvestTable(
-              //           kandang['harvestCycle'] as List<Map<String, dynamic>>?),
-              //     ],
-              //   ),
-              // ),
 
-              // Analysis button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               Padding(
                 padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
               
@@ -1632,7 +1516,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     String mistSprayStatus,
     String speakerStatus,
   ) async {
-    // Reset any previous values to avoid stale display
+
     double? temperature; double? humidity; double? ammonia; 
     DateTime? latestTs;
     String? temperatureSensorId; String? humiditySensorId; String? ammoniaSensorId;
@@ -1656,7 +1540,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final metric = _classifySensorMetric(sensor);
               final value = (newest['value'] as num?)?.toDouble();
               final tsRaw = DateTime.tryParse(newest['recorded_at']?.toString() ?? '');
-              // Convert to WIB for display purposes; still track raw ordering via UTC logic
+
               final ts = tsRaw != null ? TimeUtils.toWIB(tsRaw) : null;
 
               print('[HOME] Sensor $sensorId type=${sensor['type'] ?? sensor['name'] ?? sensor['label']} classified=$metric value=$value at ${newest['recorded_at']}');
@@ -1676,7 +1560,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ammoniaSensorId = sensorId; 
                 latestTs = _pickLatest(latestTs, ts); 
               }
-              // Note: mist_spray and speaker status come from node state, not sensors
+
             }
           }
         }
@@ -1691,7 +1575,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       'ammonia': ammonia,
       'mist_spray': mistSprayStatus,  // From node state_pump
       'speaker': speakerStatus,        // From node state_audio
-      // Store ISO in WIB context for UI consumption
+
       'timestamp': latestTs?.toIso8601String(),
       'temperatureSensorId': temperatureSensorId,
       'humiditySensorId': humiditySensorId,
@@ -1710,7 +1594,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return result;
   }
 
-  // Unused helpers removed after switching to /readings query
+
 
   String? _classifySensorMetric(Map<String,dynamic> s) {
     final raw = (s['type'] ?? s['name'] ?? s['label'] ?? '').toString().toLowerCase();
@@ -1719,7 +1603,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     print('[HOME CLASSIFY] Sensor: type="${s['type']}", name="${s['name']}", label="${s['label']}", unit="${s['unit']}"');
     print('[HOME CLASSIFY] Raw string: "$raw"');
     
-    // Keyword sets (English + Indonesian + chemical alias)
+
     const tempKeys = ['temp','temperature','suhu','heat','panas'];
     const humidityKeys = ['humid','humidity','kelembaban','lembab'];
     const ammoniaKeys = ['ammon','ammonia','amonia','nh3'];

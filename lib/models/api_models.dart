@@ -1,4 +1,4 @@
-// User model
+
 class User {
   final int id;
   final String name;
@@ -47,7 +47,7 @@ class User {
   }
 }
 
-// SwiftletHouse model
+
 class SwiftletHouse {
   final int id;
   final int userId;
@@ -108,7 +108,7 @@ class SwiftletHouse {
   }
 }
 
-// IoTDevice model
+
 class IoTDevice {
   final int id;
   final int userId;
@@ -165,7 +165,7 @@ class IoTDevice {
   }
 }
 
-// SensorData model
+
 class SensorData {
   final int id;
   final String installCode;
@@ -210,7 +210,7 @@ class SensorData {
   }
 }
 
-// Harvest model
+
 class Harvest {
   final int id;
   final int userId;
@@ -290,7 +290,7 @@ class Harvest {
     };
   }
 
-  // Helper getters for legacy field names
+
   double get mangkok => bowlWeight;
   double get sudut => cornerWeight;
   double get oval => ovalWeight;

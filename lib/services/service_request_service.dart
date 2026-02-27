@@ -5,7 +5,7 @@ import 'api_constants.dart';
 class ServiceRequestService {
   final String baseUrl = ApiConstants.apiBaseUrl;
 
-  /// Create a new service request (POST /service-requests)
+
   Future<Map<String, dynamic>> create(String token, Map<String, dynamic> payload) async {
     try {
       final response = await http.post(
@@ -25,7 +25,7 @@ class ServiceRequestService {
     }
   }
 
-  /// List service requests (GET /service-requests) with optional query params
+
   Future<Map<String, dynamic>> list(String token, {Map<String, String>? queryParams}) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests').replace(queryParameters: queryParams);
@@ -46,7 +46,7 @@ class ServiceRequestService {
     }
   }
 
-  /// List service requests assigned to logged-in technician (GET /service-requests/my-tasks)
+
   Future<Map<String, dynamic>> myTasks(String token) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests/my-tasks');
@@ -67,7 +67,7 @@ class ServiceRequestService {
     }
   }
 
-  /// Get details of a service request (GET /service-requests/{id})
+
   Future<Map<String, dynamic>> getById(String token, String id) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests/$id');
@@ -88,7 +88,7 @@ class ServiceRequestService {
     }
   }
 
-  /// Update service request (PATCH /service-requests/{id})
+
   Future<Map<String, dynamic>> update(String token, String id, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests/$id');
@@ -105,7 +105,7 @@ class ServiceRequestService {
     }
   }
 
-  /// Patch status (PATCH /service-requests/{id}/status)
+
   Future<Map<String, dynamic>> patchStatus(String token, String id, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests/$id/status');
@@ -122,7 +122,7 @@ class ServiceRequestService {
     }
   }
 
-  /// Assign technician to ticket (PATCH /service-requests/{id}/assign) - Admin only
+
   Future<Map<String, dynamic>> assign(String token, String id, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests/$id/assign');
@@ -139,9 +139,9 @@ class ServiceRequestService {
     }
   }
 
-  /// Composite assignment as per updated spec: status + assigned_to + schedule_date
-  /// Sends PATCH /service-requests/{id} with body {status, assigned_to, schedule_date}
-  /// Falls back to current UTC time if scheduleDate not provided.
+
+
+
   Future<Map<String, dynamic>> assignComposite(String token, String id, String technicianId, {DateTime? scheduleDate}) async {
     final payload = {
       'status': 'assigned',
@@ -174,7 +174,7 @@ class ServiceRequestService {
     }
   }
 
-  /// Delete ticket (DELETE /service-requests/{id}) - Admin only
+
   Future<Map<String, dynamic>> delete(String token, String id) async {
     try {
       final uri = Uri.parse('$baseUrl/service-requests/$id');
@@ -191,7 +191,7 @@ class ServiceRequestService {
     }
   }
 
-  /// List service requests under a specific RBW (GET /rbw/{rbw_id}/service-requests)
+
   Future<Map<String, dynamic>> listByRbw(String token, String rbwId, {Map<String, String>? queryParams}) async {
     try {
       final uri = Uri.parse('$baseUrl/rbw/$rbwId/service-requests').replace(queryParameters: queryParams);

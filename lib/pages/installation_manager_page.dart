@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
-import 'package:swiftlead/components/custom_bottom_navigation.dart';
-// profile page import not required here
+import 'package:swiftlead/components/admin_bottom_navigation.dart';
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:swiftlead/services/api_constants.dart';
@@ -19,7 +19,6 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
   List<dynamic> _items = [];
   List<dynamic> _technicians = [];
   bool _loading = true;
-  int _currentIndex = 1;
 
   @override
   void initState() {
@@ -36,7 +35,10 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
     if (res['success'] == true && res['data'] != null) {
       setState(() => _items = res['data'] as List<dynamic>);
     }
-    setState(() => _loading = false);
+    if (mounted) {
+
+      setState(() => _loading = false);
+    }
   }
 
   Future<void> _loadTechnicians() async {
@@ -51,16 +53,16 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
           final data = body['data'] as List<dynamic>? ?? [];
           setState(() {
             _technicians = data;
-            // if no technicians returned, ensure the special UUID is available as a fallback option
+
             const special = '00000000-0000-0000-0000-000000000002';
             final found = _technicians.isNotEmpty ? _technicians.firstWhere((e) => e['id']?.toString() == special, orElse: () => null) : null;
             if (found != null) {
-              // move the found item to be first so the dialog default shows it
+
               _technicians.remove(found);
               _technicians.insert(0, found);
             } else if (_technicians.isEmpty) {
-              // add a fallback technician entry so the dropdown still shows a selectable option
-              // Use the known technician details as provided
+
+
               _technicians = [
                 {
                   'id': special,
@@ -71,7 +73,7 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
             }
           });
         } catch (e) {
-          // ignore
+
         }
       }
     } catch (e) {
@@ -120,7 +122,7 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
         const defaultUuid = '00000000-0000-0000-0000-000000000002';
         final techId = (selectedTechId ?? (_technicians.isNotEmpty ? _technicians.first['id']?.toString() : defaultUuid))?.toString();
         if (techId == null || techId.isEmpty) return;
-        // Use backend assign endpoint: PATCH /service-requests/{id}/assign with { technician_id }
+
         final res = await _service.assign(token, id, {
           'technician_id': techId,
         });
@@ -133,80 +135,16 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
     }
   }
 
-  Widget _adminBottomNav() {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      currentIndex: _currentIndex,
-      onTap: (index) {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      items: [
-        BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.home,
-              label: 'Beranda',
-              currentIndex: _currentIndex,
-              itemIndex: 0,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/home-page');
-                setState(() {
-                  _currentIndex = 0;
-                });
-              },
-            ),
-            label: ''),
-        BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.build_circle,
-              label: 'Installation',
-              currentIndex: _currentIndex,
-              itemIndex: 1,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/installation-manager');
-                setState(() {
-                  _currentIndex = 1;
-                });
-              },
-            ),
-            label: ''),
-        BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.group,
-              label: 'Users',
-              currentIndex: _currentIndex,
-              itemIndex: 2,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/user-manager');
-                setState(() {
-                  _currentIndex = 2;
-                });
-              },
-            ),
-            label: ''),
-        BottomNavigationBarItem(
-            icon: CustomBottomNavigationItem(
-              icon: Icons.person,
-              label: 'Profil',
-              currentIndex: _currentIndex,
-              itemIndex: 3,
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/profile-page');
-                setState(() {
-                  _currentIndex = 3;
-                });
-              },
-            ),
-            label: ''),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Installation Manager')),
+      appBar: AppBar(
+        title: const Text('Installation Manager'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pushReplacementNamed(context, '/admin-home'),
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -231,7 +169,7 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
                       },
                     ),
             ),
-      bottomNavigationBar: _adminBottomNav(),
+      bottomNavigationBar: const AdminBottomNavigation(currentIndex: 2),
     );
   }
 }

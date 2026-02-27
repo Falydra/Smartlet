@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
@@ -29,10 +28,10 @@ class _CageDataPageState extends State<CageDataPage> {
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   void _openMapPicker() async {
-    // Open a full screen dialog with Google Map to select a location
+
     final LatLng? result = await Navigator.push<LatLng?>(
       context,
-      MaterialPageRoute(builder: (context) => _MapPickerPage(initialPosition: LatLng(-6.200000, 106.816666))),
+      MaterialPageRoute(builder: (context) => _MapPickerPage(initialPosition: const LatLng(-6.200000, 106.816666))),
     );
 
     if (result != null) {
@@ -53,11 +52,11 @@ class _CageDataPageState extends State<CageDataPage> {
     });
 
     try {
-        // Get authentication token
+
       final token = await TokenManager.getToken();
       
       if (token != null) {
-        // Validate location selected
+
         if (_selectedLatitude == null || _selectedLongitude == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Silakan pilih lokasi kandang melalui peta terlebih dahulu'), backgroundColor: Colors.red),
@@ -66,7 +65,7 @@ class _CageDataPageState extends State<CageDataPage> {
           return;
         }
 
-        // Generate RBW code based on location string and current RBW count
+
         final houseService = HouseService();
         int nextId = 1;
         try {
@@ -77,12 +76,12 @@ class _CageDataPageState extends State<CageDataPage> {
           nextId = DateTime.now().millisecondsSinceEpoch % 100000; // fallback random-ish id
         }
 
-  // Use user-provided code if present, otherwise generate one
+
   String codeSource = _locationController.text.isNotEmpty ? _locationController.text : _nameController.text;
   final generatedCode = _generateRbwCode(codeSource, nextId);
   final rbwCode = _codeController.text.trim().isNotEmpty ? _codeController.text.trim() : generatedCode;
 
-        // parse floor count safely (validator already checked, but be defensive)
+
         final parsedFloors = int.tryParse(_floorCountController.text.trim()) ?? 0;
 
         final payload = {
@@ -91,7 +90,7 @@ class _CageDataPageState extends State<CageDataPage> {
           'address': _locationController.text,
           'latitude': _selectedLatitude,
           'longitude': _selectedLongitude,
-          // API expects `total_floors` (not floor_count)
+
           'total_floors': parsedFloors,
           'description': _descriptionController.text,
         };
@@ -99,7 +98,7 @@ class _CageDataPageState extends State<CageDataPage> {
         final apiResponse = await houseService.create(token, payload);
         print('RBW created via API: $apiResponse');
 
-        // If API returned an explicit error, show it and DO NOT save locally.
+
         if (apiResponse.containsKey('error')) {
           final err = apiResponse['error'];
           final message = (err is Map) ? (err['message'] ?? err['detail'] ?? err.toString()) : err.toString();
@@ -110,7 +109,7 @@ class _CageDataPageState extends State<CageDataPage> {
           return; // stop here — do not save locally
         }
 
-        // If API successful, also save locally for offline support
+
         if (apiResponse['success'] == true || apiResponse['data'] != null) {
           await _saveToLocalStorage();
 
@@ -118,7 +117,7 @@ class _CageDataPageState extends State<CageDataPage> {
             _isLoading = false;
           });
 
-          // Show success message
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Data kandang berhasil disimpan!'),
@@ -126,7 +125,7 @@ class _CageDataPageState extends State<CageDataPage> {
             ),
           );
 
-          // Navigate to home page
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const HomePage()),
@@ -136,7 +135,7 @@ class _CageDataPageState extends State<CageDataPage> {
         }
       }
       
-  // Fallback to local storage only
+
       await _saveToLocalStorage();
       
       setState(() {
@@ -150,7 +149,7 @@ class _CageDataPageState extends State<CageDataPage> {
         ),
       );
 
-      // Navigate to home page
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
@@ -160,7 +159,7 @@ class _CageDataPageState extends State<CageDataPage> {
     } catch (e) {
       print('Error saving cage data: $e');
       
-      // Fallback to local storage on API error
+
       try {
         await _saveToLocalStorage();
         
@@ -198,28 +197,28 @@ class _CageDataPageState extends State<CageDataPage> {
   Future<void> _saveToLocalStorage() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // Get current kandang count
+
     int kandangCount = prefs.getInt('kandang_count') ?? 0;
     
-    // Increment count for new kandang
+
     kandangCount++;
     
-    // Save new kandang data
+
     await prefs.setString('kandang_${kandangCount}_name', _nameController.text);
   await prefs.setString('kandang_${kandangCount}_code', _codeController.text);
     await prefs.setString('kandang_${kandangCount}_address', _locationController.text);
     await prefs.setInt('kandang_${kandangCount}_floors', int.parse(_floorCountController.text));
     await prefs.setString('kandang_${kandangCount}_description', _descriptionController.text);
-    // No image saved locally (image input replaced with map picker)
+
     
-    // Update kandang count
+
     await prefs.setInt('kandang_count', kandangCount);
 
-    // Also save in legacy format for backward compatibility
+
     await prefs.setString('cage_address', _locationController.text);
     await prefs.setInt('cage_floors', int.parse(_floorCountController.text));
   await prefs.setString('cage_code', _codeController.text);
-    // legacy image no longer used
+
 
     print('Cage data saved locally');
   }
@@ -232,25 +231,25 @@ class _CageDataPageState extends State<CageDataPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Get current kandang count
+
       int kandangCount = prefs.getInt('kandang_count') ?? 0;
       
-      // Increment count for new empty kandang
+
       kandangCount++;
       
-      // Save empty kandang data (empty name indicates incomplete data)
+
       await prefs.setString('kandang_${kandangCount}_name', '');
       await prefs.setString('kandang_${kandangCount}_address', '');
       await prefs.setInt('kandang_${kandangCount}_floors', 3); // Default floors
       await prefs.setString('kandang_${kandangCount}_description', '');
-      // Don't save image path
+
       
-      // Update kandang count
+
       await prefs.setInt('kandang_count', kandangCount);
 
       print('Empty cage data saved for kandang_$kandangCount');
       
-      // Show message
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Data kandang dapat dilengkapi nanti'),
@@ -265,7 +264,7 @@ class _CageDataPageState extends State<CageDataPage> {
       _isLoading = false;
     });
 
-    // Navigate to home page
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const HomePage()),
@@ -300,7 +299,7 @@ class _CageDataPageState extends State<CageDataPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+
               const Text(
                 'Lengkapi Data Kandang Anda',
                 style: TextStyle(
@@ -323,7 +322,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 32),
 
-              // Location (pick on map)
+
               const Text(
                 'Lokasi (Pilih di Peta)',
                 style: TextStyle(
@@ -392,7 +391,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 24),
 
-              // Code Field (optional)
+
               const Text(
                 'Kode RBW (opsional)',
                 style: TextStyle(
@@ -434,7 +433,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 24),
 
-              // Name Field
+
               const Text(
                 'Nama Kandang',
                 style: TextStyle(
@@ -479,7 +478,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 24),
 
-              // Location Field
+
               const Text(
                 'Lokasi Kandang',
                 style: TextStyle(
@@ -525,7 +524,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 24),
 
-              // Floor Count Field
+
               const Text(
                 'Jumlah Lantai',
                 style: TextStyle(
@@ -578,7 +577,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 24),
 
-              // Description Field
+
               const Text(
                 'Deskripsi Kandang',
                 style: TextStyle(
@@ -612,14 +611,14 @@ class _CageDataPageState extends State<CageDataPage> {
                   suffixIcon: Icon(Icons.description, color: Colors.grey[400]),
                 ),
                 validator: (value) {
-                  // Description is optional, so no validation required
+
                   return null;
                 },
               ),
 
               const SizedBox(height: 40),
 
-              // Save Button
+
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -654,7 +653,7 @@ class _CageDataPageState extends State<CageDataPage> {
 
               const SizedBox(height: 16),
 
-              // Cancel Button
+
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -685,7 +684,7 @@ class _CageDataPageState extends State<CageDataPage> {
   }
 }
 
-// Helper to generate RBW code: RBW-<3letters>-<id>
+
 String _generateRbwCode(String source, int id) {
   final cleaned = source.replaceAll(RegExp(r'[^A-Za-z]'), '').toUpperCase();
   String first = 'X';
@@ -710,7 +709,26 @@ class _MapPickerPage extends StatefulWidget {
 
 class _MapPickerPageState extends State<_MapPickerPage> {
   LatLng? _picked;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
+  final Set<Marker> _markers = {};
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+  }
+
+  void _onMapTapped(LatLng position) {
+    setState(() {
+      _picked = position;
+      _markers.clear();
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: position,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -718,6 +736,7 @@ class _MapPickerPageState extends State<_MapPickerPage> {
       appBar: AppBar(
         title: const Text('Pilih Lokasi'),
         backgroundColor: const Color(0xFF245C4C),
+        foregroundColor: Colors.white,
         actions: [
           TextButton(
             onPressed: () {
@@ -727,34 +746,18 @@ class _MapPickerPageState extends State<_MapPickerPage> {
           )
         ],
       ),
-      body: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          center: widget.initialPosition,
+      body: GoogleMap(
+        onMapCreated: _onMapCreated,
+        initialCameraPosition: CameraPosition(
+          target: widget.initialPosition,
           zoom: 15,
-          onTap: (tapPosition, point) {
-            setState(() {
-              _picked = LatLng(point.latitude, point.longitude);
-            });
-          },
         ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            subdomains: const ['a', 'b', 'c'],
-          ),
-          if (_picked != null)
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: _picked!,
-                  width: 80,
-                  height: 80,
-                  builder: (ctx) => const Icon(Icons.location_on, color: Colors.red, size: 40),
-                ),
-              ],
-            ),
-        ],
+        onTap: _onMapTapped,
+        markers: _markers,
+        myLocationEnabled: true,
+        myLocationButtonEnabled: true,
+        zoomControlsEnabled: true,
+        mapToolbarEnabled: false,
       ),
     );
   }

@@ -167,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(
                   height: 5,
                 ),
-                // Google Sign-In removed — using API authentication only.
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -205,7 +205,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Email/Password Sign-In with API Integration
+
   void _signin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       _showErrorDialog("Email dan password tidak boleh kosong");
@@ -220,27 +220,28 @@ class _LoginPageState extends State<LoginPage> {
     String password = _passwordController.text;
 
     try {
-      // Try API login first
+
       final apiResponse = await _apiAuth.login(email, password);
       
-      // The API sometimes returns {data: {token: ..., user: {...}}} without a 'success' flag.
-      // Accept both shapes: either {success: true, data: {...}} or {data: {...}} (or top-level token/user).
+
+
       final dynamic responseBody = apiResponse;
       final dynamic userData = (responseBody is Map && responseBody.containsKey('data'))
           ? responseBody['data']
           : responseBody;
 
       if (userData != null && userData is Map && (userData['token'] != null || userData.containsKey('user'))) {
-        // API login successful
+
         final token = userData['token'];
         final user = userData['user'] ?? userData;
         
-        // Save authentication data
+
         await TokenManager.saveAuthData(
           token: token,
           userId: user['id'].toString(),
           userName: user['name'] ?? '',
           userEmail: user['email'] ?? email,
+          userRole: user['role']?.toString() ?? 'farmer',
         );
         
         if (!mounted) return;
@@ -252,8 +253,8 @@ class _LoginPageState extends State<LoginPage> {
         );
         return;
       }
-      // If we reach here, API login did not return success.
-      // Log the full API response for debugging and show server message if available.
+
+
       print('API login response (not successful): $apiResponse');
       if (apiResponse.containsKey('message') && apiResponse['message'] != null) {
         _showErrorDialog(apiResponse['message'].toString());
@@ -262,10 +263,10 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       print("API Login failed: $e");
-      // Continue to Firebase fallback
+
     }
 
-    // No Firebase fallback — show generic error if API login failed
+
     _showErrorDialog("Email atau password salah");
     if (mounted) {
       setState(() {
@@ -292,5 +293,5 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Google Sign-In removed; social login should be implemented via API.
+
 }

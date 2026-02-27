@@ -5,8 +5,8 @@ import 'api_constants.dart';
 class HarvestService {
   final String baseUrl = ApiConstants.harvests;
 
-  /// Get harvests with optional filters.
-  /// Supports query params: limit, offset, rbw_id, floor_no
+
+
   Future<List<dynamic>> getAll(String token, {int limit = 50, int offset = 0, String? rbwId, int? floorNo}) async {
     final queryParams = <String, String>{
       'limit': limit.toString(),
@@ -37,7 +37,7 @@ class HarvestService {
         final data = jsonDecode(response.body);
         return {'success': true, ...data};
       } else {
-        // Error response
+
         try {
           final errorData = jsonDecode(response.body);
           return {

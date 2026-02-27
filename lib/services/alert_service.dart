@@ -21,7 +21,7 @@ class AlertService {
   }
 
   Future<Map<String,dynamic>> createLocalSynthetic(String token, {required String title, required String message, String? rbwId, String severity = 'info'}) async {
-    // If backend doesn't support create yet; fallback to local synthetic map for display
+
     return {
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'title': title,

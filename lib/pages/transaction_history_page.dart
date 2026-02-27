@@ -61,7 +61,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
               backgroundColor: Colors.green,
             ),
           );
-          // Return true to indicate data has changed
+
           Navigator.pop(context, true);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -106,7 +106,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   }
 
   Future<void> _editTransaction(Map<String, dynamic> transaction) async {
-    // Determine if it's income or expense
+
     final categoryName = (transaction['category_name']?.toString() ?? '').toLowerCase();
     final isIncome = categoryName.contains('penjualan');
     
@@ -120,7 +120,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
     );
     
     if (result == true && mounted) {
-      // Return true to indicate data has changed
+
       Navigator.pop(context, true);
     }
   }
@@ -137,7 +137,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       ),
       body: Column(
         children: [
-          // Header Info
+
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -205,7 +205,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
             ),
           ),
 
-          // Transaction List
+
           Expanded(
             child: _transactions.isEmpty
                 ? Center(
@@ -234,7 +234,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                     itemBuilder: (context, index) {
                       final transaction = _transactions[index];
 
-                      // Get category name - API returns it directly as 'category_name'
+
                       final categoryName = (transaction['category_name']?.toString() ??
                           transaction['category']?['name']?.toString() ??
                           '').toLowerCase();
@@ -253,12 +253,12 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                               transaction['category']?['name']?.toString() ??
                               'Tanpa Kategori';
 
-                      // Get house name - API returns it directly as 'rbw_name'
+
                       String houseName = transaction['rbw_name']?.toString() ??
                           transaction['house_name']?.toString() ??
                           '';
 
-                      // If not in transaction, try to match from houses list
+
                       if (houseName.isEmpty) {
                         final transactionHouseId =
                             transaction['rbw_id']?.toString() ??
@@ -288,7 +288,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
-                              // Icon
+
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
@@ -309,7 +309,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                               ),
                               const SizedBox(width: 12),
 
-                              // Transaction Details
+
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,7 +382,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                                 ),
                               ),
 
-                              // Amount
+
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
@@ -408,11 +408,11 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  // Edit and Delete buttons
+
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // Edit button
+
                                       InkWell(
                                         onTap: () => _editTransaction(transaction),
                                         child: Container(
@@ -429,7 +429,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      // Delete button
+
                                       InkWell(
                                         onTap: () => _showDeleteConfirmation(
                                           transaction['id']?.toString() ?? '',

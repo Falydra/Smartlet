@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
 class TransactionCategoryService {
-  // Get all transaction categories
+
   Future<List<dynamic>> getAll(String token) async {
     try {
       print('[CATEGORY SERVICE] Fetching from: ${ApiConstants.apiBaseUrl}/transaction-categories');
@@ -49,7 +49,7 @@ class TransactionCategoryService {
     }
   }
 
-  // Get category by ID
+
   Future<Map<String, dynamic>?> getById(String token, String id) async {
     try {
       final response = await http.get(
@@ -75,7 +75,7 @@ class TransactionCategoryService {
     }
   }
 
-  // Create new category
+
   Future<Map<String, dynamic>> create(String token, Map<String, dynamic> data) async {
     try {
       final response = await http.post(
@@ -107,7 +107,7 @@ class TransactionCategoryService {
     }
   }
 
-  // Update category
+
   Future<Map<String, dynamic>> update(String token, String id, Map<String, dynamic> data) async {
     try {
       final response = await http.put(
@@ -139,7 +139,7 @@ class TransactionCategoryService {
     }
   }
 
-  // Delete category
+
   Future<Map<String, dynamic>> delete(String token, String id) async {
     try {
       final response = await http.delete(

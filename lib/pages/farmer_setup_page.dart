@@ -1,14 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/pages/home_page.dart';
+import 'package:swiftlead/admin/admin_home_page.dart';
+import 'package:swiftlead/utils/token_manager.dart';
 
-class FarmerSetupPage extends StatelessWidget {
+class FarmerSetupPage extends StatefulWidget {
   const FarmerSetupPage({super.key});
 
   @override
+  State<FarmerSetupPage> createState() => _FarmerSetupPageState();
+}
+
+class _FarmerSetupPageState extends State<FarmerSetupPage> {
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole();
+  }
+
+  Future<void> _checkUserRole() async {
+    final role = await TokenManager.getUserRole();
+    if (role == 'admin' && mounted) {
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AdminHomePage()),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    double width(BuildContext context) => MediaQuery.of(context).size.width;
-    double height(BuildContext context) => MediaQuery.of(context).size.height;
+    double width = MediaQuery.of(context).size.width;
+    double height = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -19,9 +43,9 @@ class FarmerSetupPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Logo
+
               Container(
-                margin: EdgeInsets.only(bottom: height(context) * 0.01),
+                margin: EdgeInsets.only(bottom: height * 0.01),
                 child: Image.asset(
                   'assets/img/logo2.png',
                   width: 160,
@@ -29,7 +53,7 @@ class FarmerSetupPage extends StatelessWidget {
                 ),
               ),
 
-              // Welcome Text
+
               const Text(
                 'Selamat Datang!',
                 style: TextStyle(
@@ -42,7 +66,7 @@ class FarmerSetupPage extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // Question
+
               const Text(
                 'Apakah Anda seorang peternak burung walet?',
                 style: TextStyle(
@@ -67,7 +91,7 @@ class FarmerSetupPage extends StatelessWidget {
 
               const SizedBox(height: 60),
 
-              // Farmer Icon
+
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -83,9 +107,9 @@ class FarmerSetupPage extends StatelessWidget {
 
               const SizedBox(height: 60),
 
-              // Yes Button
+
               SizedBox(
-                width: width(context) * 0.8,
+                width: width * 0.8,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
@@ -116,7 +140,7 @@ class FarmerSetupPage extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Skip Button
+
               TextButton(
                 onPressed: () {
                   Navigator.pushReplacement(

@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'api_constants.dart';
 
 class HouseService {
-  // The API now exposes RBW (swiftlet houses) under /api/v1/rbw
+
   final String baseUrl = ApiConstants.rbw;
 
   Future<List<dynamic>> getAll(String token) async {
@@ -91,8 +91,8 @@ class HouseService {
       Uri.parse("$baseUrl/$id"),
       headers: ApiConstants.authHeadersOnly(token),
     );
-    // Some APIs return an empty body (204 No Content) on delete.
-    // Be defensive: if body is empty, return a minimal success map based on status code.
+
+
     final status = response.statusCode;
     if (response.body.trim().isEmpty) {
       return {
@@ -104,7 +104,7 @@ class HouseService {
 
     try {
       final body = jsonDecode(response.body);
-      // Normalize result
+
       if (body is Map<String, dynamic>) {
         body['statusCode'] = status;
         if (!body.containsKey('success')) {
@@ -118,7 +118,7 @@ class HouseService {
         'data': body,
       };
     } catch (e) {
-      // If response body is not valid JSON, return raw body as message
+
       return {
         'success': (status == 200 || status == 201 || status == 204),
         'statusCode': status,

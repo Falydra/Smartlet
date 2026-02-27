@@ -8,9 +8,9 @@ import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/pages/cage_selection_page.dart';
 
 import 'package:swiftlead/services/house_services.dart';
-// Removed deprecated services: DeviceService (iot-devices) & DeviceInstallationService
-// import 'package:swiftlead/services/devices.services.dart';
-// import 'package:swiftlead/services/device_installation_service.dart';
+
+
+
 import 'package:swiftlead/services/sensor_services.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/services/ai_service.dart';
@@ -32,38 +32,38 @@ class ControlPage extends StatefulWidget {
 class _ControlPageState extends State<ControlPage> {
   int _currentIndex = 1;
 
-  // API Services
+
   final HouseService _houseService = HouseService();
-  // Removed deprecated services; device management now through nodes API
-  // final DeviceService _deviceService = DeviceService();
-  // final DeviceInstallationService _installationService = DeviceInstallationService();
+
+
+
   final SensorService _sensorService = SensorService();
   final NodeService _nodeService = NodeService();
   final AIService _aiService = AIService();
 
-  // State management
+
   bool _isLoading = true;
   String? _authToken;
 
-  // AI Anomaly Detection State
+
   Map<String, dynamic>? _anomalyData;
   bool _hasAnomalies = false;
 
-  // AI Comprehensive Analysis State
+
   Map<String, dynamic>? _aiAnalysis;
   bool _isLoadingAI = false;
 
-  // Health scores for sensors (0-100)
+
   double? _tempHealthScore;
   double? _humidityHealthScore;
   double? _ammoniaHealthScore;
   double? _overallHealthScore;
 
   List<dynamic> _houses = [];
-  // TODO: Replace with nodes data when available
-  // List<dynamic> _devices = [];
 
-  // Selected cage info
+
+
+
   Map<String, dynamic>? _selectedHouse;
   String _cageName = 'Kandang 1';
   String _cageAddress = 'Alamat kandang belum diisi';
@@ -75,12 +75,12 @@ class _ControlPageState extends State<ControlPage> {
       []; // store node objects for actuator + floor mapping
   List<Map<String, dynamic>> _sensors = [];
 
-  // Environment metrics state
+
   _MetricState? tempState;
   _MetricState? humidityState;
   _MetricState? ammoniaState;
 
-  // Real sensor data
+
   List<Map<String, dynamic>> _sensorData = [];
   Map<String, dynamic>?
       _latestSensorData; // newest individual reading among all
@@ -89,8 +89,8 @@ class _ControlPageState extends State<ControlPage> {
   Map<int, Map<String, dynamic>> _latestByMetricPerFloor =
       {}; // floor -> metric map
 
-  // Floor 2 metric states (explicit request)
-  // Floor 1 & 2 metric states
+
+
   _MetricState? tempFloor1State;
   _MetricState? humidityFloor1State;
   _MetricState? ammoniaFloor1State;
@@ -98,7 +98,7 @@ class _ControlPageState extends State<ControlPage> {
   _MetricState? humidityFloor2State;
   _MetricState? ammoniaFloor2State;
 
-  // Actuator states (Mist Spray pump & Tweeter audio)
+
   String? _pumpNodeId;
   bool? _pumpState;
   bool _pumpLoading = false;
@@ -110,24 +110,24 @@ class _ControlPageState extends State<ControlPage> {
   bool? _audioNestState;
   bool _audioNestLoading = false;
 
-  // Timer states for each actuator
+
   DateTime? _pumpTimerEnd;
   DateTime? _audioBothTimerEnd;
   DateTime? _audioLmbTimerEnd;
   DateTime? _audioNestTimerEnd;
   Timer? _actuatorTimer;
 
-  // Notification IDs for updating progress
+
   int? _pumpNotificationId;
   int? _audioBothNotificationId;
   int? _audioLmbNotificationId;
   int? _audioNestNotificationId;
 
-  // Sistem Suara and Water Level per floor
+
   List<_FloorStatus> soundSystem = [];
   List<_MetricState> waterLevelPerFloor = [];
 
-  // Timer for periodic data refresh
+
   Timer? _refreshTimer;
   final AlertService _alertService = AlertService();
   final NotificationManager _notif = NotificationManager();
@@ -135,17 +135,17 @@ class _ControlPageState extends State<ControlPage> {
   @override
   void initState() {
     super.initState();
-    // Initialize with demo data immediately to prevent null errors
+
     _initDemoData();
-    // Initialize background service
+
     _initBackgroundService();
-    // Then try to load real data
+
     _initializeData();
   }
 
   Future<void> _initBackgroundService() async {
     await TimerBackgroundService.initialize();
-    // Load saved timers from background service
+
     await _loadSavedTimers();
   }
 
@@ -181,7 +181,7 @@ class _ControlPageState extends State<ControlPage> {
       });
     }
 
-    // Start UI timer if any timers are active
+
     if (_pumpTimerEnd != null ||
         _audioBothTimerEnd != null ||
         _audioLmbTimerEnd != null ||
@@ -198,27 +198,27 @@ class _ControlPageState extends State<ControlPage> {
     });
 
     try {
-      // Get authentication token
+
       _authToken = await TokenManager.getToken();
 
       if (_authToken == null) {
-        // User not logged in, redirect to login
+
         _showLoginRequired();
         return;
       }
 
-      // Load houses and devices from API
+
       await _loadHousesFromAPI();
       if (!mounted) return;
 
       await _loadNodesAndSensors();
       if (!mounted) return;
 
-      // Check if user has any kandang data
+
       _checkKandangData();
 
       if (_hasValidKandang && _selectedHouse != null) {
-        // Always try to load sensor data first via readings endpoint
+
         await _loadSensorReadingsFromQuery();
         if (!mounted) return;
 
@@ -236,7 +236,7 @@ class _ControlPageState extends State<ControlPage> {
       }
     } catch (e) {
       print('Error initializing data: $e');
-      // Fallback to local storage check
+
       await _loadCageData();
       if (!mounted) return;
 
@@ -299,7 +299,7 @@ class _ControlPageState extends State<ControlPage> {
                 print('[LOAD NODES] About to register actuator for node: $nid');
                 _maybeRegisterActuatorNode(n); // identify pump/audio nodes
               }
-              // fetch sensors via dedicated endpoint
+
               final sensorsRes =
                   await _nodeService.getSensorsByNode(_authToken!, nid);
 
@@ -309,7 +309,7 @@ class _ControlPageState extends State<ControlPage> {
                 final sList = (sensorsRes['data'] as List<dynamic>?) ?? [];
                 for (final s in sList) {
                   if (s is Map<String, dynamic>) {
-                    // ensure node_id present
+
                     s['node_id'] ??= nid;
                     _sensors.add(Map<String, dynamic>.from(s));
                   }
@@ -330,7 +330,7 @@ class _ControlPageState extends State<ControlPage> {
 
   void _checkKandangData() {
     if (_houses.isNotEmpty) {
-      // Use first house as selected
+
       _selectedHouse = _houses.first;
       _cageName = _selectedHouse!['name'] ?? 'Kandang 1';
       _cageAddress = _selectedHouse!['address'] ?? 'Alamat tidak tersedia';
@@ -347,9 +347,9 @@ class _ControlPageState extends State<ControlPage> {
 
     print('=== CHECKING DEVICE INSTALLATION ===');
 
-    // NOTE: Previously used deprecated DeviceInstallationService.checkDeviceInstallation()
-    // TODO: Replace with nodes API: GET /rbw/{house_id}/nodes
-    // Node-based installation already processed in _loadNodesAndSensors
+
+
+
   }
 
   Future<void> _loadSensorReadingsFromQuery() async {
@@ -357,7 +357,7 @@ class _ControlPageState extends State<ControlPage> {
     List<Map<String, dynamic>> collected = [];
     DateTime? newestTs;
     Map<String, dynamic>? newestRecord;
-    // Track latest per metric
+
     double? temperature;
     double? humidity;
     double? ammonia;
@@ -365,7 +365,7 @@ class _ControlPageState extends State<ControlPage> {
     String? humiditySensorId;
     String? ammoniaSensorId;
     DateTime? latestMetricTs;
-    // Per-floor trackers
+
     final Map<int, double?> tempPerFloor = {};
     final Map<int, double?> humidityPerFloor = {};
     final Map<int, double?> ammoniaPerFloor = {};
@@ -386,7 +386,7 @@ class _ControlPageState extends State<ControlPage> {
         if (res['data'] is List) {
           final List<dynamic> readings = res['data'];
 
-          // Sort readings by recorded_at desc (newest first) and collect all
+
           readings.sort((a, b) {
             final aTime =
                 DateTime.tryParse(a['recorded_at']?.toString() ?? '') ??
@@ -408,7 +408,7 @@ class _ControlPageState extends State<ControlPage> {
             }
           }
 
-          // Take newest for this sensor and classify into metric buckets
+
           if (readings.isNotEmpty) {
             final newest = readings.first;
             if (newest is Map<String, dynamic>) {
@@ -430,7 +430,7 @@ class _ControlPageState extends State<ControlPage> {
                   ammoniaSensorId = sid;
                   latestMetricTs = _pickLatest(latestMetricTs, ts);
                 }
-                // per-floor capture
+
                 if (floor != null) {
                   if (metric == 'temperature') {
                     tempPerFloor[floor] = val;
@@ -447,8 +447,8 @@ class _ControlPageState extends State<ControlPage> {
                   }
                 }
               }
-              // Debug
-              // ignore: avoid_print
+
+
               print(
                   '[CONTROL] Sensor $sid type=${sensor['type'] ?? sensor['name'] ?? sensor['label']} classified=$metric value=$val at ${newest['recorded_at']}');
             }
@@ -471,7 +471,7 @@ class _ControlPageState extends State<ControlPage> {
         'humiditySensorId': humiditySensorId,
         'ammoniaSensorId': ammoniaSensorId,
       };
-      // Build per-floor metric map
+
       _latestByMetricPerFloor.clear();
       final floors = {
         ...tempPerFloor.keys,
@@ -492,14 +492,14 @@ class _ControlPageState extends State<ControlPage> {
     });
   }
 
-  // Removed legacy _printLatestThreeSensorData helper
 
-  // Removed legacy getLatestThreeSensorData() helper
+
+
 
   void _initMetricsWithRealData() {
     if (_sensorData.isEmpty || _latestByMetric == null) {
       print('No real sensor data available, falling back to demo data');
-      // Fallback to demo data if no real data available
+
       _initDemoData();
       return;
     }
@@ -507,7 +507,7 @@ class _ControlPageState extends State<ControlPage> {
     print('Initializing metrics with real sensor data');
     print('Latest by metric: $_latestByMetric');
 
-    // Create metric states from real sensor data
+
     tempState = _createMetricFromSensorData(
       name: 'Suhu',
       unit: '°C',
@@ -552,7 +552,7 @@ class _ControlPageState extends State<ControlPage> {
     _initFloorMetricsFromRealData(1);
     _initFloorMetricsFromRealData(
         2); // build metrics for floor 1 & 2 if present
-    // Evaluate immediately as well
+
     _evaluateAndNotifyConditions();
   }
 
@@ -566,10 +566,10 @@ class _ControlPageState extends State<ControlPage> {
     required double currentValue,
     required DateTime currentTimestamp,
   }) {
-    // Convert sensor data to chart points
+
     List<FlSpot> points = [];
 
-    // Convert generic reading objects to points using recorded_at & value
+
     for (int i = 0; i < _sensorData.length && i < 288; i++) {
       final data = _sensorData[_sensorData.length - 1 - i];
       try {
@@ -598,7 +598,7 @@ class _ControlPageState extends State<ControlPage> {
   }
 
   void _startPeriodicRefresh() {
-    // Cancel existing timer if any
+
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (timer) async {
       if (!mounted) {
@@ -616,25 +616,25 @@ class _ControlPageState extends State<ControlPage> {
     });
   }
 
-  // Check AI anomaly detection for sudden spikes/drops
+
   Future<void> _evaluateAndNotifyConditions() async {
     if (_authToken == null) return;
 
-    // Only check AI anomaly detection - no notifications for normal condition changes
+
     await _checkAnomalies();
   }
 
-  /// Check for sensor anomalies using AI
-  /// Detects sudden spikes/drops and abnormal readings
+
+
   Future<void> _checkAnomalies() async {
     if (!mounted) return;
     if (_authToken == null || _latestByMetric == null) return;
 
-    // Only check if we have valid node IDs
+
     if (_nodeIds.isEmpty) return;
 
     try {
-      // Prepare sensor data for AI analysis
+
       final sensorData = {
         'temperature': _latestByMetric?['temperature'],
         'humidity': _latestByMetric?['humidity'],
@@ -643,7 +643,7 @@ class _ControlPageState extends State<ControlPage> {
         'lux': _latestByMetric?['lux'] ?? 500, // Default lux if not available
       };
 
-      // Use the first node ID for anomaly detection
+
       final nodeId = _nodeIds.first;
 
       final anomalyResult = await _aiService.detectAnomaly(
@@ -659,12 +659,12 @@ class _ControlPageState extends State<ControlPage> {
         _hasAnomalies = _aiService.hasCriticalAnomalies(anomalyResult);
       });
 
-      // Show notification for ANY anomaly detected (including sudden spikes/drops)
+
       if (anomalyResult['anomaly_detected'] == true) {
         final anomalies = anomalyResult['anomalies'] as List?;
 
         if (anomalies != null && anomalies.isNotEmpty) {
-          // Get severity level for notification priority
+
           final hasCritical = anomalies.any((a) =>
               (a['severity'] ?? '').toString().toLowerCase() == 'critical');
           final hasHigh = anomalies.any(
@@ -673,7 +673,7 @@ class _ControlPageState extends State<ControlPage> {
           final severity =
               hasCritical ? 'critical' : (hasHigh ? 'high' : 'medium');
 
-          // Build detailed message from anomalies
+
           final messages = anomalies.map((a) {
             final sensor = a['sensor'] ?? 'Sensor';
             final value = a['value'] ?? '-';
@@ -685,7 +685,7 @@ class _ControlPageState extends State<ControlPage> {
               ? '🚨 Anomali Kritis Terdeteksi'
               : (hasHigh ? '⚠️ Anomali Terdeteksi' : '⚠️ Perhatian');
 
-          // Show notification with sound for anomalies
+
           await LocalNotificationHelper().showWithSound(
             title: title,
             body: messages,
@@ -694,7 +694,7 @@ class _ControlPageState extends State<ControlPage> {
 
           if (!mounted) return;
 
-          // Add to alerts system
+
           final synthetic = await _alertService.createLocalSynthetic(
             _authToken!,
             title: 'AI Anomaly Detection',
@@ -711,7 +711,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// Show detailed anomaly information dialog
+
   void _showAnomalyDetails() {
     if (_anomalyData == null) return;
 
@@ -814,7 +814,7 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 
-  // Shared helpers with Home
+
   String? _classifySensorMetric(Map<String, dynamic> s) {
     final raw = (s['sensor_type'] ?? s['type'] ?? s['name'] ?? s['label'] ?? '')
         .toString()
@@ -852,12 +852,12 @@ class _ControlPageState extends State<ControlPage> {
       final now = DateTime.now();
       bool needsUpdate = false;
 
-      // Check pump timer
+
       if (_pumpTimerEnd != null && now.isAfter(_pumpTimerEnd!)) {
         _togglePump(false);
         await TimerBackgroundService.clearTimer('pump');
 
-        // Show notification
+
         await LocalNotificationHelper().showWithSound(
           title: '⏰ Timer Selesai',
           body:
@@ -872,12 +872,12 @@ class _ControlPageState extends State<ControlPage> {
         needsUpdate = true;
       }
 
-      // Check audio both timer
+
       if (_audioBothTimerEnd != null && now.isAfter(_audioBothTimerEnd!)) {
         _toggleAudioBoth(false);
         await TimerBackgroundService.clearTimer('audio_both');
 
-        // Show notification
+
         await LocalNotificationHelper().showWithSound(
           title: '⏰ Timer Selesai',
           body:
@@ -892,12 +892,12 @@ class _ControlPageState extends State<ControlPage> {
         needsUpdate = true;
       }
 
-      // Check audio LMB timer
+
       if (_audioLmbTimerEnd != null && now.isAfter(_audioLmbTimerEnd!)) {
         _toggleAudioLmb(false);
         await TimerBackgroundService.clearTimer('audio_lmb');
 
-        // Show notification
+
         await LocalNotificationHelper().showWithSound(
           title: '⏰ Timer Selesai',
           body:
@@ -912,12 +912,12 @@ class _ControlPageState extends State<ControlPage> {
         needsUpdate = true;
       }
 
-      // Check audio Nest timer
+
       if (_audioNestTimerEnd != null && now.isAfter(_audioNestTimerEnd!)) {
         _toggleAudioNest(false);
         await TimerBackgroundService.clearTimer('audio_nest');
 
-        // Show notification
+
         await LocalNotificationHelper().showWithSound(
           title: '⏰ Timer Selesai',
           body:
@@ -932,17 +932,17 @@ class _ControlPageState extends State<ControlPage> {
         needsUpdate = true;
       }
 
-      // Update UI to show countdown and update notifications
+
       if (_pumpTimerEnd != null ||
           _audioBothTimerEnd != null ||
           _audioLmbTimerEnd != null ||
           _audioNestTimerEnd != null) {
-        // Update notifications with current countdown every second
+
         _updateTimerNotifications(now);
 
         if (mounted) setState(() {});
       } else {
-        // No more active timers, stop the UI timer
+
         timer.cancel();
         _actuatorTimer = null;
       }
@@ -954,9 +954,9 @@ class _ControlPageState extends State<ControlPage> {
     _actuatorTimer = null;
   }
 
-  /// Update timer notifications with current countdown
+
   Future<void> _updateTimerNotifications(DateTime now) async {
-    // Update pump notification
+
     if (_pumpTimerEnd != null && _pumpNotificationId != null) {
       final remaining = _pumpTimerEnd!.difference(now);
       if (remaining.inSeconds > 0) {
@@ -969,7 +969,7 @@ class _ControlPageState extends State<ControlPage> {
       }
     }
 
-    // Update audio both notification
+
     if (_audioBothTimerEnd != null && _audioBothNotificationId != null) {
       final remaining = _audioBothTimerEnd!.difference(now);
       if (remaining.inSeconds > 0) {
@@ -982,7 +982,7 @@ class _ControlPageState extends State<ControlPage> {
       }
     }
 
-    // Update audio LMB notification
+
     if (_audioLmbTimerEnd != null && _audioLmbNotificationId != null) {
       final remaining = _audioLmbTimerEnd!.difference(now);
       if (remaining.inSeconds > 0) {
@@ -995,7 +995,7 @@ class _ControlPageState extends State<ControlPage> {
       }
     }
 
-    // Update audio Nest notification
+
     if (_audioNestTimerEnd != null && _audioNestNotificationId != null) {
       final remaining = _audioNestTimerEnd!.difference(now);
       if (remaining.inSeconds > 0) {
@@ -1049,7 +1049,7 @@ class _ControlPageState extends State<ControlPage> {
                 const SizedBox(height: 12),
                 ...devices
                     .map((device) {
-                      // Check if device is already active
+
                       bool isActive = false;
                       if (device['id'] == 'pump') {
                         isActive = _pumpState == true;
@@ -1116,7 +1116,7 @@ class _ControlPageState extends State<ControlPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Minutes picker
+
                     Column(
                       children: [
                         Text('Menit',
@@ -1166,7 +1166,7 @@ class _ControlPageState extends State<ControlPage> {
                         style: TextStyle(
                             fontSize: 32, fontWeight: FontWeight.bold)),
                     const SizedBox(width: 20),
-                    // Seconds picker
+
                     Column(
                       children: [
                         Text('Detik',
@@ -1254,7 +1254,7 @@ class _ControlPageState extends State<ControlPage> {
                 }
                 final totalSeconds = (selectedMinutes * 60) + selectedSeconds;
                 if (totalSeconds > 0) {
-                  // Apply timer to all selected devices
+
                   final endTime =
                       DateTime.now().add(Duration(seconds: totalSeconds));
                   setState(() {
@@ -1343,7 +1343,7 @@ class _ControlPageState extends State<ControlPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Minutes picker
+
                   Column(
                     children: [
                       Text('Menit',
@@ -1392,7 +1392,7 @@ class _ControlPageState extends State<ControlPage> {
                       style:
                           TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                   const SizedBox(width: 20),
-                  // Seconds picker
+
                   Column(
                     children: [
                       Text('Detik',
@@ -1493,7 +1493,7 @@ class _ControlPageState extends State<ControlPage> {
   }
 
   void _showLoginRequired() {
-    // Show login required dialog or redirect to login
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showDialog(
         context: context,
@@ -1520,23 +1520,23 @@ class _ControlPageState extends State<ControlPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Check for valid kandang data
+
       bool hasValidData = false;
       String cageName = 'Kandang 1';
       String cageAddress = 'Alamat kandang belum diisi';
       int cageFloors = 3;
 
-      // Get kandang count
+
       int kandangCount = prefs.getInt('kandang_count') ?? 0;
 
       if (kandangCount > 0) {
-        // Check all kandang for at least one complete entry
+
         for (int i = 1; i <= kandangCount; i++) {
           final address = prefs.getString('kandang_${i}_address');
           final floors = prefs.getInt('kandang_${i}_floors');
 
           if (address != null && address.isNotEmpty && floors != null) {
-            // Found at least one complete kandang
+
             hasValidData = true;
             cageName = 'Kandang $floors Lantai';
             cageAddress = address;
@@ -1545,7 +1545,7 @@ class _ControlPageState extends State<ControlPage> {
           }
         }
       } else {
-        // Check legacy data
+
         final legacyAddress = prefs.getString('cage_address');
         final legacyFloors = prefs.getInt('cage_floors');
 
@@ -1566,7 +1566,7 @@ class _ControlPageState extends State<ControlPage> {
         _hasValidKandang = hasValidData;
       });
 
-      // Only initialize control data if we have valid kandang
+
       if (hasValidData) {
         if (_hasDeviceInstalled) {
           await _loadSensorReadingsFromQuery();
@@ -1577,7 +1577,7 @@ class _ControlPageState extends State<ControlPage> {
         }
       }
     } catch (_) {
-      // Use defaults on failure
+
       if (mounted) {
         setState(() {
           _hasValidKandang = false;
@@ -1612,7 +1612,7 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 
-  // Initialize real metrics for a given floor from collected readings
+
   void _initFloorMetricsFromRealData(int floor) {
     final data = _latestByMetricPerFloor[floor];
     if (data == null) return;
@@ -1670,7 +1670,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  // Attempt to map node to floor using common keys or parsing code/name
+
   int? _floorForNode(String? nodeId) {
     if (nodeId == null) return null;
     final node = _nodes.firstWhere(
@@ -1698,7 +1698,7 @@ class _ControlPageState extends State<ControlPage> {
     if (match != null) {
       return int.tryParse(match.group(1)!);
     }
-    // Heuristic: trailing 3 digits like 001 / 002 => use last digit if 1-9
+
     final trailingDigits = RegExp(r'(\d{3})$').firstMatch(codeLike);
     if (trailingDigits != null) {
       final digits = trailingDigits.group(1)!; // e.g. 001
@@ -1709,7 +1709,7 @@ class _ControlPageState extends State<ControlPage> {
     return null;
   }
 
-  // Detect actuator nodes and capture initial states
+
   void _maybeRegisterActuatorNode(Map<String, dynamic> n) {
     final type = (n['type'] ?? n['node_type'] ?? '').toString().toLowerCase();
     final hasAudio = n['has_audio'] == true;
@@ -1717,7 +1717,7 @@ class _ControlPageState extends State<ControlPage> {
     print(
         '[ACTUATOR DEBUG] Node: ${n['id']} type=$type has_audio=$hasAudio has_pump=$hasPump state_audio=${n['state_audio']} state_pump=${n['state_pump']}');
 
-    // Mist Spray / Pump - Enhanced detection for node_type='pump' and has_pump=true
+
     if (type.contains('pump') ||
         type.contains('mist') ||
         type.contains('spray') ||
@@ -1727,7 +1727,7 @@ class _ControlPageState extends State<ControlPage> {
           _extractBoolState(n, ['pump_state', 'state_pump', 'state', 'active']);
       print('[PUMP DETECTED] NodeId=$_pumpNodeId, State=$_pumpState');
     }
-    // Audio / Speaker - Check has_audio flag (nest nodes can have audio)
+
     if (type.contains('audio') ||
         type.contains('tweeter') ||
         type.contains('sound') ||
@@ -1778,14 +1778,14 @@ class _ControlPageState extends State<ControlPage> {
       if (res['success'] == true) {
         setState(() {
           _pumpState = value;
-          // Clear timer when manually turned off
+
           if (!value) {
             _pumpTimerEnd = null;
             TimerBackgroundService.clearTimer('pump');
           }
         });
 
-        // Show notification when turned ON
+
         if (value) {
           final timerInfo = _pumpTimerEnd != null
               ? '\nTimer: ${_formatDuration(_pumpTimerEnd!.difference(DateTime.now()))}'
@@ -1799,7 +1799,7 @@ class _ControlPageState extends State<ControlPage> {
             id: _pumpNotificationId,
           );
         } else {
-          // Clear notification when turned off manually
+
           _pumpNotificationId = null;
         }
 
@@ -1839,7 +1839,7 @@ class _ControlPageState extends State<ControlPage> {
       _audioBothLoading = true;
     });
     try {
-      // Use call_bird action to activate both speakers (value 1=on, 0=off)
+
       final action = 'call_bird';
       final actionValue = value ? 1 : 0;
 
@@ -1849,15 +1849,15 @@ class _ControlPageState extends State<ControlPage> {
       if (res['success'] == true) {
         setState(() {
           _audioBothState = value;
-          // When both are toggled, update individual states too
+
           if (value) {
             _audioLmbState = true;
             _audioNestState = true;
           } else {
-            // When turning off All Speaker, turn off individual speakers too
+
             _audioLmbState = false;
             _audioNestState = false;
-            // Clear all audio timers
+
             _audioBothTimerEnd = null;
             _audioLmbTimerEnd = null;
             _audioNestTimerEnd = null;
@@ -1867,7 +1867,7 @@ class _ControlPageState extends State<ControlPage> {
           }
         });
 
-        // Show notification when turned ON
+
         if (value) {
           final timerInfo = _audioBothTimerEnd != null
               ? '\nTimer: ${_formatDuration(_audioBothTimerEnd!.difference(DateTime.now()))}'
@@ -1882,7 +1882,7 @@ class _ControlPageState extends State<ControlPage> {
             id: _audioBothNotificationId,
           );
         } else {
-          // Clear notification when turned off manually
+
           _audioBothNotificationId = null;
         }
 
@@ -1923,7 +1923,7 @@ class _ControlPageState extends State<ControlPage> {
       _audioLmbLoading = true;
     });
     try {
-      // Use audio_set_lmb action with value 1 (on) or 0 (off)
+
       final action = 'audio_set_lmb';
       final actionValue = value ? 1 : 0;
 
@@ -1933,19 +1933,19 @@ class _ControlPageState extends State<ControlPage> {
       if (res['success'] == true) {
         setState(() {
           _audioLmbState = value;
-          // Update All Speaker state - only true if BOTH speakers are on
+
           if (value) {
-            // When turning on LMB, check if Nest is also on
+
             _audioBothState = (_audioNestState == true);
           } else {
-            // When turning off LMB, All Speaker should be off
+
             _audioBothState = false;
             _audioLmbTimerEnd = null;
             TimerBackgroundService.clearTimer('audio_lmb');
           }
         });
 
-        // Show notification when turned ON
+
         if (value) {
           final timerInfo = _audioLmbTimerEnd != null
               ? '\nTimer: ${_formatDuration(_audioLmbTimerEnd!.difference(DateTime.now()))}'
@@ -1960,7 +1960,7 @@ class _ControlPageState extends State<ControlPage> {
             id: _audioLmbNotificationId,
           );
         } else {
-          // Clear notification when turned off manually
+
           _audioLmbNotificationId = null;
         }
 
@@ -2001,7 +2001,7 @@ class _ControlPageState extends State<ControlPage> {
       _audioNestLoading = true;
     });
     try {
-      // Use audio_set_nest action with value 1 (on) or 0 (off)
+
       final action = 'audio_set_nest';
       final actionValue = value ? 1 : 0;
 
@@ -2011,19 +2011,19 @@ class _ControlPageState extends State<ControlPage> {
       if (res['success'] == true) {
         setState(() {
           _audioNestState = value;
-          // Update All Speaker state - only true if BOTH speakers are on
+
           if (value) {
-            // When turning on Nest, check if LMB is also on
+
             _audioBothState = (_audioLmbState == true);
           } else {
-            // When turning off Nest, All Speaker should be off
+
             _audioBothState = false;
             _audioNestTimerEnd = null;
             TimerBackgroundService.clearTimer('audio_nest');
           }
         });
 
-        // Show notification when turned ON
+
         if (value) {
           final timerInfo = _audioNestTimerEnd != null
               ? '\nTimer: ${_formatDuration(_audioNestTimerEnd!.difference(DateTime.now()))}'
@@ -2038,7 +2038,7 @@ class _ControlPageState extends State<ControlPage> {
             id: _audioNestNotificationId,
           );
         } else {
-          // Clear notification when turned off manually
+
           _audioNestNotificationId = null;
         }
 
@@ -2068,7 +2068,7 @@ class _ControlPageState extends State<ControlPage> {
       });
   }
 
-  // Test methods for audio endpoints
+
   Future<void> _testAudioEndpoint(String action) async {
     print('[TEST AUDIO] Testing action: $action');
     if (_authToken == null) {
@@ -2078,7 +2078,7 @@ class _ControlPageState extends State<ControlPage> {
       return;
     }
 
-    // Use first node if no audio node detected
+
     final testNodeId =
         _audioNodeId ?? (_nodeIds.isNotEmpty ? _nodeIds.first : null);
     if (testNodeId == null) {
@@ -2177,7 +2177,7 @@ class _ControlPageState extends State<ControlPage> {
   }
 
   void _initDemoData() {
-    // Initialize metrics even without valid kandang for UI stability
+
     print('Initializing demo data for UI stability');
 
     tempState = _generateMetricState(
@@ -2216,7 +2216,7 @@ class _ControlPageState extends State<ControlPage> {
     _initPerFloorLists();
   }
 
-  // Template generator for 1-day data with 5-minute intervals
+
   _MetricState _generateMetricState({
     required String name,
     required double minY,
@@ -2228,7 +2228,7 @@ class _ControlPageState extends State<ControlPage> {
     required String Function(double) goodBad,
   }) {
     final now = DateTime.now();
-    // 24h * 12 points per hour = 288 points
+
     final points = <FlSpot>[];
     final rand = Random(name.hashCode ^ now.day ^ now.hour);
     final start = now.subtract(const Duration(hours: 24));
@@ -2255,12 +2255,12 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 
-  // Condition helpers
+
   String _conditionForTemp(double v) {
     if (v >= 26 && v <= 30) return 'Baik';
     if (v >= 24 && v <= 32) return 'Normal';
     return 'Buruk';
-    // TODO: adjust thresholds per your domain
+
   }
 
   String _conditionForHumidity(double v) {
@@ -2282,11 +2282,11 @@ class _ControlPageState extends State<ControlPage> {
   }
 
   String _formatTime(DateTime t) {
-    // Convert all displayed times to WIB (UTC+7)
+
     return TimeUtils.formatWibHHmm(t);
   }
 
-  // Method to manually fetch and display latest three sensor data (DEPRECATED)
+
   Future<void> fetchAndDisplayLatestThree() async {
     print('\n=== FETCHING SENSOR DATA ===');
     print('Current sensor count: ${_sensors.length}');
@@ -2294,7 +2294,7 @@ class _ControlPageState extends State<ControlPage> {
     print('========================================\n');
   }
 
-  // Method to test API connection using ONLY readings endpoint
+
   Future<void> testAPIConnection() async {
     if (_authToken == null) {
       print('No authentication token available');
@@ -2339,14 +2339,14 @@ class _ControlPageState extends State<ControlPage> {
           ),
         ),
       ).then((_) {
-        // Reload device data when returning
+
         _checkDeviceInstallation();
       });
     }
   }
 
-  /// Show AI Comprehensive Analysis Dialog
-  /// Analyzes current environmental conditions using AI Engine with latest sensor data
+
+
   Future<void> _showAIAnalysisDialog() async {
     if (_authToken == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2358,7 +2358,7 @@ class _ControlPageState extends State<ControlPage> {
       return;
     }
 
-    // Check if we have sensor data
+
     if (_latestByMetric == null ||
         _latestByMetric!['temperature'] == null ||
         _latestByMetric!['humidity'] == null ||
@@ -2378,7 +2378,7 @@ class _ControlPageState extends State<ControlPage> {
     });
 
     try {
-      // Get current sensor values
+
       final temperature = (_latestByMetric!['temperature'] as num).toDouble();
       final humidity = (_latestByMetric!['humidity'] as num).toDouble();
       final ammonia = (_latestByMetric!['ammonia'] as num).toDouble();
@@ -2386,7 +2386,7 @@ class _ControlPageState extends State<ControlPage> {
       print(
           '[AI ANALYSIS] Analyzing with current sensor data: T=$temperature H=$humidity A=$ammonia');
 
-      // Get AI comprehensive analysis with current sensor data
+
       final analysis = await _aiService.getComprehensiveAnalysis(
         _authToken!,
         temperature: temperature,
@@ -2400,7 +2400,7 @@ class _ControlPageState extends State<ControlPage> {
         _aiAnalysis = analysis;
         _isLoadingAI = false;
 
-        // Extract health scores from analysis for sensor badges
+
         _overallHealthScore =
             (analysis['overall_health_score'] as num?)?.toDouble();
         if (analysis['sensors'] != null) {
@@ -2419,7 +2419,7 @@ class _ControlPageState extends State<ControlPage> {
 
       if (!mounted) return;
 
-      // Show AI analysis results in dialog
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -2447,7 +2447,7 @@ class _ControlPageState extends State<ControlPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Overall Health Score
+
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -2494,7 +2494,7 @@ class _ControlPageState extends State<ControlPage> {
 
                   const SizedBox(height: 16),
 
-                  // Sensor Status
+
                   if (_aiAnalysis?['sensors'] != null) ...[
                     const Text(
                       'Status Sensor:',
@@ -2509,7 +2509,7 @@ class _ControlPageState extends State<ControlPage> {
 
                   const SizedBox(height: 16),
 
-                  // Recommendations
+
                   if (_aiAnalysis?['recommendations'] != null &&
                       (_aiAnalysis!['recommendations'] as List).isNotEmpty) ...[
                     const Text(
@@ -2552,7 +2552,7 @@ class _ControlPageState extends State<ControlPage> {
                     }).toList(),
                   ],
 
-                  // Pump Recommendation
+
                   if (_aiAnalysis?['pump_recommendation'] != null) ...[
                     const SizedBox(height: 16),
                     const Text(
@@ -2605,7 +2605,7 @@ class _ControlPageState extends State<ControlPage> {
                     ),
                   ],
 
-                  // Grade Prediction - Harvest Quality
+
                   if (_aiAnalysis?['grade_prediction'] != null) ...[
                     const SizedBox(height: 16),
                     const Text(
@@ -2627,7 +2627,7 @@ class _ControlPageState extends State<ControlPage> {
                                 ?.toDouble() ??
                             0.0;
 
-                        // Color coding based on grade
+
                         Color gradeColor;
                         IconData gradeIcon;
                         String gradeText;
@@ -2748,7 +2748,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// Build sensor status list for AI analysis dialog
+
   List<Widget> _buildSensorStatusList(Map<String, dynamic> sensors) {
     List<Widget> widgets = [];
 
@@ -2821,14 +2821,14 @@ class _ControlPageState extends State<ControlPage> {
     return widgets;
   }
 
-  /// Get color based on health score
+
   Color _getHealthScoreColor(double score) {
     if (score >= 80) return Colors.green;
     if (score >= 60) return Colors.amber;
     return Colors.red;
   }
 
-  /// Get color based on sensor status
+
   Color _getSensorStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'optimal':
@@ -2843,7 +2843,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// Get sensor icon
+
   IconData _getSensorIcon(String sensorType) {
     switch (sensorType.toLowerCase()) {
       case 'temperature':
@@ -2857,7 +2857,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// Get sensor label
+
   String _getSensorLabel(String sensorType) {
     switch (sensorType.toLowerCase()) {
       case 'temperature':
@@ -2871,7 +2871,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// Get recommendation color based on priority
+
   Color _getRecommendationColor(String priority) {
     switch (priority.toLowerCase()) {
       case 'critical':
@@ -2885,7 +2885,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// Get recommendation icon based on priority
+
   IconData _getRecommendationIcon(String priority) {
     switch (priority.toLowerCase()) {
       case 'critical':
@@ -2903,7 +2903,7 @@ class _ControlPageState extends State<ControlPage> {
   void dispose() {
     _stopPeriodicRefresh();
     _stopActuatorTimer();
-    // Don't stop background service - it should continue running
+
     super.dispose();
   }
 
@@ -2973,7 +2973,7 @@ class _ControlPageState extends State<ControlPage> {
                                       .toDouble(), // visual separator dot if very small screen
                                   height: 0,
                                 ),
-                                // Test notification button
+
                                
                                 ElevatedButton.icon(
                                   onPressed: _isLoading
@@ -3051,7 +3051,7 @@ class _ControlPageState extends State<ControlPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // AI Anomaly Warning Banner
+
                       if (_hasAnomalies && _anomalyData != null)
                         Container(
                           margin: const EdgeInsets.only(bottom: 16),
@@ -3119,7 +3119,7 @@ class _ControlPageState extends State<ControlPage> {
                           ),
                         ),
 
-                      // Section 1b: Floor 1 Sensors
+
                       if (tempFloor1State != null ||
                           humidityFloor1State != null ||
                           ammoniaFloor1State != null) ...[
@@ -3183,7 +3183,7 @@ class _ControlPageState extends State<ControlPage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Section 1c: Floor 2 Sensors
+
                       if (tempFloor2State != null ||
                           humidityFloor2State != null ||
                           ammoniaFloor2State != null) ...[
@@ -3247,7 +3247,7 @@ class _ControlPageState extends State<ControlPage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Section: Mist Spray Actuator
+
                       if (_pumpNodeId != null) ...[
                         _sectionCard(
                           title: 'Aktuator',
@@ -3325,7 +3325,7 @@ class _ControlPageState extends State<ControlPage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Section: Speaker Controls
+
                       if (_audioNodeId != null) ...[
                         _sectionCard(
                           title: 'Speaker',
@@ -3515,7 +3515,7 @@ class _ControlPageState extends State<ControlPage> {
                         ),
                         const SizedBox(height: 16),
 
-                        // AI Analysis Button
+
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -3553,26 +3553,26 @@ class _ControlPageState extends State<ControlPage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // TEST SECTION: Audio Controls (for debugging)
 
-                      // Section 2: Sistem Suara per-floor
 
-                      // Section 3: Water Level per-floor
-                      // _sectionCard(
-                      //   title: 'Water Level',
-                      //   child: Column(
-                      //     children: [
-                      //       if (waterLevelPerFloor.isNotEmpty)
-                      //         for (final w in waterLevelPerFloor) ...[
-                      //           _metricRow(w),
-                      //           const SizedBox(height: 12),
-                      //         ]
-                      //       else
-                      //         _buildLoadingMetric('Water Level', Icons.water_drop),
-                      //     ],
-                      //   ),
-                      // ),
-                      // const SizedBox(height: 80),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     ],
                   ),
                 )
@@ -3608,7 +3608,7 @@ class _ControlPageState extends State<ControlPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  // Stay on control page
+
                   setState(() {
                     _currentIndex = 1;
                   });
@@ -3662,7 +3662,7 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 
-  // UI helpers
+
 
   Widget _buildEmptyState() {
     return Center(
@@ -3851,7 +3851,7 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 
-  /// Helper to get anomaly info for a specific sensor
+
   Map<String, dynamic>? _getAnomalyForSensor(String sensorType) {
     if (_anomalyData == null || _anomalyData!['anomalies'] == null) {
       return null;
@@ -3860,7 +3860,7 @@ class _ControlPageState extends State<ControlPage> {
     final anomalies = _anomalyData!['anomalies'] as List;
     for (var anomaly in anomalies) {
       final sensor = anomaly['sensor']?.toString().toLowerCase() ?? '';
-      // Match temperature, humidity, ammonia
+
       if (sensor.contains(sensorType.toLowerCase())) {
         return anomaly;
       }
@@ -3885,7 +3885,7 @@ class _ControlPageState extends State<ControlPage> {
         ),
         child: Row(
           children: [
-            // Left: icon + label + time
+
             Expanded(
               flex: 3,
               child: Row(
@@ -3920,7 +3920,7 @@ class _ControlPageState extends State<ControlPage> {
                             ),
                             if (healthScore != null) ...[
                               const SizedBox(width: 6),
-                              Container(
+                                Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -3975,82 +3975,82 @@ class _ControlPageState extends State<ControlPage> {
               ),
             ),
 
-            // Middle: 1-day line chart (5-min intervals)
-            // Expanded(
-            //   flex: 4,
-            //   child: SizedBox(
-            //     height: 70,
-            //     child: LineChart(
-            //       LineChartData(
-            //         minY: m.minY,
-            //         maxY: m.maxY,
-            //         gridData: FlGridData(
-            //           show: true,
-            //           drawVerticalLine: false,
-            //         ),
-            //         titlesData: FlTitlesData(
-            //           topTitles: const AxisTitles(
-            //               sideTitles: SideTitles(showTitles: false)),
-            //           rightTitles: const AxisTitles(
-            //               sideTitles: SideTitles(showTitles: false)),
-            //           leftTitles: AxisTitles(
-            //             sideTitles: SideTitles(
-            //               showTitles: true,
-            //               reservedSize: 28,
-            //               getTitlesWidget: (v, mctx) => Text(
-            //                 v.toStringAsFixed(0),
-            //                 style:
-            //                     const TextStyle(fontSize: 8, color: Colors.grey),
-            //               ),
-            //               interval: (m.maxY - m.minY) / 2,
-            //             ),
-            //           ),
-            //           bottomTitles: AxisTitles(
-            //             sideTitles: SideTitles(
-            //               showTitles: true,
-            //               interval:
-            //                   (24 * 60 * 60 * 1000) / 4, // roughly 6h spacing
-            //               getTitlesWidget: (x, mctx) {
-            //                 final d =
-            //                     DateTime.fromMillisecondsSinceEpoch(x.toInt());
-            //                 return Text('${d.hour}:00',
-            //                     style: const TextStyle(
-            //                         fontSize: 8, color: Colors.grey));
-            //               },
-            //             ),
-            //           ),
-            //         ),
-            //         borderData: FlBorderData(
-            //           show: true,
-            //           border: Border.all(color: Colors.grey[300]!),
-            //         ),
-            //         lineBarsData: [
-            //           LineChartBarData(
-            //             spots: m.points,
-            //             isCurved: true,
-            //             color: const Color(0xFF245C4C),
-            //             barWidth: 2,
-            //             dotData: const FlDotData(show: false),
-            //             belowBarData: BarAreaData(
-            //               show: true,
-            //               color: const Color(0xFF245C4C).withOpacity(0.12),
-            //             ),
-            //           ),
-            //         ],
-            //       ),
-            //     ),
-            //   ),
-            // ),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             const SizedBox(width: 10),
 
-            // Right: current value + time, and condition chip
+
             Expanded(
               flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    // Show full precision (as provided by server, without forced rounding)
+
                     '${m.currentValue.toString()} ${m.unit}',
                     style: const TextStyle(
                       fontSize: 14,
@@ -4137,7 +4137,7 @@ Widget _buildLoadingMetric(String name, IconData icon) {
     ),
     child: Row(
       children: [
-        // Left: icon + label
+
         Expanded(
           flex: 3,
           child: Row(
@@ -4181,7 +4181,7 @@ Widget _buildLoadingMetric(String name, IconData icon) {
           ),
         ),
         const SizedBox(width: 10),
-        // Right: loading indicator
+
         const Expanded(
           flex: 3,
           child: Column(
@@ -4289,7 +4289,7 @@ Widget _actuatorRow(
   );
 }
 
-// Data holders
+
 
 class _MetricState {
   final String name;

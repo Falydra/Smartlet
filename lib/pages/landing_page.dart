@@ -43,7 +43,7 @@ class LandingPage extends StatelessWidget {
                           fontWeight: FontWeight.w600),
                     ),
                     Container(
-                      //Image logo
+
                       alignment: Alignment.center,
 
                       width: width(context) * 0.2,

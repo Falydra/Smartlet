@@ -61,7 +61,7 @@ class TimerBackgroundService {
     }
 
     print('[BACKGROUND SERVICE] Setting up Timer.periodic (5 second interval)');
-    // Check timers every 5 seconds
+
     Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (service is AndroidServiceInstance) {
         if (await service.isForegroundService()) {
@@ -81,7 +81,7 @@ class TimerBackgroundService {
       bool hasActiveTimers = false;
       List<String> expiredTimers = [];
 
-      // Check pump timer
+
       final pumpTimerEnd = prefs.getString('pump_timer_end');
       if (pumpTimerEnd != null) {
         print('[BACKGROUND SERVICE] Pump timer found: $pumpTimerEnd');
@@ -99,7 +99,7 @@ class TimerBackgroundService {
         }
       }
 
-      // Check audio both timer
+
       final audioBothTimerEnd = prefs.getString('audio_both_timer_end');
       if (audioBothTimerEnd != null) {
         final endTime = DateTime.parse(audioBothTimerEnd);
@@ -112,7 +112,7 @@ class TimerBackgroundService {
         }
       }
 
-      // Check audio LMB timer
+
       final audioLmbTimerEnd = prefs.getString('audio_lmb_timer_end');
       if (audioLmbTimerEnd != null) {
         final endTime = DateTime.parse(audioLmbTimerEnd);
@@ -125,7 +125,7 @@ class TimerBackgroundService {
         }
       }
 
-      // Check audio Nest timer
+
       final audioNestTimerEnd = prefs.getString('audio_nest_timer_end');
       if (audioNestTimerEnd != null) {
         final endTime = DateTime.parse(audioNestTimerEnd);
@@ -138,7 +138,7 @@ class TimerBackgroundService {
         }
       }
 
-      // Show notifications for expired timers
+
       if (expiredTimers.isNotEmpty) {
         print(
             '[BACKGROUND SERVICE] ${expiredTimers.length} timers expired: $expiredTimers');
@@ -147,7 +147,7 @@ class TimerBackgroundService {
       for (final device in expiredTimers) {
         try {
           print('[BACKGROUND SERVICE] Sending notification for $device');
-          // Initialize notification helper in background context
+
           await LocalNotificationHelper().init();
           await LocalNotificationHelper().showWithSound(
             title: '⏰ Timer Selesai',
@@ -162,7 +162,7 @@ class TimerBackgroundService {
         }
       }
 
-      // Update notification with remaining timers
+
       if (hasActiveTimers) {
         final remainingCount = [
               pumpTimerEnd,
@@ -179,7 +179,7 @@ class TimerBackgroundService {
           );
         }
       } else {
-        // No more active timers, stop the service
+
         service.stopSelf();
       }
     } catch (e) {
@@ -247,7 +247,7 @@ class TimerBackgroundService {
     }
   }
 
-  /// Start the background service
+
   static Future<void> startService() async {
     try {
       print('[BACKGROUND SERVICE] startService() called');
@@ -258,7 +258,7 @@ class TimerBackgroundService {
         print('[BACKGROUND SERVICE] Attempting to start service...');
         await service.startService();
         print('[BACKGROUND SERVICE] Service started successfully');
-        // Verify it started
+
         await Future.delayed(const Duration(milliseconds: 500));
         final nowRunning = await service.isRunning();
         print('[BACKGROUND SERVICE] Service running after start: $nowRunning');
@@ -271,14 +271,14 @@ class TimerBackgroundService {
     }
   }
 
-  /// Stop the background service
+
   static Future<void> stopService() async {
     final service = FlutterBackgroundService();
     service.invoke('stopService');
     print('[BACKGROUND SERVICE] Service stopped');
   }
 
-  /// Save timer to SharedPreferences and start background service
+
   static Future<void> setTimer({
     required String deviceType,
     required DateTime endTime,
@@ -287,12 +287,12 @@ class TimerBackgroundService {
     print('[BACKGROUND SERVICE] Setting timer for $deviceType until $endTime');
     final prefs = await SharedPreferences.getInstance();
 
-    // Save timer end time
+
     await prefs.setString('${deviceType}_timer_end', endTime.toIso8601String());
     print(
         '[BACKGROUND SERVICE] Timer saved to SharedPreferences: ${deviceType}_timer_end = ${endTime.toIso8601String()}');
 
-    // Save node IDs for background service to use
+
     if (deviceType == 'pump') {
       await prefs.setString('pump_node_id', nodeId ?? '');
       print('[BACKGROUND SERVICE] Saved pump_node_id: $nodeId');
@@ -301,19 +301,19 @@ class TimerBackgroundService {
       print('[BACKGROUND SERVICE] Saved audio_node_id: $nodeId');
     }
 
-    // Start background service
+
     await startService();
     print(
         '[BACKGROUND SERVICE] Timer set successfully for $deviceType until $endTime');
   }
 
-  /// Clear timer from SharedPreferences
+
   static Future<void> clearTimer(String deviceType) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('${deviceType}_timer_end');
     print('[BACKGROUND SERVICE] Timer cleared for $deviceType');
 
-    // Check if any timers are still active
+
     final hasActiveTimers = prefs.getString('pump_timer_end') != null ||
         prefs.getString('audio_both_timer_end') != null ||
         prefs.getString('audio_lmb_timer_end') != null ||
@@ -324,7 +324,7 @@ class TimerBackgroundService {
     }
   }
 
-  /// Get remaining time for a timer
+
   static Future<Duration?> getRemainingTime(String deviceType) async {
     final prefs = await SharedPreferences.getInstance();
     final timerEndStr = prefs.getString('${deviceType}_timer_end');

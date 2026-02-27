@@ -16,7 +16,7 @@ class _MonitoringState extends State<Monitoring> {
   @override
   void initState() {
     super.initState();
-    // Inisialisasi reference ke node data pada Firebase Realtime Database
+
     databaseRef = widget.secondaryDatabase.ref().child('device/032-02-0821');
   }
 
@@ -67,7 +67,7 @@ class _MonitoringState extends State<Monitoring> {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           try {
-            // Kirim data ke Firebase Realtime Database
+
             await databaseRef.push().set("Hello from Flutter!");
             print('Data written to Firebase');
           } catch (e) {

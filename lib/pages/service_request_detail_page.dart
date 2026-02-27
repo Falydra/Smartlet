@@ -55,16 +55,16 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       return;
     }
 
-    // Load service request detail
+
     final res = await _service.getById(token, _id!);
     if (res['success'] == true) {
       setState(() => _data = res['data'] as Map<String, dynamic>?);
     } else {
-      // ignore: avoid_print
+
       print('ServiceRequestDetailPage._load ${res['message']}');
     }
 
-    // Load profile (role and user id)
+
     try {
       final auth = AuthService();
       final profile = await auth.profile(token);
@@ -76,7 +76,7 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       print('Failed to load profile: $e');
     }
 
-    // Determine if current user is assigned technician
+
     try {
       final assignedId = _data?['technician_id']?.toString() ?? _data?['technician']?['id']?.toString();
       setState(() {
@@ -84,7 +84,7 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       });
     } catch (_) {}
 
-    // Load technicians and set default selection (fallback to known technician if none)
+
     try {
       final uri = Uri.parse('${ApiConstants.users}?role=technician&per_page=100');
       final resp = await http.get(uri, headers: ApiConstants.authHeaders(token));
@@ -126,7 +126,7 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not authenticated — please log in')));
       return;
     }
-    // Use backend assign endpoint: PATCH /service-requests/{id}/assign with { technician_id }
+
     final res = await _service.assign(token, _id!, {
       'technician_id': _selectedTechnicianId!,
     });
@@ -198,7 +198,7 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
                       Text('RBW: ${_data!['rbw']?['name'] ?? _data!['rbw_id'] ?? ''}'),
                       const SizedBox(height: 12),
 
-                      // Assign (admin action)
+
                       const Divider(),
                       const Text('Assign Technician (admin only)'),
                       const SizedBox(height: 8),
@@ -221,7 +221,7 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
 
                       const SizedBox(height: 20),
 
-                      // Technician: add node when assigned / in_progress
+
                       const Divider(),
                       const Text('Technician Actions'),
                       const SizedBox(height: 8),

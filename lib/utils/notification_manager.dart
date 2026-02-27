@@ -5,10 +5,10 @@ class NotificationManager {
   factory NotificationManager() => _instance;
   NotificationManager._internal();
 
-  // Unread badge counter
+
   final ValueNotifier<int> unreadCount = ValueNotifier<int>(0);
 
-  // Simple in-memory store of alerts
+
   final ValueNotifier<List<Map<String,dynamic>>> alerts = ValueNotifier<List<Map<String,dynamic>>>([]);
 
   void setUnreadCount(int count) {
