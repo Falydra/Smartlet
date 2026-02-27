@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:swiftlead/components/osm_location_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
@@ -49,15 +51,24 @@ class _EditCagePageState extends State<EditCagePage> {
   }
 
   Future<void> _openMapPicker() async {
-    final LatLng? result = await Navigator.push<LatLng?>(
+    final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => _MapPickerPage(initialPosition: LatLng(_lat ?? -6.2, _lng ?? 106.816666))),
+      MaterialPageRoute(
+        builder: (context) => OsmLocationPicker(
+          initialPosition: LatLng(_lat ?? -6.2, _lng ?? 106.816666),
+        ),
+      ),
     );
 
     if (result != null) {
+      final position = result['position'] as LatLng;
+      final address = result['address'] as String?;
+      
       setState(() {
-        _lat = result.latitude;
-        _lng = result.longitude;
+        _lat = position.latitude;
+        _lng = position.longitude;
+        _locationController.text = address ?? 
+          'Lat: ${position.latitude.toStringAsFixed(6)}, Lng: ${position.longitude.toStringAsFixed(6)}';
       });
     }
   }
@@ -150,29 +161,114 @@ class _EditCagePageState extends State<EditCagePage> {
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Alamat tidak boleh kosong' : null,
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _floorController,
-                      decoration: const InputDecoration(labelText: 'Jumlah Lantai'),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Jumlah lantai tidak boleh kosong';
-                        final n = int.tryParse(v.trim());
-                        if (n == null) return 'Masukkan angka yang valid';
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _openMapPicker,
-                    icon: const Icon(Icons.map),
-                    label: const Text('Pilih Lokasi'),
-                  ),
-                ],
+              TextFormField(
+                controller: _floorController,
+                decoration: const InputDecoration(labelText: 'Jumlah Lantai'),
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Jumlah lantai tidak boleh kosong';
+                  final n = int.tryParse(v.trim());
+                  if (n == null) return 'Masukkan angka yang valid';
+                  return null;
+                },
               ),
+              const SizedBox(height: 16),
+
+              if (_lat != null && _lng != null) ...[
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                        child: SizedBox(
+                          height: 150,
+                          child: FlutterMap(
+                            options: MapOptions(
+                              initialCenter: LatLng(_lat!, _lng!),
+                              initialZoom: 15.0,
+                              interactionOptions: const InteractionOptions(
+                                flags: InteractiveFlag.none,
+                              ),
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.swiftlead',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: LatLng(_lat!, _lng!),
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.red,
+                                      size: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Koordinat:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Lat: ${_lat!.toStringAsFixed(6)}\nLng: ${_lng!.toStringAsFixed(6)}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: ElevatedButton.icon(
+                                onPressed: _openMapPicker,
+                                icon: const Icon(Icons.map, size: 18, color: Colors.white),
+                                label: const Text('Ubah Lokasi' , style: TextStyle(color: Colors.white)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF245C4C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                ElevatedButton.icon(
+                  onPressed: _openMapPicker,
+                  icon: const Icon(Icons.map),
+                  label: const Text('Pilih Lokasi di Peta'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF245C4C),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descriptionController,
@@ -186,74 +282,14 @@ class _EditCagePageState extends State<EditCagePage> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _save,
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF245C4C)),
-                  child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Simpan Perubahan'),
+                  child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Simpan Perubahan', style: TextStyle(color: Colors.white)),
                 ),
               ),
+              
+              const SizedBox(height: 40),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MapPickerPage extends StatefulWidget {
-  final LatLng initialPosition;
-  const _MapPickerPage({required this.initialPosition});
-
-  @override
-  State<_MapPickerPage> createState() => _MapPickerPageState();
-}
-
-class _MapPickerPageState extends State<_MapPickerPage> {
-  LatLng? _picked;
-  GoogleMapController? _mapController;
-  final Set<Marker> _markers = {};
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-  }
-
-  void _onMapTapped(LatLng position) {
-    setState(() {
-      _picked = position;
-      _markers.clear();
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('selected_location'),
-          position: position,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pilih Lokasi'),
-        backgroundColor: const Color(0xFF245C4C),
-        foregroundColor: Colors.white,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, _picked),
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-      body: GoogleMap(
-        onMapCreated: _onMapCreated,
-        initialCameraPosition: CameraPosition(
-          target: widget.initialPosition,
-          zoom: 15,
-        ),
-        onTap: _onMapTapped,
-        markers: _markers,
-        myLocationEnabled: true,
-        myLocationButtonEnabled: true,
-        zoomControlsEnabled: true,
-        mapToolbarEnabled: false,
       ),
     );
   }

@@ -1404,34 +1404,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        Column(
-                       children: [
-                         const Text(
-                              'Total Sarang',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF168AB5),
-                              ),
-                            ),
-                          Text(
-                          '${_totalHarvest.toInt()}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF168AB5),
-                          ),
-                        ),
-                        Text(
-                          'Optimal: ${_preHarvestTotal > 0 ? (_preHarvestTotal * 0.75).toInt() : (_totalHarvest * 0.75).toInt()}',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF168AB5),
-                          ),
-                        ),
-                       ],
-                     ),
+                        
                      Text(
                       'Rekap Pendapatan\n$_totalIncome',
                       style: const TextStyle(

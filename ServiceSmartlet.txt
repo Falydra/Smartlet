@@ -1,0 +1,2222 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/auth"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// UserService handles business logic for user management
+type UserService struct {
+	userRepo  repository.UserRepository
+	jwtSecret string
+}
+
+// NewUserService creates a new user service instance
+func NewUserService(userRepo repository.UserRepository, jwtSecret string) *UserService {
+	return &UserService{
+		userRepo:  userRepo,
+		jwtSecret: jwtSecret,
+	}
+}
+
+// Register creates a new user account with hashed password
+func (s *UserService) Register(ctx context.Context, req *models.RegisterRequest) (string, *models.UserResponse, error) {
+	// Validate password strength
+	if err := auth.ValidatePasswordStrength(req.Password); err != nil {
+		return "", nil, fmt.Errorf("password validation failed: %w", err)
+	}
+
+	// Check if email already exists
+	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err == nil && existingUser != nil {
+		return "", nil, fmt.Errorf("email already registered")
+	}
+
+	// Hash password
+	hash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user
+	now := time.Now()
+	user := &models.User{
+		ID:           uuid.New().String(),
+		Name:         req.Name,
+		Email:        req.Email,
+		PasswordHash: hash,
+		Role:         models.RoleFarmer, // Default role
+		Phone:        req.Phone,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return "", nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Generate JWT token
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role, s.jwtSecret)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return token, user.ToResponse(), nil
+}
+
+// Login authenticates a user and returns JWT token
+func (s *UserService) Login(ctx context.Context, req *models.LoginRequest) (string, *models.UserResponse, error) {
+	// Get user by email
+	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Verify password
+	if !auth.CheckPassword(user.PasswordHash, req.Password) {
+		return "", nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Generate JWT token
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role, s.jwtSecret)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return token, user.ToResponse(), nil
+}
+
+// GetProfile retrieves user profile by ID
+func (s *UserService) GetProfile(ctx context.Context, userID string) (*models.UserResponse, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user.ToResponse(), nil
+}
+
+// UpdateProfile updates user profile information
+func (s *UserService) UpdateProfile(ctx context.Context, userID string, req *models.UserUpdateRequest) (*models.UserResponse, error) {
+	// Get existing user
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Update fields
+	if req.Name != "" {
+		user.Name = req.Name
+	}
+	if req.Phone != "" {
+		user.Phone = req.Phone
+	}
+	if req.AvatarURL != nil {
+		user.AvatarURL = req.AvatarURL
+	}
+
+	user.UpdatedAt = time.Now()
+
+	// Save changes
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return user.ToResponse(), nil
+}
+
+// ChangePassword updates user password
+func (s *UserService) ChangePassword(ctx context.Context, userID string, req *models.ChangePasswordRequest) error {
+	// Get user
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Verify old password
+	if !auth.CheckPassword(user.PasswordHash, req.OldPassword) {
+		return fmt.Errorf("invalid old password")
+	}
+
+	// Validate new password strength
+	if err := auth.ValidatePasswordStrength(req.NewPassword); err != nil {
+		return fmt.Errorf("password validation failed: %w", err)
+	}
+
+	// Hash new password
+	newHash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update password
+	if err := s.userRepo.UpdatePassword(ctx, userID, newHash); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	return nil
+}
+
+// CreateUser creates a new user (admin only)
+func (s *UserService) CreateUser(ctx context.Context, req *models.CreateUserRequest) (*models.UserResponse, error) {
+	// Validate password strength
+	if err := auth.ValidatePasswordStrength(req.Password); err != nil {
+		return nil, fmt.Errorf("password validation failed: %w", err)
+	}
+
+	// Check if email already exists
+	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err == nil && existingUser != nil {
+		return nil, fmt.Errorf("email already registered")
+	}
+
+	// Hash password
+	hash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user with specified role
+	now := time.Now()
+	user := &models.User{
+		ID:           uuid.New().String(),
+		Name:         req.Name,
+		Email:        req.Email,
+		PasswordHash: hash,
+		Role:         req.Role,
+		Phone:        req.Phone,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return user.ToResponse(), nil
+}
+
+// ListUsers lists users with optional role filter
+func (s *UserService) ListUsers(ctx context.Context, role string, limit, offset int) ([]*models.UserResponse, int, error) {
+	users, err := s.userRepo.List(ctx, role, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	count, err := s.userRepo.Count(ctx, role)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	responses := make([]*models.UserResponse, len(users))
+	for i, user := range users {
+		responses[i] = user.ToResponse()
+	}
+
+	return responses, count, nil
+}
+
+// DeleteUser deletes a user by ID
+func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
+	if err := s.userRepo.Delete(ctx, userID); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	return nil
+}
+
+// GetByEmail retrieves user by email (internal use)
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	return s.userRepo.GetByEmail(ctx, email)
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// RBWService handles business logic for RBW (Rumah Burung Walet) management
+type RBWService struct {
+	rbwRepo repository.RBWRepository
+}
+
+// NewRBWService creates a new RBW service instance
+func NewRBWService(rbwRepo repository.RBWRepository) *RBWService {
+	return &RBWService{
+		rbwRepo: rbwRepo,
+	}
+}
+
+// Create registers a new RBW
+func (s *RBWService) Create(ctx context.Context, req *models.CreateRBWRequest, ownerID string) (*models.RBW, error) {
+	// Check if code already exists
+	existing, err := s.rbwRepo.GetByCode(ctx, req.Code)
+	if err == nil && existing != nil {
+		return nil, fmt.Errorf("RBW code already exists")
+	}
+
+	// Validate total floors
+	if req.TotalFloors < 1 {
+		return nil, fmt.Errorf("total floors must be at least 1")
+	}
+
+	now := time.Now()
+	rbw := &models.RBW{
+		ID:          uuid.New().String(),
+		OwnerID:     ownerID,
+		Code:        req.Code,
+		Name:        req.Name,
+		Address:     req.Address,
+		Latitude:    req.Latitude,
+		Longitude:   req.Longitude,
+		TotalFloors: req.TotalFloors,
+		Description: req.Description,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.rbwRepo.Create(ctx, rbw); err != nil {
+		return nil, fmt.Errorf("failed to create RBW: %w", err)
+	}
+
+	return rbw, nil
+}
+
+// GetByID retrieves an RBW by ID
+func (s *RBWService) GetByID(ctx context.Context, id string) (*models.RBW, error) {
+	rbw, err := s.rbwRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RBW: %w", err)
+	}
+	return rbw, nil
+}
+
+// GetByCode retrieves an RBW by code
+func (s *RBWService) GetByCode(ctx context.Context, code string) (*models.RBW, error) {
+	rbw, err := s.rbwRepo.GetByCode(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RBW: %w", err)
+	}
+	return rbw, nil
+}
+
+// GetByOwner retrieves all RBW owned by a user
+func (s *RBWService) GetByOwner(ctx context.Context, ownerID string) ([]*models.RBW, error) {
+	rbws, err := s.rbwRepo.GetByOwnerID(ctx, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RBW by owner: %w", err)
+	}
+	return rbws, nil
+}
+
+// Update updates RBW information
+func (s *RBWService) Update(ctx context.Context, id string, req *models.UpdateRBWRequest) (*models.RBW, error) {
+	// Get existing RBW
+	rbw, err := s.rbwRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RBW: %w", err)
+	}
+
+	// Track if any field was actually updated
+	hasUpdates := false
+
+	// Update fields only if explicitly provided (pointer is not nil)
+	if req.Name != nil {
+		rbw.Name = *req.Name
+		hasUpdates = true
+	}
+	if req.Address != nil {
+		rbw.Address = *req.Address
+		hasUpdates = true
+	}
+	if req.Latitude != nil {
+		rbw.Latitude = req.Latitude
+		hasUpdates = true
+	}
+	if req.Longitude != nil {
+		rbw.Longitude = req.Longitude
+		hasUpdates = true
+	}
+	if req.TotalFloors != nil {
+		// Validate total floors
+		if *req.TotalFloors < 1 {
+			return nil, fmt.Errorf("total floors must be at least 1")
+		}
+		rbw.TotalFloors = *req.TotalFloors
+		hasUpdates = true
+	}
+	if req.Description != nil {
+		rbw.Description = *req.Description
+		hasUpdates = true
+	}
+
+	if !hasUpdates {
+		// No fields to update, return existing RBW as-is
+		return rbw, nil
+	}
+
+	rbw.UpdatedAt = time.Now()
+
+	// Save changes
+	if err := s.rbwRepo.Update(ctx, rbw); err != nil {
+		return nil, fmt.Errorf("failed to update RBW: %w", err)
+	}
+
+	return rbw, nil
+}
+
+// Delete deletes an RBW
+func (s *RBWService) Delete(ctx context.Context, id string) error {
+	if err := s.rbwRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete RBW: %w", err)
+	}
+	return nil
+}
+
+// List retrieves all RBW with pagination
+func (s *RBWService) List(ctx context.Context, limit, offset int) ([]*models.RBW, int, error) {
+	rbws, err := s.rbwRepo.List(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list RBW: %w", err)
+	}
+
+	count, err := s.rbwRepo.Count(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count RBW: %w", err)
+	}
+
+	return rbws, count, nil
+}
+
+// CheckOwnership verifies if a user owns an RBW
+func (s *RBWService) CheckOwnership(ctx context.Context, rbwID, userID string) (bool, error) {
+	rbw, err := s.rbwRepo.GetByID(ctx, rbwID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get RBW: %w", err)
+	}
+
+	return rbw.OwnerID == userID, nil
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/ai"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/mqtt"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// NodeService handles business logic for IoT node management
+type NodeService struct {
+	nodeRepo   repository.NodeRepository
+	alertRepo  repository.AlertRepository
+	mqttClient *mqtt.Client
+}
+
+// NewNodeService creates a new node service instance
+func NewNodeService(nodeRepo repository.NodeRepository, alertRepo repository.AlertRepository, mqttClient *mqtt.Client) *NodeService {
+	return &NodeService{
+		nodeRepo:   nodeRepo,
+		alertRepo:  alertRepo,
+		mqttClient: mqttClient,
+	}
+}
+
+// Create registers a new node
+func (s *NodeService) Create(ctx context.Context, req *models.CreateNodeRequest) (*models.Node, error) {
+	// Validate node type
+	validTypes := map[string]bool{
+		models.NodeTypeGateway: true,
+		models.NodeTypeNest:    true,
+		models.NodeTypeLMB:     true,
+		models.NodeTypePump:    true,
+	}
+	if !validTypes[req.NodeType] {
+		return nil, fmt.Errorf("invalid node type: %s", req.NodeType)
+	}
+
+	now := time.Now()
+	node := &models.Node{
+		ID:          uuid.New().String(),
+		RBWID:       req.RBWID,
+		NodeType:    req.NodeType,
+		NodeCode:    req.NodeCode,
+		ESP32UID:    req.ESP32UID,
+		StatusNode:  req.StatusNode,
+		HasAudio:    req.HasAudio,
+		HasPump:     req.HasPump,
+		InstalledAt: req.InstalledAt,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.nodeRepo.Create(ctx, node); err != nil {
+		return nil, fmt.Errorf("failed to create node: %w", err)
+	}
+
+	return node, nil
+}
+
+// GetByID retrieves a node by ID
+func (s *NodeService) GetByID(ctx context.Context, id string) (*models.Node, error) {
+	node, err := s.nodeRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+	return node, nil
+}
+
+// GetByRBW retrieves all nodes in an RBW
+func (s *NodeService) GetByRBW(ctx context.Context, rbwID string) ([]*models.Node, error) {
+	nodes, err := s.nodeRepo.GetByRBWID(ctx, rbwID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nodes: %w", err)
+	}
+	return nodes, nil
+}
+
+// GetByESP32UID retrieves a node by ESP32 UID
+func (s *NodeService) GetByESP32UID(ctx context.Context, esp32UID string) (*models.Node, error) {
+	node, err := s.nodeRepo.GetByESP32UID(ctx, esp32UID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+	return node, nil
+}
+
+// UpdateStatus updates node status and last seen timestamp
+func (s *NodeService) UpdateStatus(ctx context.Context, id, status string) error {
+	if err := s.nodeRepo.UpdateStatus(ctx, id, status, time.Now()); err != nil {
+		return fmt.Errorf("failed to update node status: %w", err)
+	}
+	return nil
+}
+
+// UpdateAudioState updates node audio state
+func (s *NodeService) UpdateAudioState(ctx context.Context, id string, state bool) error {
+	if err := s.nodeRepo.UpdateAudioState(ctx, id, state); err != nil {
+		return fmt.Errorf("failed to update audio state: %w", err)
+	}
+	return nil
+}
+
+// UpdatePumpState updates node pump state and publishes MQTT command
+func (s *NodeService) UpdatePumpState(ctx context.Context, id string, state bool) error {
+	// Update database first
+	if err := s.nodeRepo.UpdatePumpState(ctx, id, state); err != nil {
+		return fmt.Errorf("failed to update pump state: %w", err)
+	}
+	
+	// Publish MQTT command to hardware
+	if s.mqttClient != nil && s.mqttClient.IsConnected() {
+		if err := s.mqttClient.PublishPumpCommand(state); err != nil {
+			// Log error but don't fail the request - DB already updated
+			fmt.Printf("[WARN] Failed to publish pump command via MQTT: %v\n", err)
+		}
+	} else {
+		fmt.Println("[WARN] MQTT client not available, pump command not sent to hardware")
+	}
+	
+	return nil
+}
+
+// Update updates node information
+func (s *NodeService) Update(ctx context.Context, id string, req *models.UpdateNodeRequest) (*models.Node, error) {
+	// Get existing node
+	node, err := s.nodeRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+
+	// Update fields
+	if req.StatusNode != "" {
+		node.StatusNode = req.StatusNode
+	}
+	if req.StateAudio != nil {
+		node.StateAudio = req.StateAudio
+	}
+	if req.StatePump != nil {
+		node.StatePump = req.StatePump
+	}
+	if req.UninstalledAt != nil {
+		node.UninstalledAt = req.UninstalledAt
+	}
+
+	node.LastSeen = &[]time.Time{time.Now()}[0]
+	node.UpdatedAt = time.Now()
+
+	if err := s.nodeRepo.Update(ctx, node); err != nil {
+		return nil, fmt.Errorf("failed to update node: %w", err)
+	}
+
+	return node, nil
+}
+
+// Delete deletes a node
+func (s *NodeService) Delete(ctx context.Context, id string) error {
+	if err := s.nodeRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete node: %w", err)
+	}
+	return nil
+}
+
+// CheckOfflineNodes checks for nodes that haven't reported in and creates alerts
+// This should be called periodically (e.g., cron job every 5 minutes)
+func (s *NodeService) CheckOfflineNodes(ctx context.Context, threshold time.Duration) error {
+	nodes, err := s.nodeRepo.GetOfflineNodes(ctx, threshold)
+	if err != nil {
+		return fmt.Errorf("failed to get offline nodes: %w", err)
+	}
+
+	// Create alerts for offline nodes
+	for _, node := range nodes {
+		alert := &models.Alert{
+			ID:        uuid.New().String(),
+			RBWID:     node.RBWID,
+			NodeID:    &node.ID,
+			AlertType: models.AlertTypeNodeOffline,
+			Severity:  3, // Medium-high severity
+			Message:   fmt.Sprintf("Node %s (%s) has been offline since %v", node.NodeCode, node.NodeType, node.LastSeen),
+			IsRead:    false,
+			CreatedAt: time.Now(),
+		}
+
+		if err := s.alertRepo.Create(ctx, alert); err != nil {
+			// Log error but continue processing other nodes
+			fmt.Printf("Failed to create alert for offline node %s: %v\n", node.ID, err)
+			continue
+		}
+
+		// Update node status to offline
+		_ = s.nodeRepo.UpdateStatus(ctx, node.ID, "offline", *node.LastSeen)
+	}
+
+	return nil
+}
+
+// Heartbeat updates node's last seen timestamp (called by edge devices)
+func (s *NodeService) Heartbeat(ctx context.Context, esp32UID string) error {
+	node, err := s.nodeRepo.GetByESP32UID(ctx, esp32UID)
+	if err != nil {
+		return fmt.Errorf("node not found: %w", err)
+	}
+
+	return s.nodeRepo.UpdateStatus(ctx, node.ID, "online", time.Now())
+}
+
+// GetPumpRecommendation gets AI recommendation for pump control
+func (s *NodeService) GetPumpRecommendation(
+ctx context.Context,
+nodeID string,
+sensorRepo repository.SensorRepository,
+readingRepo repository.SensorReadingRepository,
+aiClient *ai.Client,
+) (*ai.PumpRecommendationResponse, error) {
+	// Get node details
+	node, err := s.nodeRepo.GetByID(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("node not found: %w", err)
+	}
+
+	// Check if node has pump capability
+	if !node.HasPump {
+		return nil, fmt.Errorf("node does not have pump capability")
+	}
+
+	// Get sensors for this node
+	sensors, err := sensorRepo.GetActiveSensorsByNodeID(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sensors: %w", err)
+	}
+
+	// Find temp, humid, and ammonia sensors
+	var tempSensor, humidSensor, ammoniaSensor *models.Sensor
+	for _, s := range sensors {
+		switch s.SensorType {
+		case "temp":
+			tempSensor = s
+		case "humid":
+			humidSensor = s
+		case "ammonia":
+			ammoniaSensor = s
+		}
+	}
+
+	if tempSensor == nil || humidSensor == nil {
+		return nil, fmt.Errorf("required sensors (temp/humid) not found")
+	}
+
+	// Get latest readings
+	tempReading, err := readingRepo.GetLatestBySensor(ctx, tempSensor.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get temp reading: %w", err)
+	}
+
+	humidReading, err := readingRepo.GetLatestBySensor(ctx, humidSensor.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get humid reading: %w", err)
+	}
+
+	var ammoniaValue *float64
+	if ammoniaSensor != nil {
+		ammoniaReading, err := readingRepo.GetLatestBySensor(ctx, ammoniaSensor.ID)
+		if err == nil {
+			ammoniaValue = &ammoniaReading.Value
+		}
+	}
+
+	// Calculate trends
+	trendCalc := NewSensorTrendCalculator(readingRepo)
+	tempTrend, _ := trendCalc.CalculateTrend(ctx, tempSensor.ID, 1)
+	humidTrend, _ := trendCalc.CalculateTrend(ctx, humidSensor.ID, 1)
+
+	// Prepare AI request
+	aiReq := &ai.PumpRecommendationRequest{
+		NodeID:          nodeID,
+		RBWID:           node.RBWID,
+		CurrentTemp:     tempReading.Value,
+		CurrentHumid:    humidReading.Value,
+		CurrentAmmonia:  ammoniaValue,
+		TempTrend1Hour:  &tempTrend,
+		HumidTrend1Hour: &humidTrend,
+		PumpCurrentlyOn: node.StatePump != nil && *node.StatePump,
+	}
+
+	// Call AI Engine
+	aiResp, err := aiClient.RecommendPumpAction(ctx, aiReq)
+	if err != nil {
+		return nil, fmt.Errorf("AI Engine error: %w", err)
+	}
+
+	return aiResp, nil
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/ai"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// HarvestService handles business logic for harvest management
+type HarvestService struct {
+	harvestRepo repository.HarvestRepository
+	sensorRepo  repository.SensorRepository
+	aiClient    *ai.Client
+}
+
+// NewHarvestService creates a new harvest service instance
+func NewHarvestService(
+	harvestRepo repository.HarvestRepository,
+	sensorRepo repository.SensorRepository,
+	aiClient *ai.Client,
+) *HarvestService {
+	return &HarvestService{
+		harvestRepo: harvestRepo,
+		sensorRepo:  sensorRepo,
+		aiClient:    aiClient,
+	}
+}
+
+// Create records a new harvest
+func (s *HarvestService) Create(ctx context.Context, req *models.CreateHarvestRequest, createdBy string) (*models.Harvest, error) {
+	// Validate floor number
+	if req.FloorNo < 0 {
+		return nil, fmt.Errorf("floor number must be non-negative")
+	}
+
+	// Validate nests count
+	if req.NestsCount < 0 {
+		return nil, fmt.Errorf("nests count must be non-negative")
+	}
+
+	// Validate weight
+	if req.WeightKg != nil && *req.WeightKg < 0 {
+		return nil, fmt.Errorf("weight must be non-negative")
+	}
+
+	now := time.Now()
+	harvest := &models.Harvest{
+		ID:          uuid.New().String(),
+		RBWID:       req.RBWID,
+		NodeID:      req.NodeID,
+		FloorNo:     req.FloorNo,
+		HarvestedAt: req.HarvestedAt,
+		NestsCount:  req.NestsCount,
+		WeightKg:    req.WeightKg,
+		Grade:       req.Grade,
+		Notes:       req.Notes,
+		CreatedBy:   &createdBy,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	// Get AI prediction for nest grade if AI client is available
+	if s.aiClient != nil && req.WeightKg != nil {
+		go s.predictGradeWithAI(context.Background(), harvest)
+	}
+
+	if err := s.harvestRepo.Create(ctx, harvest); err != nil {
+		return nil, fmt.Errorf("failed to create harvest: %w", err)
+	}
+
+	return harvest, nil
+}
+
+// predictGradeWithAI calls AI Engine to predict nest grade based on environmental conditions
+func (s *HarvestService) predictGradeWithAI(ctx context.Context, harvest *models.Harvest) {
+	// Get environmental stats for last 7 days
+	stats, err := s.sensorRepo.GetEnvironmentalStats(ctx, harvest.RBWID, harvest.FloorNo, 7)
+	if err != nil {
+		log.Printf("WARN: Failed to get environmental stats for AI prediction: %v", err)
+		return
+	}
+
+	// Calculate days since last harvest (if available)
+	var daysSinceLastHarvest *int
+	lastHarvest, err := s.harvestRepo.GetLastHarvestByFloor(ctx, harvest.RBWID, harvest.FloorNo, harvest.HarvestedAt)
+	if err == nil && lastHarvest != nil {
+		days := int(harvest.HarvestedAt.Sub(lastHarvest.HarvestedAt).Hours() / 24)
+		daysSinceLastHarvest = &days
+	}
+
+	// Prepare AI request
+	aiReq := &ai.NestGradePredictionRequest{
+		RBWID:                harvest.RBWID,
+		FloorNo:              harvest.FloorNo,
+		NodeID:               harvest.NodeID,
+		NestsCount:           harvest.NestsCount,
+		WeightKg:             *harvest.WeightKg,
+		AvgTemp7Days:         stats.AvgTemp,
+		AvgHumid7Days:        stats.AvgHumid,
+		AvgAmmonia7Days:      stats.AvgAmmonia,
+		DaysSinceLastHarvest: daysSinceLastHarvest,
+	}
+
+	// Call AI Engine with timeout
+	aiCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	aiResp, err := s.aiClient.PredictNestGrade(aiCtx, aiReq)
+	if err != nil {
+		log.Printf("WARN: AI Engine unavailable for nest grade prediction: %v", err)
+		return
+	}
+
+	log.Printf("[AI] Nest grade prediction: harvest=%s, predicted=%s, confidence=%.2f", 
+		harvest.ID, aiResp.PredictedGrade, aiResp.Confidence)
+
+	// Update harvest with AI prediction
+	harvest.PredictedGrade = &aiResp.PredictedGrade
+	harvest.AIConfidence = &aiResp.Confidence
+	if aiResp.Recommendation != "" {
+		harvest.AIRecommendation = &aiResp.Recommendation
+	}
+
+	// Update in database
+	if err := s.harvestRepo.UpdateAIPrediction(ctx, harvest.ID, aiResp.PredictedGrade, aiResp.Confidence, aiResp.Recommendation); err != nil {
+		log.Printf("ERROR: Failed to update harvest with AI prediction: %v", err)
+	}
+}
+
+// GetByID retrieves a harvest by ID
+func (s *HarvestService) GetByID(ctx context.Context, id string) (*models.Harvest, error) {
+	harvest, err := s.harvestRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvest: %w", err)
+	}
+	return harvest, nil
+}
+
+// GetByRBW retrieves all harvests for an RBW
+func (s *HarvestService) GetByRBW(ctx context.Context, rbwID string) ([]*models.Harvest, error) {
+	harvests, err := s.harvestRepo.GetByRBWID(ctx, rbwID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvests: %w", err)
+	}
+	return harvests, nil
+}
+
+// GetByFloor retrieves all harvests for a specific floor
+func (s *HarvestService) GetByFloor(ctx context.Context, rbwID string, floorNo int) ([]*models.Harvest, error) {
+	harvests, err := s.harvestRepo.GetByFloor(ctx, rbwID, floorNo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvests by floor: %w", err)
+	}
+	return harvests, nil
+}
+
+// GetWithCycleByID retrieves a harvest with cycle information
+func (s *HarvestService) GetWithCycleByID(ctx context.Context, id string) (*models.HarvestWithCycle, error) {
+	harvest, err := s.harvestRepo.GetWithCycleByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvest with cycle: %w", err)
+	}
+	return harvest, nil
+}
+
+// GetWithCycleByRBW retrieves all harvests with cycle information for an RBW
+func (s *HarvestService) GetWithCycleByRBW(ctx context.Context, rbwID string) ([]*models.HarvestWithCycle, error) {
+	harvests, err := s.harvestRepo.GetWithCycleByRBWID(ctx, rbwID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvests with cycle: %w", err)
+	}
+	return harvests, nil
+}
+
+// Update updates harvest information
+func (s *HarvestService) Update(ctx context.Context, id string, req *models.UpdateHarvestRequest) (*models.Harvest, error) {
+	// Get existing harvest
+	harvest, err := s.harvestRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvest: %w", err)
+	}
+
+	// Update fields
+	if req.NestsCount > 0 {
+		harvest.NestsCount = req.NestsCount
+	}
+	if req.WeightKg != nil && *req.WeightKg > 0 {
+		harvest.WeightKg = req.WeightKg
+	}
+	if req.Grade != "" {
+		harvest.Grade = req.Grade
+	}
+	if req.Notes != "" {
+		harvest.Notes = req.Notes
+	}
+
+	harvest.UpdatedAt = time.Now()
+
+	if err := s.harvestRepo.Update(ctx, harvest); err != nil {
+		return nil, fmt.Errorf("failed to update harvest: %w", err)
+	}
+
+	return harvest, nil
+}
+
+// Delete deletes a harvest
+func (s *HarvestService) Delete(ctx context.Context, id string) error {
+	if err := s.harvestRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete harvest: %w", err)
+	}
+	return nil
+}
+
+// List retrieves harvests with filtering
+func (s *HarvestService) List(ctx context.Context, filter *repository.HarvestFilter) ([]*models.Harvest, int, error) {
+	harvests, err := s.harvestRepo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list harvests: %w", err)
+	}
+
+	count, err := s.harvestRepo.Count(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count harvests: %w", err)
+	}
+
+	return harvests, count, nil
+}
+
+// ListWithCycle retrieves harvests with cycle information and filtering
+func (s *HarvestService) ListWithCycle(ctx context.Context, filter *repository.HarvestFilter) ([]*models.HarvestWithCycle, int, error) {
+	harvests, err := s.harvestRepo.ListWithCycle(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list harvests with cycle: %w", err)
+	}
+
+	count, err := s.harvestRepo.Count(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count harvests: %w", err)
+	}
+
+	return harvests, count, nil
+}
+
+// GetStatsByRBW retrieves aggregated statistics for an RBW
+func (s *HarvestService) GetStatsByRBW(ctx context.Context, rbwID string) (*repository.HarvestStats, error) {
+	stats, err := s.harvestRepo.GetStatsByRBW(ctx, rbwID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get harvest stats: %w", err)
+	}
+	return stats, nil
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// SensorService handles business logic for sensor management
+type SensorService struct {
+	sensorRepo repository.SensorRepository
+}
+
+// NewSensorService creates a new sensor service instance
+func NewSensorService(sensorRepo repository.SensorRepository) *SensorService {
+	return &SensorService{
+		sensorRepo: sensorRepo,
+	}
+}
+
+// Create registers a new sensor
+func (s *SensorService) Create(ctx context.Context, req *models.CreateSensorRequest) (*models.Sensor, error) {
+	// Validate sensor type
+	validTypes := map[string]bool{
+		models.SensorTypeTemp:    true,
+		models.SensorTypeHumid:   true,
+		models.SensorTypeAmmonia: true,
+	}
+	if !validTypes[req.SensorType] {
+		return nil, fmt.Errorf("invalid sensor type: %s", req.SensorType)
+	}
+
+	// Check if sensor type already exists for this node
+	existing, err := s.sensorRepo.GetBySensorType(ctx, req.NodeID, req.SensorType)
+	if err == nil && existing != nil {
+		return nil, fmt.Errorf("sensor type %s already exists for this node", req.SensorType)
+	}
+
+	now := time.Now()
+	sensor := &models.Sensor{
+		ID:         uuid.New().String(),
+		NodeID:     req.NodeID,
+		SensorType: req.SensorType,
+		SensorName: req.SensorName,
+		Unit:       req.Unit,
+		IsActive:   true, // Default to active
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if err := s.sensorRepo.Create(ctx, sensor); err != nil {
+		return nil, fmt.Errorf("failed to create sensor: %w", err)
+	}
+
+	return sensor, nil
+}
+
+// GetByID retrieves a sensor by ID
+func (s *SensorService) GetByID(ctx context.Context, id string) (*models.Sensor, error) {
+	sensor, err := s.sensorRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sensor: %w", err)
+	}
+	return sensor, nil
+}
+
+// GetByNode retrieves all sensors for a node
+func (s *SensorService) GetByNode(ctx context.Context, nodeID string) ([]*models.Sensor, error) {
+	sensors, err := s.sensorRepo.GetByNodeID(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sensors: %w", err)
+	}
+	return sensors, nil
+}
+
+// GetActiveSensorsByNode retrieves only active sensors for a node
+func (s *SensorService) GetActiveSensorsByNode(ctx context.Context, nodeID string) ([]*models.Sensor, error) {
+	sensors, err := s.sensorRepo.GetActiveSensorsByNodeID(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active sensors: %w", err)
+	}
+	return sensors, nil
+}
+
+// Update updates sensor information
+func (s *SensorService) Update(ctx context.Context, id string, req *models.UpdateSensorRequest) (*models.Sensor, error) {
+	// Get existing sensor
+	sensor, err := s.sensorRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sensor: %w", err)
+	}
+
+	// Update fields
+	if req.SensorName != "" {
+		sensor.SensorName = req.SensorName
+	}
+	if req.Unit != "" {
+		sensor.Unit = req.Unit
+	}
+	if req.IsActive != nil {
+		sensor.IsActive = *req.IsActive
+	}
+
+	sensor.UpdatedAt = time.Now()
+
+	if err := s.sensorRepo.Update(ctx, sensor); err != nil {
+		return nil, fmt.Errorf("failed to update sensor: %w", err)
+	}
+
+	return sensor, nil
+}
+
+// SetActive activates or deactivates a sensor
+func (s *SensorService) SetActive(ctx context.Context, id string, isActive bool) error {
+	if err := s.sensorRepo.SetActive(ctx, id, isActive); err != nil {
+		return fmt.Errorf("failed to set sensor active status: %w", err)
+	}
+	return nil
+}
+
+// Delete deletes a sensor
+func (s *SensorService) Delete(ctx context.Context, id string) error {
+	if err := s.sensorRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete sensor: %w", err)
+	}
+	return nil
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// ServiceRequestService handles business logic for service request management
+type ServiceRequestService struct {
+	serviceRepo repository.ServiceRequestRepository
+}
+
+// NewServiceRequestService creates a new service request service instance
+func NewServiceRequestService(serviceRepo repository.ServiceRequestRepository) *ServiceRequestService {
+	return &ServiceRequestService{
+		serviceRepo: serviceRepo,
+	}
+}
+
+// Create creates a new service request
+func (s *ServiceRequestService) Create(ctx context.Context, req *models.CreateServiceRequestRequest, requestBy string) (*models.ServiceRequest, error) {
+	now := time.Now()
+	serviceReq := &models.ServiceRequest{
+		ID:          uuid.New().String(),
+		RBWID:       req.RBWID,
+		NodeID:      req.NodeID,
+		RequestBy:   requestBy,
+		Type:        req.Type,
+		Status:      models.ServiceStatusPending, // Default status
+		RequestDate: now,
+		ScheduleDate: req.ScheduleDate,
+		Issue:       req.Issue,
+		Notes:       req.Notes,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.serviceRepo.Create(ctx, serviceReq); err != nil {
+		return nil, fmt.Errorf("failed to create service request: %w", err)
+	}
+
+	return serviceReq, nil
+}
+
+// GetByID retrieves a service request by ID
+func (s *ServiceRequestService) GetByID(ctx context.Context, id string) (*models.ServiceRequest, error) {
+	req, err := s.serviceRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service request: %w", err)
+	}
+	return req, nil
+}
+
+// GetByRBW retrieves all service requests for an RBW
+func (s *ServiceRequestService) GetByRBW(ctx context.Context, rbwID string) ([]*models.ServiceRequest, error) {
+	requests, err := s.serviceRepo.GetByRBWID(ctx, rbwID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service requests: %w", err)
+	}
+	return requests, nil
+}
+
+// GetByTechnician retrieves all service requests assigned to a technician
+func (s *ServiceRequestService) GetByTechnician(ctx context.Context, technicianID string) ([]*models.ServiceRequest, error) {
+	requests, err := s.serviceRepo.GetByTechnician(ctx, technicianID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service requests: %w", err)
+	}
+	return requests, nil
+}
+
+// UpdateStatus updates the status of a service request
+func (s *ServiceRequestService) UpdateStatus(ctx context.Context, id, status string) error {
+	// Validate status
+	validStatuses := map[string]bool{
+		models.ServiceStatusDraft:      true,
+		models.ServiceStatusPending:    true,
+		models.ServiceStatusApproved:   true,
+		models.ServiceStatusAssigned:   true,
+		models.ServiceStatusInProgress: true,
+		models.ServiceStatusResolved:   true,
+		models.ServiceStatusRejected:   true,
+		models.ServiceStatusCancelled:  true,
+	}
+	if !validStatuses[status] {
+		return fmt.Errorf("invalid status: %s", status)
+	}
+
+	if err := s.serviceRepo.UpdateStatus(ctx, id, status); err != nil {
+		return fmt.Errorf("failed to update service request status: %w", err)
+	}
+	return nil
+}
+
+// AssignTechnician assigns a technician to a service request
+func (s *ServiceRequestService) AssignTechnician(ctx context.Context, id, technicianID string) error {
+	if err := s.serviceRepo.AssignTechnician(ctx, id, technicianID); err != nil {
+		return fmt.Errorf("failed to assign technician: %w", err)
+	}
+	return nil
+}
+
+// Update updates service request information
+func (s *ServiceRequestService) Update(ctx context.Context, id string, req *models.UpdateServiceRequestRequest) (*models.ServiceRequest, error) {
+	// Get existing request
+	serviceReq, err := s.serviceRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service request: %w", err)
+	}
+
+	// Update fields
+	if req.AssignedTo != nil {
+		serviceReq.AssignedTo = req.AssignedTo
+	}
+	if req.ApprovedBy != nil {
+		serviceReq.ApprovedBy = req.ApprovedBy
+	}
+	if req.Status != "" {
+		serviceReq.Status = req.Status
+	}
+	if req.ScheduleDate != nil {
+		serviceReq.ScheduleDate = req.ScheduleDate
+	}
+	if req.UninstallDate != nil {
+		serviceReq.UninstallDate = req.UninstallDate
+	}
+	if req.Issue != "" {
+		serviceReq.Issue = req.Issue
+	}
+	if req.Resolution != "" {
+		serviceReq.Resolution = req.Resolution
+	}
+	if req.Notes != "" {
+		serviceReq.Notes = req.Notes
+	}
+
+	serviceReq.UpdatedAt = time.Now()
+
+	if err := s.serviceRepo.Update(ctx, serviceReq); err != nil {
+		return nil, fmt.Errorf("failed to update service request: %w", err)
+	}
+
+	return serviceReq, nil
+}
+
+// Delete deletes a service request
+func (s *ServiceRequestService) Delete(ctx context.Context, id string) error {
+	if err := s.serviceRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete service request: %w", err)
+	}
+	return nil
+}
+
+// List retrieves service requests with filtering
+func (s *ServiceRequestService) List(ctx context.Context, filter *repository.ServiceRequestFilter) ([]*models.ServiceRequest, int, error) {
+	requests, err := s.serviceRepo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list service requests: %w", err)
+	}
+
+	count, err := s.serviceRepo.Count(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count service requests: %w", err)
+	}
+
+	return requests, count, nil
+}
+
+// IsTechnicianAssignedToRBW checks if a technician is currently assigned to an RBW
+func (s *ServiceRequestService) IsTechnicianAssignedToRBW(ctx context.Context, technicianID, rbwID string) (bool, error) {
+	isAssigned, err := s.serviceRepo.IsTechnicianAssignedToRBW(ctx, technicianID, rbwID)
+	if err != nil {
+		return false, fmt.Errorf("failed to check technician assignment: %w", err)
+	}
+	return isAssigned, nil
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// SensorTrendCalculator calculates sensor trends based on historical data
+type SensorTrendCalculator struct {
+	readingRepo repository.SensorReadingRepository
+}
+
+// NewSensorTrendCalculator creates a new sensor trend calculator
+func NewSensorTrendCalculator(readingRepo repository.SensorReadingRepository) *SensorTrendCalculator {
+	return &SensorTrendCalculator{
+		readingRepo: readingRepo,
+	}
+}
+
+// CalculateTrend determines if sensor values are rising, falling, or stable over the last hour
+// Returns: "rising", "falling", "stable", or "" if insufficient data
+func (c *SensorTrendCalculator) CalculateTrend(ctx context.Context, sensorID string, hoursBack int) (string, error) {
+	// Get recent readings (last N hours)
+	readings, err := c.readingRepo.GetLatest(ctx, sensorID, hoursBack*12) // ~12 readings per hour (5min intervals)
+	if err != nil {
+		return "", fmt.Errorf("failed to get readings for trend: %w", err)
+	}
+
+	if len(readings) < 6 {
+		return "stable", nil // Not enough data, assume stable
+	}
+
+	// Split into two halves: recent vs older
+	halfPoint := len(readings) / 2
+	recentHalf := readings[:halfPoint]
+	olderHalf := readings[halfPoint:]
+
+	// Calculate average for each half
+	recentAvg := calculateAverage(recentHalf)
+	olderAvg := calculateAverage(olderHalf)
+
+	// Determine trend based on difference
+	diff := recentAvg - olderAvg
+	threshold := 0.5 // Threshold for considering a trend
+
+	if diff > threshold {
+		return "rising", nil
+	} else if diff < -threshold {
+		return "falling", nil
+	}
+
+	return "stable", nil
+}
+
+// calculateAverage calculates the average value from sensor readings
+func calculateAverage(readings []*models.SensorReading) float64 {
+	if len(readings) == 0 {
+		return 0
+	}
+
+	var sum float64
+	for _, reading := range readings {
+		sum += reading.Value
+	}
+
+	return sum / float64(len(readings))
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/zacht/backend-swiftlet/internal/ai"
+	"github.com/zacht/backend-swiftlet/internal/metrics"
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/mqtt"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// TelemetryService handles sensor reading ingestion and AI anomaly detection
+type TelemetryService struct {
+	readingRepo repository.SensorReadingRepository
+	sensorRepo  repository.SensorRepository
+	nodeRepo    repository.NodeRepository
+	alertRepo   repository.AlertRepository
+	aiClient    *ai.Client
+}
+
+// NewTelemetryService creates a new telemetry service instance
+func NewTelemetryService(
+	readingRepo repository.SensorReadingRepository,
+	sensorRepo repository.SensorRepository,
+	nodeRepo repository.NodeRepository,
+	alertRepo repository.AlertRepository,
+	aiClient *ai.Client,
+) *TelemetryService {
+	return &TelemetryService{
+		readingRepo: readingRepo,
+		sensorRepo:  sensorRepo,
+		nodeRepo:    nodeRepo,
+		alertRepo:   alertRepo,
+		aiClient:    aiClient,
+	}
+}
+
+// IngestReading processes a new sensor reading, stores it, and checks for anomalies
+func (s *TelemetryService) IngestReading(ctx context.Context, req *models.CreateSensorReadingRequest) (*models.SensorReading, error) {
+	startTime := time.Now()
+
+	// Verify sensor exists and is active
+	sensor, err := s.sensorRepo.GetByID(ctx, req.SensorID)
+	if err != nil {
+		return nil, fmt.Errorf("sensor not found: %w", err)
+	}
+
+	if !sensor.IsActive {
+		return nil, fmt.Errorf("sensor is inactive")
+	}
+
+	// Create reading
+	now := time.Now()
+	reading := &models.SensorReading{
+		SensorID:   req.SensorID,
+		RecordedAt: req.RecordedAt,
+		Value:      req.Value,
+		IsAnomaly:  false, // Default to false, will be updated if AI detects anomaly
+		CreatedAt:  now,
+	}
+
+	// Save to database
+	if err := s.readingRepo.Create(ctx, reading); err != nil {
+		return nil, fmt.Errorf("failed to create sensor reading: %w", err)
+	}
+
+	// Get node for AI Engine (need RBW_ID)
+	node, err := s.nodeRepo.GetByID(ctx, sensor.NodeID)
+	if err == nil {
+		// Record metrics
+		duration := time.Since(startTime).Seconds()
+		metrics.RecordSensorReading(sensor.SensorType, node.RBWID, node.ID, req.Value, false, duration)
+
+		// Call AI Engine for anomaly detection (async, non-blocking)
+		go s.checkAnomalyWithAI(context.Background(), reading, sensor, node)
+	} else {
+		log.Printf("WARN: Failed to get node for AI check: %v", err)
+	}
+
+	return reading, nil
+}
+
+// ProcessMQTTMessage processes sensor data from MQTT broker
+func (s *TelemetryService) ProcessMQTTMessage(ctx context.Context, payload *mqtt.SensorPayload) error {
+	// 1. Find node by ESP32 UID
+	node, err := s.nodeRepo.GetByESP32UID(ctx, payload.ESP32UID)
+	if err != nil {
+		return fmt.Errorf("node not found for ESP32 UID %s: %w", payload.ESP32UID, err)
+	}
+
+	log.Printf("[Telemetry] Processing data from node %s (ESP32: %s)", node.ID, payload.ESP32UID)
+
+	// 2. Update node status and last_seen
+	if err := s.nodeRepo.UpdateStatus(ctx, node.ID, "online", time.Now()); err != nil {
+		log.Printf("WARN: Failed to update node status: %v", err)
+	}
+
+	// 3. Get sensors for this node
+	sensors, err := s.sensorRepo.GetByNodeID(ctx, node.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get sensors for node %s: %w", node.ID, err)
+	}
+
+	// 4. Create sensor readings for each sensor type
+	readings := []struct {
+		sensorType string
+		value      float64
+	}{
+		{"temp", payload.Temp},
+		{"humid", payload.Humidity},
+		{"ammonia", payload.Ammonia},
+	}
+
+	recordedAt := time.Unix(payload.Timestamp, 0)
+	now := time.Now()
+
+	for _, r := range readings {
+		// Find sensor by type
+		sensor := s.findSensorByType(sensors, r.sensorType)
+		if sensor == nil {
+			log.Printf("WARN: Sensor type %s not found for node %s", r.sensorType, node.ID)
+			continue
+		}
+
+		if !sensor.IsActive {
+			log.Printf("WARN: Sensor %s is inactive, skipping", sensor.ID)
+			continue
+		}
+
+		// Create reading
+		reading := &models.SensorReading{
+			SensorID:   sensor.ID,
+			RecordedAt: recordedAt,
+			Value:      r.value,
+			IsAnomaly:  false,
+			CreatedAt:  now,
+		}
+
+		// Save to database
+		if err := s.readingRepo.Create(ctx, reading); err != nil {
+			log.Printf("ERROR: Failed to save sensor reading for %s: %v", sensor.ID, err)
+			continue
+		}
+
+		log.Printf("[Telemetry] Saved reading: sensor=%s, type=%s, value=%.2f", 
+			sensor.ID, r.sensorType, r.value)
+
+		// Call AI Engine asynchronously for anomaly detection
+		go s.checkAnomalyWithAI(context.Background(), reading, sensor, node)
+	}
+
+	return nil
+}
+
+// findSensorByType finds a sensor by its type from a list of sensors
+func (s *TelemetryService) findSensorByType(sensors []*models.Sensor, sensorType string) *models.Sensor {
+	for _, sensor := range sensors {
+		if sensor.SensorType == sensorType && sensor.IsActive {
+			return sensor
+		}
+	}
+	return nil
+}
+
+// checkAnomalyWithAI sends reading to AI Engine for anomaly detection
+func (s *TelemetryService) checkAnomalyWithAI(ctx context.Context, reading *models.SensorReading, sensor *models.Sensor, node *models.Node) {
+	// Skip if AI client is not configured
+	if s.aiClient == nil {
+		log.Println("WARN: AI client not configured, skipping anomaly detection")
+		metrics.SetAIEngineAvailability(false)
+		return
+	}
+
+	// Prepare AI request
+	aiReq := &ai.AnomalyRequest{
+		SensorID:   sensor.ID,
+		SensorType: sensor.SensorType,
+		RBWID:      node.RBWID, // Now we have RBW ID from node
+		NodeID:     sensor.NodeID,
+		RecordedAt: reading.RecordedAt,
+		Value:      reading.Value,
+	}
+
+	// Call AI Engine with timeout context
+	aiCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	startTime := time.Now()
+	aiResp, err := s.aiClient.DetectAnomaly(aiCtx, aiReq)
+	duration := time.Since(startTime).Seconds()
+
+	if err != nil {
+		// Don't fail if AI Engine is down - just log and continue
+		log.Printf("WARN: AI Engine unavailable for sensor %s: %v", sensor.ID, err)
+		metrics.RecordAIEngineRequest("anomaly_detect", "error", duration)
+		metrics.SetAIEngineAvailability(false)
+		
+		// Check if timeout
+		if aiCtx.Err() == context.DeadlineExceeded {
+			metrics.RecordAIEngineTimeout("anomaly_detect")
+		}
+		return
+	}
+
+	// Record successful AI request
+	metrics.RecordAIEngineRequest("anomaly_detect", "success", duration)
+	metrics.SetAIEngineAvailability(true)
+
+	log.Printf("[AI] Anomaly check result: sensor=%s, is_anomaly=%v, score=%.2f", 
+		sensor.ID, aiResp.IsAnomaly, aiResp.Score)
+
+	// If anomaly detected by AI
+	if aiResp.IsAnomaly {
+		// Update reading as anomaly
+		if err := s.readingRepo.MarkAsAnomaly(ctx, reading.ID); err != nil {
+			log.Printf("ERROR: Failed to mark reading as anomaly: %v", err)
+			return
+		}
+
+		// Create alert with RBW ID from node
+		severity := int(aiResp.Score * 5) // Convert 0-1 score to 0-5 severity
+		if severity > 5 {
+			severity = 5
+		}
+
+		// Build alert message - handle nullable Reason
+		reason := "Unknown reason"
+		if aiResp.Reason != nil {
+			reason = *aiResp.Reason
+		}
+
+		alert := &models.Alert{
+			ID:        uuid.New().String(),
+			RBWID:     node.RBWID,
+			SensorID:  &sensor.ID,
+			NodeID:    &sensor.NodeID,
+			AlertType: "ai_anomaly",
+			Severity:  severity,
+			Message:   fmt.Sprintf("AI detected anomaly: %s (score: %.2f)", reason, aiResp.Score),
+			IsRead:    false,
+			CreatedAt: time.Now(),
+		}
+
+		// Create alert
+		if err := s.alertRepo.Create(ctx, alert); err != nil {
+			log.Printf("ERROR: Failed to create AI anomaly alert: %v", err)
+		} else {
+			log.Printf("INFO: AI anomaly detected for sensor %s: %s", sensor.ID, reason)
+		}
+	}
+}
+
+// IngestBatch processes multiple sensor readings in one transaction
+func (s *TelemetryService) IngestBatch(ctx context.Context, readings []*models.SensorReading) error {
+	if err := s.readingRepo.CreateBatch(ctx, readings); err != nil {
+		return fmt.Errorf("failed to create batch readings: %w", err)
+	}
+	return nil
+}
+
+// GetReadings retrieves sensor readings within a time range
+func (s *TelemetryService) GetReadings(ctx context.Context, sensorID string, from, to time.Time, limit int) ([]*models.SensorReading, error) {
+	readings, err := s.readingRepo.GetBySensorID(ctx, sensorID, from, to, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get readings: %w", err)
+	}
+	return readings, nil
+}
+
+// GetLatestReadings retrieves the most recent N readings for a sensor
+func (s *TelemetryService) GetLatestReadings(ctx context.Context, sensorID string, limit int) ([]*models.SensorReading, error) {
+	readings, err := s.readingRepo.GetLatest(ctx, sensorID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest readings: %w", err)
+	}
+	return readings, nil
+}
+
+// GetLatestReading retrieves the most recent reading for a sensor
+func (s *TelemetryService) GetLatestReading(ctx context.Context, sensorID string) (*models.SensorReading, error) {
+	reading, err := s.readingRepo.GetLatestBySensor(ctx, sensorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest reading: %w", err)
+	}
+	return reading, nil
+}
+
+// GetAnomalies retrieves all anomalous readings within a time range
+func (s *TelemetryService) GetAnomalies(ctx context.Context, sensorID string, from, to time.Time) ([]*models.SensorReading, error) {
+	readings, err := s.readingRepo.GetAnomalies(ctx, sensorID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get anomalies: %w", err)
+	}
+	return readings, nil
+}
+
+// GetAggregatedData retrieves time-bucketed aggregated sensor data
+func (s *TelemetryService) GetAggregatedData(ctx context.Context, sensorID string, from, to time.Time, interval string) ([]repository.TimeSeriesBucket, error) {
+	buckets, err := s.readingRepo.GetAverageByTimeRange(ctx, sensorID, from, to, interval)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get aggregated data: %w", err)
+	}
+	return buckets, nil
+}
+
+// detectSimpleAnomaly performs basic threshold-based anomaly detection
+// This is a fallback when AI Engine is unavailable
+// Thresholds based on AI Team spec v1.1 (2025-12-01):
+// - temp: 22-32°C (optimal: 28°C)
+// - humid: 70-95% (optimal: 85%)
+// - ammonia: 0-15 ppm (optimal: 5 ppm) - STRICTER than original 0-25 ppm
+func (s *TelemetryService) detectSimpleAnomaly(sensorType string, value float64) (bool, string) {
+	switch sensorType {
+	case models.SensorTypeTemp:
+		if value > 32.0 {
+			return true, fmt.Sprintf("Temperature too high: %.2f°C (max: 32°C)", value)
+		}
+		if value < 22.0 {
+			return true, fmt.Sprintf("Temperature too low: %.2f°C (min: 22°C)", value)
+		}
+	case models.SensorTypeHumid:
+		if value > 95.0 {
+			return true, fmt.Sprintf("Humidity too high: %.2f%% (max: 95%%)", value)
+		}
+		if value < 70.0 {
+			return true, fmt.Sprintf("Humidity too low: %.2f%% (min: 70%%)", value)
+		}
+	case models.SensorTypeAmmonia:
+		// UPDATED: 15 ppm threshold (stricter than original 25 ppm)
+		// Per AI Team: NH3 > 15 ppm is dangerous for swiftlets
+		if value > 15.0 {
+			return true, fmt.Sprintf("Ammonia level too high: %.2f ppm (max: 15 ppm)", value)
+		}
+	}
+	return false, ""
+}
+
+// getAlertTypeFromSensor determines alert type based on sensor type and value
+// Thresholds based on AI Team spec v1.1:
+// - temp: 22-32°C
+// - humid: 70-95%
+// - ammonia: 0-15 ppm
+func (s *TelemetryService) getAlertTypeFromSensor(sensorType string, value float64) string {
+	switch sensorType {
+	case models.SensorTypeTemp:
+		if value > 32.0 {
+			return models.AlertTypeTempHigh
+		}
+		return models.AlertTypeTempLow
+	case models.SensorTypeHumid:
+		if value > 95.0 {
+			return models.AlertTypeHumidHigh
+		}
+		return models.AlertTypeHumidLow
+	case models.SensorTypeAmmonia:
+		return models.AlertTypeAmmoniaHigh
+	}
+	return models.AlertTypeAIAnomaly
+}
+
+// calculateSeverity determines alert severity based on sensor type and value
+// Thresholds based on AI Team spec v1.1:
+// - temp: 22-32°C (critical if >38 or <18)
+// - humid: 70-95% (critical if >98 or <60)
+// - ammonia: 0-15 ppm (critical if >25 ppm)
+func (s *TelemetryService) calculateSeverity(sensorType string, value float64) int {
+	switch sensorType {
+	case models.SensorTypeTemp:
+		if value > 38.0 || value < 18.0 {
+			return 5 // Critical
+		}
+		if value > 32.0 || value < 22.0 {
+			return 3 // Medium
+		}
+		return 1 // Info
+	case models.SensorTypeHumid:
+		if value > 98.0 || value < 60.0 {
+			return 4 // High
+		}
+		if value > 95.0 || value < 70.0 {
+			return 2 // Low
+		}
+		return 1 // Info
+	case models.SensorTypeAmmonia:
+		// UPDATED: stricter thresholds per AI Team
+		if value > 25.0 {
+			return 5 // Critical - dangerous level
+		}
+		if value > 15.0 {
+			return 4 // High - above safe limit
+		}
+		if value > 10.0 {
+			return 2 // Low - approaching limit
+		}
+		return 1 // Info
+	}
+	return 1
+}
+
+
+package services
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/mqtt"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+)
+
+// AudioService handles audio control business logic
+type AudioService struct {
+	nodeRepo   repository.NodeRepository
+	mqttClient *mqtt.Client
+}
+
+// NewAudioService creates a new audio service instance
+func NewAudioService(nodeRepo repository.NodeRepository, mqttClient *mqtt.Client) *AudioService {
+	return &AudioService{
+		nodeRepo:   nodeRepo,
+		mqttClient: mqttClient,
+	}
+}
+
+// ControlAudio handles audio control for LMB node
+// Supports three actions:
+//   - audio_set_lmb: Control LMB speaker only
+//   - audio_set_nest: Control Nest speaker only
+//   - call_bird: Control both speakers (for calling birds)
+func (s *AudioService) ControlAudio(ctx context.Context, nodeID string, req models.AudioControlRequest) (*models.AudioStateResponse, error) {
+	// Validate action
+	if req.Action != models.AudioActionSetLMB && 
+	   req.Action != models.AudioActionSetNest && 
+	   req.Action != models.AudioActionCallBird {
+		return nil, fmt.Errorf("invalid action: must be audio_set_lmb, audio_set_nest, or call_bird")
+	}
+
+	// Validate value
+	if req.Value != 0 && req.Value != 1 {
+		return nil, fmt.Errorf("invalid value: must be 0 or 1")
+	}
+
+	// Get current node state to validate it's an LMB with audio capability
+	currentState, err := s.nodeRepo.GetAudioState(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node audio state: %w", err)
+	}
+
+	if !currentState.HasAudio {
+		return nil, fmt.Errorf("node does not have audio capability")
+	}
+
+	// Determine which states to update based on action
+	var lmbState, nestState *bool
+	boolValue := req.Value == 1
+
+	switch req.Action {
+	case models.AudioActionSetLMB:
+		// Only update LMB speaker state
+		lmbState = &boolValue
+
+	case models.AudioActionSetNest:
+		// Only update Nest speaker state
+		nestState = &boolValue
+
+	case models.AudioActionCallBird:
+		// Update both speakers (for calling birds)
+		lmbState = &boolValue
+		nestState = &boolValue
+	}
+
+	// Update database first (source of truth)
+	if err := s.nodeRepo.UpdateAudioStateLMBNest(ctx, nodeID, lmbState, nestState); err != nil {
+		return nil, fmt.Errorf("failed to update audio state in database: %w", err)
+	}
+
+	// Publish command to MQTT broker (fire and forget pattern)
+	// We don't fail the request if MQTT publish fails - the database is already updated
+	// The device will eventually sync when it reconnects or receives the next command
+	if s.mqttClient != nil && s.mqttClient.IsConnected() {
+		if err := s.mqttClient.PublishAudioCommand(req.Action, req.Value); err != nil {
+			// Log warning but don't fail the request
+			fmt.Printf("[WARN] Failed to publish MQTT audio command (action=%s, value=%d): %v\n", 
+				req.Action, req.Value, err)
+		}
+	} else {
+		fmt.Println("[WARN] MQTT client not connected, skipping command publish")
+	}
+
+	// Return updated state from database
+	updatedState, err := s.nodeRepo.GetAudioState(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get updated audio state: %w", err)
+	}
+
+	return updatedState, nil
+}
+
+// GetAudioState retrieves current audio state of a node
+func (s *AudioService) GetAudioState(ctx context.Context, nodeID string) (*models.AudioStateResponse, error) {
+	state, err := s.nodeRepo.GetAudioState(ctx, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audio state: %w", err)
+	}
+
+	return state, nil
+}
+
+
+package services
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/zacht/backend-swiftlet/internal/models"
+	"github.com/zacht/backend-swiftlet/internal/repository"
+
+	"github.com/google/uuid"
+)
+
+type TransactionService interface {
+	// Transaction operations
+	CreateTransaction(ctx context.Context, userID uuid.UUID, req *models.CreateTransactionRequest) (*models.Transaction, error)
+	GetTransaction(ctx context.Context, userID uuid.UUID, userRole string, id uuid.UUID) (*models.Transaction, error)
+	ListTransactions(ctx context.Context, userID uuid.UUID, userRole string, rbwID uuid.UUID, from, to *time.Time, categoryID *uuid.UUID, limit, offset int) ([]*models.Transaction, int, error)
+	UpdateTransaction(ctx context.Context, userID uuid.UUID, userRole string, id uuid.UUID, req *models.UpdateTransactionRequest) error
+	DeleteTransaction(ctx context.Context, userID uuid.UUID, userRole string, id uuid.UUID) error
+
+	// Category operations
+	CreateCategory(ctx context.Context, userRole string, req *models.CreateCategoryRequest) (*models.TransactionCategory, error)
+	GetCategory(ctx context.Context, id uuid.UUID) (*models.TransactionCategory, error)
+	ListCategories(ctx context.Context) ([]*models.TransactionCategory, error)
+	UpdateCategory(ctx context.Context, userRole string, id uuid.UUID, req *models.UpdateCategoryRequest) error
+	DeleteCategory(ctx context.Context, userRole string, id uuid.UUID) error
+
+	// Financial statement operations
+	GenerateStatement(ctx context.Context, userID uuid.UUID, userRole string, req *models.GenerateStatementRequest) (*models.FinancialStatement, error)
+	GetStatement(ctx context.Context, userID uuid.UUID, userRole string, rbwID uuid.UUID, periodType models.PeriodType, year int, month *int) (*models.FinancialStatement, error)
+	ListStatements(ctx context.Context, userID uuid.UUID, userRole string, rbwID uuid.UUID, periodType *models.PeriodType, year *int) ([]*models.FinancialStatement, error)
+}
+
+type transactionService struct {
+	transactionRepo repository.TransactionRepository
+	rbwRepo         repository.RBWRepository
+}
+
+func NewTransactionService(transactionRepo repository.TransactionRepository, rbwRepo repository.RBWRepository) TransactionService {
+	return &transactionService{
+		transactionRepo: transactionRepo,
+		rbwRepo:         rbwRepo,
+	}
+}
+
+// CreateTransaction creates a new transaction (farmer can only create for own RBW)
+func (s *transactionService) CreateTransaction(ctx context.Context, userID uuid.UUID, req *models.CreateTransactionRequest) (*models.Transaction, error) {
+	// Parse date
+	date, err := time.Parse("2006-01-02", req.Date)
+	if err != nil {
+		return nil, errors.New("invalid date format, use YYYY-MM-DD")
+	}
+
+	// Validate category exists
+	category, err := s.transactionRepo.GetCategoryByID(ctx, req.CategoryID)
+	if err != nil {
+		return nil, err
+	}
+	if category == nil {
+		return nil, errors.New("category not found")
+	}
+
+	// Create transaction
+	tx := &models.Transaction{
+		RBWId:      req.RBWId,
+		Date:       date,
+		CategoryID: req.CategoryID,
+		Qty:        req.Qty,
+		UnitPrice:  req.UnitPrice,
+		Note:       req.Note,
+	}
+
+	err = s.transactionRepo.Create(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+// GetTransaction retrieves a transaction (with ownership check for farmers)
+func (s *transactionService) GetTransaction(ctx context.Context, userID uuid.UUID, userRole string, id uuid.UUID) (*models.Transaction, error) {
+	tx, err := s.transactionRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if tx == nil {
+		return nil, errors.New("transaction not found")
+	}
+
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, tx.RBWId.String())
+		if err != nil {
+			return nil, err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return nil, errors.New("access denied")
+		}
+	}
+
+	return tx, nil
+}
+
+// ListTransactions lists transactions (farmer can only see own RBW)
+func (s *transactionService) ListTransactions(ctx context.Context, userID uuid.UUID, userRole string, rbwID uuid.UUID, from, to *time.Time, categoryID *uuid.UUID, limit, offset int) ([]*models.Transaction, int, error) {
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, rbwID.String())
+		if err != nil {
+			return nil, 0, err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return nil, 0, errors.New("access denied")
+		}
+	}
+
+	transactions, err := s.transactionRepo.List(ctx, rbwID, from, to, categoryID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := s.transactionRepo.Count(ctx, rbwID, from, to, categoryID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return transactions, count, nil
+}
+
+// UpdateTransaction updates a transaction (with ownership check)
+func (s *transactionService) UpdateTransaction(ctx context.Context, userID uuid.UUID, userRole string, id uuid.UUID, req *models.UpdateTransactionRequest) error {
+	// Get existing transaction
+	tx, err := s.transactionRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if tx == nil {
+		return errors.New("transaction not found")
+	}
+
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, tx.RBWId.String())
+		if err != nil {
+			return err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return errors.New("access denied")
+		}
+	}
+
+	// Validate category if provided
+	if req.CategoryID != nil {
+		category, err := s.transactionRepo.GetCategoryByID(ctx, *req.CategoryID)
+		if err != nil {
+			return err
+		}
+		if category == nil {
+			return errors.New("category not found")
+		}
+	}
+
+	return s.transactionRepo.Update(ctx, id, req)
+}
+
+// DeleteTransaction deletes a transaction (with ownership check)
+func (s *transactionService) DeleteTransaction(ctx context.Context, userID uuid.UUID, userRole string, id uuid.UUID) error {
+	// Get existing transaction
+	tx, err := s.transactionRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if tx == nil {
+		return errors.New("transaction not found")
+	}
+
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, tx.RBWId.String())
+		if err != nil {
+			return err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return errors.New("access denied")
+		}
+	}
+
+	return s.transactionRepo.Delete(ctx, id)
+}
+
+// CreateCategory creates a new category (admin only)
+func (s *transactionService) CreateCategory(ctx context.Context, userRole string, req *models.CreateCategoryRequest) (*models.TransactionCategory, error) {
+	if userRole != "admin" {
+		return nil, errors.New("only admin can create categories")
+	}
+
+	category := &models.TransactionCategory{
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	err := s.transactionRepo.CreateCategory(ctx, category)
+	if err != nil {
+		return nil, err
+	}
+
+	return category, nil
+}
+
+// GetCategory retrieves a category
+func (s *transactionService) GetCategory(ctx context.Context, id uuid.UUID) (*models.TransactionCategory, error) {
+	category, err := s.transactionRepo.GetCategoryByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if category == nil {
+		return nil, errors.New("category not found")
+	}
+	return category, nil
+}
+
+// ListCategories lists all categories
+func (s *transactionService) ListCategories(ctx context.Context) ([]*models.TransactionCategory, error) {
+	return s.transactionRepo.ListCategories(ctx)
+}
+
+// UpdateCategory updates a category (admin only)
+func (s *transactionService) UpdateCategory(ctx context.Context, userRole string, id uuid.UUID, req *models.UpdateCategoryRequest) error {
+	if userRole != "admin" {
+		return errors.New("only admin can update categories")
+	}
+
+	category, err := s.transactionRepo.GetCategoryByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if category == nil {
+		return errors.New("category not found")
+	}
+
+	return s.transactionRepo.UpdateCategory(ctx, id, req)
+}
+
+// DeleteCategory deletes a category (admin only)
+func (s *transactionService) DeleteCategory(ctx context.Context, userRole string, id uuid.UUID) error {
+	if userRole != "admin" {
+		return errors.New("only admin can delete categories")
+	}
+
+	return s.transactionRepo.DeleteCategory(ctx, id)
+}
+
+// GenerateStatement generates a financial statement
+func (s *transactionService) GenerateStatement(ctx context.Context, userID uuid.UUID, userRole string, req *models.GenerateStatementRequest) (*models.FinancialStatement, error) {
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, req.RBWId.String())
+		if err != nil {
+			return nil, err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return nil, errors.New("access denied")
+		}
+	}
+
+	// Validate period type and month
+	if req.PeriodType == models.PeriodTypeBulanan && req.Month == nil {
+		return nil, errors.New("month is required for monthly statement")
+	}
+	if req.PeriodType == models.PeriodTypeTahunan && req.Month != nil {
+		return nil, errors.New("month should not be provided for yearly statement")
+	}
+
+	// Calculate summary
+	var summary *models.FinancialSummary
+	var err error
+
+	if req.PeriodType == models.PeriodTypeBulanan {
+		summary, err = s.transactionRepo.CalculateMonthlyStatement(ctx, req.RBWId, req.Year, *req.Month)
+	} else {
+		summary, err = s.transactionRepo.CalculateYearlyStatement(ctx, req.RBWId, req.Year)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Create statement record
+	stmt := &models.FinancialStatement{
+		RBWId:            req.RBWId,
+		PeriodType:       req.PeriodType,
+		Month:            req.Month,
+		Year:             req.Year,
+		TotalPendapatan:  summary.TotalPendapatan,
+		TotalPengeluaran: summary.TotalPengeluaran,
+	}
+
+	err = s.transactionRepo.CreateStatement(ctx, stmt)
+	if err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
+}
+
+// GetStatement retrieves a financial statement
+func (s *transactionService) GetStatement(ctx context.Context, userID uuid.UUID, userRole string, rbwID uuid.UUID, periodType models.PeriodType, year int, month *int) (*models.FinancialStatement, error) {
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, rbwID.String())
+		if err != nil {
+			return nil, err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return nil, errors.New("access denied")
+		}
+	}
+
+	stmt, err := s.transactionRepo.GetStatement(ctx, rbwID, periodType, year, month)
+	if err != nil {
+		return nil, err
+	}
+	if stmt == nil {
+		return nil, errors.New("statement not found")
+	}
+
+	return stmt, nil
+}
+
+// ListStatements lists financial statements
+func (s *transactionService) ListStatements(ctx context.Context, userID uuid.UUID, userRole string, rbwID uuid.UUID, periodType *models.PeriodType, year *int) ([]*models.FinancialStatement, error) {
+	// Check ownership for farmer
+	if userRole == "farmer" {
+		rbw, err := s.rbwRepo.GetByID(ctx, rbwID.String())
+		if err != nil {
+			return nil, err
+		}
+		if rbw == nil || rbw.OwnerID != userID.String() {
+			return nil, errors.New("access denied")
+		}
+	}
+
+	return s.transactionRepo.ListStatements(ctx, rbwID, periodType, year)
+}

@@ -762,7 +762,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
         const SizedBox(height: 8),
         _buildHint(),
         const SizedBox(height: 16),
-        _buildNodeSelection(),
+        
         const SizedBox(height: 16),
         _buildDateDisplay(),
         const SizedBox(height: 16),
@@ -895,105 +895,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     );
   }
 
-  Widget _buildNodeSelection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF245C4C).withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.router, color: Color(0xFF245C4C), size: 20),
-              SizedBox(width: 8),
-              Text('Node IoT',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF245C4C))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_nodes.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber,
-                      color: Colors.orange[700], size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Text('Tidak ada node tersedia untuk kandang ini',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.orange[700]))),
-                ],
-              ),
-            )
-          else
-            DropdownButtonFormField<String>(
-              value: _selectedNode != null
-                  ? _selectedNode!['id']?.toString()
-                  : null,
-              decoration: InputDecoration(
-                labelText: 'Pilih Node',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              items: _nodes.map((node) {
-                final nodeId = node['id']?.toString() ?? '';
-                final nodeName = node['node_code'] ??
-                    'Node ${node['node_type'] ?? 'Unknown'}';
-                final nodeType = node['node_type'] ?? 'unknown';
-                return DropdownMenuItem<String>(
-                  value: nodeId,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        nodeType == 'gateway'
-                            ? Icons.router
-                            : nodeType == 'nest'
-                                ? Icons.nest_cam_wired_stand
-                                : nodeType == 'lmb'
-                                    ? Icons.lightbulb
-                                    : nodeType == 'pump'
-                                        ? Icons.water_drop
-                                        : Icons.device_unknown,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                          child: Text(nodeName,
-                              style: const TextStyle(fontSize: 14),
-                              overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedNode = _nodes
-                      .firstWhere((node) => node['id']?.toString() == value);
-                });
-              },
-              validator: (value) =>
-                  value == null || value.isEmpty ? 'Silakan pilih node' : null,
-            ),
-        ],
-      ),
-    );
-  }
-
+  
   Widget _buildDateDisplay() {
     return Container(
       width: double.infinity,

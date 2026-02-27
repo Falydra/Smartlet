@@ -1,10 +1,101 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/components/admin_bottom_navigation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/services/auth_services.dart.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+
+
+class AuthenticatedNetworkImage extends ImageProvider<AuthenticatedNetworkImage> {
+  final String url;
+  final String? token;
+  final double scale;
+
+  const AuthenticatedNetworkImage(this.url, {this.token, this.scale = 1.0});
+
+  @override
+  Future<AuthenticatedNetworkImage> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<AuthenticatedNetworkImage>(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(AuthenticatedNetworkImage key, ImageDecoderCallback decode) {
+    return MultiFrameImageStreamCompleter(
+      codec: _loadAsync(key, decode),
+      scale: key.scale,
+      informationCollector: () sync* {
+        yield ErrorDescription('Image URL: $url');
+      },
+    );
+  }
+
+  Future<ui.Codec> _loadAsync(AuthenticatedNetworkImage key, ImageDecoderCallback decode) async {
+    try {
+      final Uri resolved = Uri.parse(key.url);
+      final Map<String, String> headers = {};
+      
+      print('AuthenticatedNetworkImage: Loading image from $resolved');
+      print('AuthenticatedNetworkImage: Token available: ${key.token != null}');
+      
+
+      http.Response response = await http.get(resolved);
+      print('AuthenticatedNetworkImage: Public access status: ${response.statusCode}');
+      
+
+      if (response.statusCode == 403 || response.statusCode == 401) {
+        print('AuthenticatedNetworkImage: Trying with Authorization header...');
+        if (key.token != null) {
+          headers['Authorization'] = 'Bearer ${key.token}';
+        }
+        response = await http.get(resolved, headers: headers);
+        print('AuthenticatedNetworkImage: Auth access status: ${response.statusCode}');
+      }
+      
+      if (response.statusCode != 200) {
+        print('AuthenticatedNetworkImage: WARNING - Storage requires backend fix (pre-signed URLs or public read)');
+        throw NetworkImageLoadException(
+          statusCode: response.statusCode,
+          uri: resolved,
+        );
+      }
+
+      final Uint8List bytes = response.bodyBytes;
+      if (bytes.lengthInBytes == 0) {
+        throw Exception('Image is empty');
+      }
+
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      return decode(buffer);
+    } catch (e) {
+      throw Exception('Failed to load image: $e');
+    }
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other.runtimeType != runtimeType) return false;
+    return other is AuthenticatedNetworkImage
+        && other.url == url
+        && other.token == token
+        && other.scale == scale;
+  }
+
+  @override
+  int get hashCode => Object.hash(url, token, scale);
+
+  @override
+  String toString() => 'AuthenticatedNetworkImage("$url", scale: $scale)';
+}
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,8 +110,13 @@ class _ProfilePageState extends State<ProfilePage> {
   int _currentIndex = 4;
   String? _userName;
   String? _userEmail;
+  String? _avatarUrl;
   bool _isLoading = true;
   bool _isAdmin = false;
+  File? _profileImage;
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploadingImage = false;
+  String? _authToken;
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
@@ -28,7 +124,46 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadTokenAndUserData();
+  }
+
+  Future<void> _loadTokenAndUserData() async {
+    final token = await TokenManager.getToken();
+    print('Token loaded: ${token != null ? "YES (length: ${token?.length})" : "NO"}');
+    setState(() {
+      _authToken = token;
+    });
+    print('Token set in state: $_authToken');
+    await _loadUserData();
+    await _loadCachedProfileImage(); // Load cached image if exists
+  }
+
+  Future<void> _loadCachedProfileImage() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final cachedImagePath = path.join(dir.path, 'cached_profile_avatar.jpg');
+      final cachedFile = File(cachedImagePath);
+      
+      if (await cachedFile.exists()) {
+        setState(() {
+          _profileImage = cachedFile;
+        });
+        print('✓ Loaded cached profile image from: $cachedImagePath');
+      }
+    } catch (e) {
+      print('Failed to load cached profile image: $e');
+    }
+  }
+
+  Future<void> _cacheProfileImage(File imageFile) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final cachedImagePath = path.join(dir.path, 'cached_profile_avatar.jpg');
+      await imageFile.copy(cachedImagePath);
+      print('✓ Cached profile image to: $cachedImagePath');
+    } catch (e) {
+      print('Failed to cache profile image: $e');
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -52,12 +187,23 @@ class _ProfilePageState extends State<ProfilePage> {
 
         if (userData != null) {
           final ud = userData; // non-nullable alias for null-safety
+          String? avatarUrl = ud['avatar_url'];
+          
+
+          if (avatarUrl != null && !avatarUrl.startsWith('http')) {
+            avatarUrl = 'https://api.swiftlead.fuadfakhruz.com$avatarUrl';
+          }
+          
           setState(() {
             _userName = ud['name'] ?? ud['full_name'] ?? ud['username'] ?? 'User';
             _userEmail = ud['email'] ?? ud['user_email'] ?? 'No email';
+            _avatarUrl = avatarUrl;
+            _authToken = token; // Ensure token is always fresh
             _isAdmin = (ud['role']?.toString() == 'admin');
             _isLoading = false;
           });
+          print('Profile loaded. Avatar URL: $_avatarUrl');
+          print('Auth token updated in _loadUserData');
           return;
         }
       } catch (e) {
@@ -76,6 +222,20 @@ class _ProfilePageState extends State<ProfilePage> {
         _isAdmin = (userRole == 'admin');
         _isLoading = false;
       });
+    }
+  }
+
+  ImageProvider _getProfileImageProvider() {
+    if (_profileImage != null) {
+      print('Using FileImage for profile image');
+      return FileImage(_profileImage!);
+    } else if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      print('Using AuthenticatedNetworkImage for: $_avatarUrl');
+      print('Token available for image: ${_authToken != null}');
+      return AuthenticatedNetworkImage(_avatarUrl!, token: _authToken);
+    } else {
+      print('Using default AssetImage for profile');
+      return const AssetImage("assets/img/profile.jpg");
     }
   }
 
@@ -143,6 +303,260 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showImagePreview() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.9),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: _getProfileImageProvider(),
+                        fit: BoxFit.contain,
+                        onError: (exception, stackTrace) {
+                          print('Error loading preview image: $exception');
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 40,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _uploadImageToServer(File imageFile) async {
+    setState(() => _isUploadingImage = true);
+    
+    try {
+      final token = await TokenManager.getToken();
+      if (token == null) throw Exception('No authentication token');
+      
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('https://api.swiftlead.fuadfakhruz.com/api/v1/uploads/avatar'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        String avatarUrl = data['data']['url'];
+        
+
+        if (!avatarUrl.startsWith('http')) {
+          avatarUrl = 'https://api.swiftlead.fuadfakhruz.com$avatarUrl';
+        }
+        
+        print('Avatar URL received: $avatarUrl');
+        
+
+        final updateResponse = await http.patch(
+          Uri.parse('https://api.swiftlead.fuadfakhruz.com/api/v1/users/me'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'avatar_url': avatarUrl}),
+        );
+        
+        if (updateResponse.statusCode == 200) {
+
+          await _cacheProfileImage(imageFile);
+          
+          setState(() {
+            _avatarUrl = avatarUrl;
+            _profileImage = imageFile; // Keep local file for display (storage is private)
+            _authToken = token; // Ensure token is set for image loading
+            _isUploadingImage = false;
+          });
+          print('Avatar URL set in state: $_avatarUrl');
+          print('Auth token refreshed in state');
+          print('⚠️  Using local cache - backend storage requires fix (enable public read or use pre-signed URLs)');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Foto profil berhasil disimpan'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          throw Exception('Failed to update profile');
+        }
+      } else {
+        throw Exception('Failed to upload image');
+      }
+    } catch (e) {
+      setState(() => _isUploadingImage = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengunggah foto: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteProfileImage() async {
+    setState(() => _isUploadingImage = true);
+    
+    try {
+      final token = await TokenManager.getToken();
+      if (token == null) throw Exception('No authentication token');
+      
+
+      final response = await http.patch(
+        Uri.parse('https://api.swiftlead.fuadfakhruz.com/api/v1/users/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'avatar_url': null}),
+      );
+      
+      if (response.statusCode == 200) {
+
+        try {
+          final dir = await getApplicationDocumentsDirectory();
+          final cachedImagePath = path.join(dir.path, 'cached_profile_avatar.jpg');
+          final cachedFile = File(cachedImagePath);
+          if (await cachedFile.exists()) {
+            await cachedFile.delete();
+            print('✓ Deleted cached profile image');
+          }
+        } catch (e) {
+          print('Failed to delete cached image: $e');
+        }
+        
+        setState(() {
+          _avatarUrl = null;
+          _profileImage = null;
+          _isUploadingImage = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Foto profil dihapus'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Failed to delete avatar');
+      }
+    } catch (e) {
+      setState(() => _isUploadingImage = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menghapus foto: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickProfileImage() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bottomSheetContext) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Ambil Foto'),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  final XFile? image = await _picker.pickImage(
+                    source: ImageSource.camera,
+                    maxWidth: 512,
+                    maxHeight: 512,
+                    imageQuality: 85,
+                  );
+                  if (image != null && mounted) {
+                    setState(() {
+                      _profileImage = File(image.path);
+                    });
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Foto profil berhasil diperbarui'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  final XFile? image = await _picker.pickImage(
+                    source: ImageSource.gallery,
+                    maxWidth: 512,
+                    maxHeight: 512,
+                    imageQuality: 85,
+                  );
+                  if (image != null && mounted) {
+                    setState(() {
+                      _profileImage = File(image.path);
+                    });
+
+                    await _uploadImageToServer(File(image.path));
+                  }
+                },
+              ),
+              if (_avatarUrl != null || _profileImage != null)
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text('Hapus Foto', style: TextStyle(color: Colors.red)),
+                  onTap: () async {
+                    Navigator.pop(bottomSheetContext);
+                    if (mounted) {
+                      await _deleteProfileImage();
+                    }
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,17 +569,62 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 96,
-                  height: 96,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    image: DecorationImage(
-                      image: AssetImage("assets/img/profile.jpg"),
-                      fit: BoxFit.cover,
+                Stack(
+                  children: [
+                    GestureDetector(
+                      onTap: _showImagePreview,
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          image: DecorationImage(
+                            image: _getProfileImageProvider(),
+                            fit: BoxFit.cover,
+                            onError: (exception, stackTrace) {
+                              print('Error loading avatar image: $exception');
+                              print('Avatar URL was: $_avatarUrl');
+                            },
+                          ),
+                        ),
+                        child: _isUploadingImage
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black.withOpacity(0.5),
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _pickProfileImage,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF245C4C),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10.0),
                 if (_isLoading)
@@ -213,30 +672,18 @@ class _ProfilePageState extends State<ProfilePage> {
                 topRight: Radius.circular(20.0),
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                
-                
-                TextButton.icon(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  
+                  
+                  TextButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.money_outlined),
                   label: const Text(
                     "Pendapatan",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.supervisor_account_outlined),
-                  label: const Text(
-                    "Teman",
                     style: TextStyle(color: Colors.black),
                   ),
                   style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
@@ -276,6 +723,21 @@ class _ProfilePageState extends State<ProfilePage> {
                   icon: const Icon(Icons.info_outline),
                   label: const Text(
                     "Bantuan",
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
+                ),
+                const Divider(
+                  color: Color(0xff767676),
+                  height: 0.3,
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/reports-page');
+                  },
+                  icon: const Icon(Icons.summarize_outlined),
+                  label: const Text(
+                    "Laporan",
                     style: TextStyle(color: Colors.black),
                   ),
                   style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
@@ -325,9 +787,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
-                )
+                ),
+                const SizedBox(height: 80), // Bottom padding for navigation bar
               ],
             ),
+          ),
           ),
         ],
       ),

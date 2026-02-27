@@ -1265,104 +1265,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                   const SizedBox(height: 16),
 
 
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF245C4C).withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.router, color: Color(0xFF245C4C), size: 20),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Node IoT',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF245C4C),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (_nodes.isEmpty)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.warning_amber, color: Colors.orange[700], size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Tidak ada node tersedia untuk kandang ini',
-                                    style: TextStyle(fontSize: 12, color: Colors.orange[700]),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          DropdownButtonFormField<String>(
-                            value: _selectedNode != null ? _selectedNode!['id']?.toString() : null,
-                            decoration: InputDecoration(
-                              labelText: 'Pilih Node',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            items: _nodes.map((node) {
-                              final nodeId = node['id']?.toString() ?? '';
-                              final nodeName = node['node_code'] ?? 'Node ${node['node_type'] ?? 'Unknown'}';
-                              final nodeType = node['node_type'] ?? 'unknown';
-                              return DropdownMenuItem<String>(
-                                value: nodeId,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      nodeType == 'gateway' ? Icons.router :
-                                      nodeType == 'nest' ? Icons.nest_cam_wired_stand :
-                                      nodeType == 'lmb' ? Icons.lightbulb :
-                                      nodeType == 'pump' ? Icons.water_drop :
-                                      Icons.device_unknown,
-                                      size: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      nodeName,
-                                      style: const TextStyle(fontSize: 14),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedNode = _nodes.firstWhere((node) => node['id']?.toString() == value);
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Silakan pilih node';
-                              }
-                              return null;
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
+                  
 
                   const SizedBox(height: 24),
 
@@ -1451,12 +1354,13 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Column(
+                              Row(
                                 children: [
+                                
 
                                   Container(
                                     width: 40,
-                                    height: 40,
+                                    height: 54,
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF245C4C),
                                       borderRadius: BorderRadius.circular(8),
@@ -1472,11 +1376,11 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                       },
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
+                                  const SizedBox(width: 8),
 
                                   Container(
                                     width: 40,
-                                    height: 40,
+                                    height: 54,
                                     decoration: BoxDecoration(
                                       color: Colors.grey[400],
                                       borderRadius: BorderRadius.circular(8),
@@ -1696,32 +1600,34 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.store,
+                icon: Icons.devices,
                 label: 'Kontrol',
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/monitoring-page');
+                  Navigator.pushReplacementNamed(context, '/control-page');
                 },
               ),
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.chat_sharp,
+                icon: Icons.agriculture,
                 label: 'Panen',
                 currentIndex: _currentIndex,
                 itemIndex: 2,
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                },
               ),
               label: ''),
           BottomNavigationBarItem(
               icon: CustomBottomNavigationItem(
-                icon: Icons.dataset_sharp,
+                icon: Icons.sell,
                 label: 'Jual',
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
+                  Navigator.pushReplacementNamed(context, '/store-page');
                 },
               ),
               label: ''),

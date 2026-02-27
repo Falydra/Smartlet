@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:swiftlead/pages/home_page.dart';
+import 'package:swiftlead/components/osm_location_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
@@ -28,16 +30,24 @@ class _CageDataPageState extends State<CageDataPage> {
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   void _openMapPicker() async {
-
-    final LatLng? result = await Navigator.push<LatLng?>(
+    final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => _MapPickerPage(initialPosition: const LatLng(-6.200000, 106.816666))),
+      MaterialPageRoute(
+        builder: (context) => OsmLocationPicker(
+          initialPosition: LatLng(-6.200000, 106.816666),
+        ),
+      ),
     );
 
     if (result != null) {
+      final position = result['position'] as LatLng;
+      final address = result['address'] as String?;
+      
       setState(() {
-        _selectedLatitude = result.latitude;
-        _selectedLongitude = result.longitude;
+        _selectedLatitude = position.latitude;
+        _selectedLongitude = position.longitude;
+        _locationController.text = address ?? 
+          'Lat: ${position.latitude.toStringAsFixed(6)}, Lng: ${position.longitude.toStringAsFixed(6)}';
       });
     }
   }
@@ -336,7 +346,9 @@ class _CageDataPageState extends State<CageDataPage> {
 
               Container(
                 width: double.infinity,
-                height: 160,
+                constraints: BoxConstraints(
+                  minHeight: _selectedLatitude != null ? 280 : 120,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: Colors.grey[300]!,
@@ -345,47 +357,128 @@ class _CageDataPageState extends State<CageDataPage> {
                   borderRadius: BorderRadius.circular(12),
                   color: Colors.grey[50],
                 ),
-                child: InkWell(
-                  onTap: _openMapPicker,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _selectedLatitude != null && _selectedLongitude != null
-                                  ? 'Lat: ${_selectedLatitude!.toStringAsFixed(6)}, Lng: ${_selectedLongitude!.toStringAsFixed(6)}'
-                                  : 'Belum memilih lokasi',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[800],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_selectedLatitude != null && _selectedLongitude != null) ...[
+
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                        child: SizedBox(
+                          height: 150,
+                          child: FlutterMap(
+                            options: MapOptions(
+                              initialCenter: LatLng(_selectedLatitude!, _selectedLongitude!),
+                              initialZoom: 15.0,
+                              interactionOptions: const InteractionOptions(
+                                flags: InteractiveFlag.none, // Disable interaction
                               ),
                             ),
-                            ElevatedButton.icon(
-                              onPressed: _openMapPicker,
-                              icon: const Icon(Icons.map),
-                              label: const Text('Pilih di Peta'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF245C4C),
-                                foregroundColor: Colors.white,
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.swiftlead',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: LatLng(_selectedLatitude!, _selectedLongitude!),
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.red,
+                                      size: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Koordinat Terpilih:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Lat: ${_selectedLatitude!.toStringAsFixed(6)}\nLng: ${_selectedLongitude!.toStringAsFixed(6)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[800],
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: ElevatedButton.icon(
+                                onPressed: _openMapPicker,
+                                icon: const Icon(Icons.map, size: 20),
+                                label: const Text('Ubah Lokasi'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF245C4C),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: Center(
-                            child: _selectedLatitude == null
-                                ? const Text('Tap "Pilih di Peta" untuk menentukan lokasi kandang')
-                                : const Text('Lokasi terpilih ditampilkan di atas'),
-                          ),
+                      ),
+                    ] else ...[
+
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Belum memilih lokasi',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap tombol di bawah untuk memilih lokasi di peta',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: ElevatedButton.icon(
+                                onPressed: _openMapPicker,
+                                icon: const Icon(Icons.map, size: 20),
+                                label: const Text('Pilih di Peta'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF245C4C),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
 
@@ -616,7 +709,7 @@ class _CageDataPageState extends State<CageDataPage> {
                 },
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
 
 
               SizedBox(
@@ -673,9 +766,13 @@ class _CageDataPageState extends State<CageDataPage> {
                       fontSize: 16,
                       color: Colors.grey[600],
                     ),
+                    
                   ),
                 ),
               ),
+              
+              const SizedBox(height: 40),
+              
             ],
           ),
         ),
@@ -697,68 +794,4 @@ String _generateRbwCode(String source, int id) {
   }
   final letters = (first + middle + last).padRight(3, 'X').substring(0,3);
   return 'RBW-$letters-$id';
-}
-
-class _MapPickerPage extends StatefulWidget {
-  final LatLng initialPosition;
-  const _MapPickerPage({required this.initialPosition});
-
-  @override
-  State<_MapPickerPage> createState() => _MapPickerPageState();
-}
-
-class _MapPickerPageState extends State<_MapPickerPage> {
-  LatLng? _picked;
-  GoogleMapController? _mapController;
-  final Set<Marker> _markers = {};
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-  }
-
-  void _onMapTapped(LatLng position) {
-    setState(() {
-      _picked = position;
-      _markers.clear();
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('selected_location'),
-          position: position,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pilih Lokasi'),
-        backgroundColor: const Color(0xFF245C4C),
-        foregroundColor: Colors.white,
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, _picked);
-            },
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-      body: GoogleMap(
-        onMapCreated: _onMapCreated,
-        initialCameraPosition: CameraPosition(
-          target: widget.initialPosition,
-          zoom: 15,
-        ),
-        onTap: _onMapTapped,
-        markers: _markers,
-        myLocationEnabled: true,
-        myLocationButtonEnabled: true,
-        zoomControlsEnabled: true,
-        mapToolbarEnabled: false,
-      ),
-    );
-  }
 }

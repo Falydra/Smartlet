@@ -35,10 +35,11 @@ import 'package:swiftlead/pages/create_service_request_page.dart';
 import 'package:swiftlead/pages/service_request_detail_page.dart';
 import 'package:swiftlead/pages/installation_manager_page.dart';
 import 'package:swiftlead/pages/user_manager_page.dart';
+import 'package:swiftlead/pages/reports_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase removed — app uses API-based authentication and storage.
+
   await LocalNotificationHelper().init();
   runApp(const MyApp());
 }
@@ -110,6 +111,7 @@ class MyApp extends StatelessWidget {
         '/control-page': (context) => const ControlPage(),
         '/sensor-detail': (context) => const SensorDetailPage(),
         '/profile-page': (context) => const ProfilePage(),
+        '/reports-page': (context) => const ReportsPage(),
         '/temp-page': (context) => const TempPage(),
         '/pest-page': (context) => const PestPage(),
         '/security-page': (context) => const SecurityPage(),
