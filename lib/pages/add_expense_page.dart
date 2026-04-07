@@ -3,11 +3,14 @@ import 'package:swiftlead/services/transaction_service.dart';
 import 'package:swiftlead/services/transaction_category_service.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
+import 'package:swiftlead/utils/currency_input_formatter.dart';
 
 class AddExpensePage extends StatefulWidget {
   final Map<String, dynamic>? transaction; // Optional transaction for editing
+  final String? initialHouseId; // Pre-selected house ID from parent page
   
-  const AddExpensePage({super.key, this.transaction});
+  const AddExpensePage({super.key, this.transaction, this.initialHouseId});
 
   @override
   State<AddExpensePage> createState() => _AddExpensePageState();
@@ -33,6 +36,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
   final TextEditingController _itemNameController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _totalPriceController = TextEditingController();
   
 
   List<dynamic> _houses = [];
@@ -64,8 +68,13 @@ class _AddExpensePageState extends State<AddExpensePage> {
       if (mounted) {
         setState(() {
           _houses = houses;
-          if (_houses.isNotEmpty) {
+
+          if (widget.initialHouseId != null) {
+            _selectedHouseId = widget.initialHouseId;
+            print('[ADD EXPENSE] Using pre-selected house: $_selectedHouseId');
+          } else if (_houses.isNotEmpty) {
             _selectedHouseId = _houses.first['id']?.toString();
+            print('[ADD EXPENSE] Auto-selecting first house: $_selectedHouseId');
           }
         });
       }
@@ -101,12 +110,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
     } catch (e) {
       print('[CATEGORIES] Error loading categories: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memuat kategori: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal memuat kategori');
       }
     }
   }
@@ -114,26 +118,16 @@ class _AddExpensePageState extends State<AddExpensePage> {
   void _addItem() {
     if (_itemNameController.text.isEmpty || 
         _quantityController.text.isEmpty || 
-        _priceController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Harap isi semua field item'),
-          backgroundColor: Colors.red,
-        ),
-      );
+        _totalPriceController.text.isEmpty) {
+      ModernSnackBar.warning(context, 'Harap isi semua field item');
       return;
     }
 
     final quantity = int.tryParse(_quantityController.text) ?? 0;
-    final price = double.tryParse(_priceController.text) ?? 0.0;
+    final total = CurrencyHelper.parse(_totalPriceController.text);
 
-    if (quantity <= 0 || price <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Jumlah dan harga harus lebih dari 0'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (quantity <= 0 || total <= 0) {
+      ModernSnackBar.warning(context, 'Jumlah dan total harga harus lebih dari 0');
       return;
     }
 
@@ -141,14 +135,13 @@ class _AddExpensePageState extends State<AddExpensePage> {
       _items.add({
         'name': _itemNameController.text,
         'quantity': quantity,
-        'price': price,
-        'subtotal': quantity * price,
+        'subtotal': total,
       });
       
 
       _itemNameController.clear();
       _quantityController.clear();
-      _priceController.clear();
+      _totalPriceController.clear();
     });
   }
 
@@ -166,12 +159,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
     if (!_formKey.currentState!.validate()) return;
     
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Harap tambahkan minimal satu item'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Harap tambahkan minimal satu item');
       return;
     }
 
@@ -185,6 +173,18 @@ class _AddExpensePageState extends State<AddExpensePage> {
       if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) {
         throw Exception('Kategori belum dipilih');
       }
+
+
+      final selectedHouse = _houses.firstWhere(
+        (h) => h['id']?.toString() == _selectedHouseId,
+        orElse: () => {'name': 'Unknown'},
+      );
+      print('[ADD EXPENSE] 💸 Saving expense transaction:');
+      print('[ADD EXPENSE]   - House ID: $_selectedHouseId');
+      print('[ADD EXPENSE]   - House Name: ${selectedHouse['name']}');
+      print('[ADD EXPENSE]   - Category ID: $_selectedCategoryId');
+      print('[ADD EXPENSE]   - Amount: $_grandTotal');
+      print('[ADD EXPENSE]   - Date: $_selectedDate');
 
 
       final result = await _transactionService.createExpense(
@@ -202,12 +202,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
         setState(() => _isLoading = false);
         
         if (result['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pengeluaran berhasil ditambahkan'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          ModernSnackBar.success(context, 'Pengeluaran berhasil ditambahkan');
           Navigator.pop(context, true);
         } else {
 
@@ -232,24 +227,17 @@ class _AddExpensePageState extends State<AddExpensePage> {
               break;
           }
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
+          ModernSnackBar.error(
+            context,
+            errorMessage,
+            duration: const Duration(seconds: 4),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal menyimpan pengeluaran');
       }
     }
   }
@@ -276,6 +264,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
     _itemNameController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
+    _totalPriceController.dispose();
     super.dispose();
   }
 
@@ -297,6 +286,52 @@ class _AddExpensePageState extends State<AddExpensePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
+                  if (_selectedHouseId != null && _houses.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        border: Border.all(color: Colors.red[700]!, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.home, color: Colors.red[700], size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Pengeluaran akan ditambahkan ke:',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _houses.firstWhere(
+                                    (h) => h['id']?.toString() == _selectedHouseId,
+                                    orElse: () => {'name': 'Unknown'},
+                                  )['name'] ?? 'Unknown',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.red[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.check_circle, color: Colors.red[700], size: 24),
+                        ],
+                      ),
+                    ),
 
                   const Text(
                     'Kandang',
@@ -459,6 +494,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                         Row(
                           children: [
                             Expanded(
+                              flex: 1,
                               child: TextFormField(
                                 controller: _quantityController,
                                 keyboardType: TextInputType.number,
@@ -470,11 +506,14 @@ class _AddExpensePageState extends State<AddExpensePage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
+                              flex: 2,
                               child: TextFormField(
-                                controller: _priceController,
+                                controller: _totalPriceController,
                                 keyboardType: TextInputType.number,
+                                inputFormatters: [CurrencyInputFormatter()],
                                 decoration: InputDecoration(
-                                  labelText: 'Harga (Rp)',
+                                  labelText: 'Total Harga (Rp)',
+                                  hintText: 'Masukkan total harga',
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                               ),
@@ -543,7 +582,7 @@ class _AddExpensePageState extends State<AddExpensePage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '${item['quantity']} × ${_formatCurrency(item['price'])}',
+                                          'Qty: ${item['quantity']}',
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey[600],

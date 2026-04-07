@@ -93,10 +93,13 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
         );
       }
     } finally {
+      if (mounted) {
       setState(() {
         _isLoadingLocation = false;
+
+        
       });
-    }
+    }}
   }
 
   Future<void> _getAddressFromLatLng(LatLng position) async {
@@ -208,7 +211,7 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.swiftlead',
+                userAgentPackageName: 'com.smartlet',
                 maxZoom: 19,
               ),
               MarkerLayer(

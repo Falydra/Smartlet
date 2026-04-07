@@ -106,11 +106,21 @@ class HouseService {
       final body = jsonDecode(response.body);
 
       if (body is Map<String, dynamic>) {
-        body['statusCode'] = status;
-        if (!body.containsKey('success')) {
-          body['success'] = (status == 200 || status == 201 || status == 204);
-        }
-        return body;
+        final isSuccess = (status == 200 || status == 201 || status == 204);
+        final message = (body['message'] ??
+                (body['error'] is Map<String, dynamic>
+                    ? body['error']['message']
+                    : null) ??
+                body['error'])
+            ?.toString();
+
+        return {
+          'success': isSuccess,
+          'statusCode': status,
+          'data': body['data'],
+          'message': message,
+          'raw': body,
+        };
       }
       return {
         'success': (status == 200 || status == 201),

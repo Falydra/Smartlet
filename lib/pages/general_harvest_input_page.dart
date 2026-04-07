@@ -1358,25 +1358,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                 children: [
                                 
 
-                                  Container(
-                                    width: 40,
-                                    height: 54,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF245C4C),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: IconButton(
-                                      icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () {
-                                        int currentValue = int.tryParse(_floorControllers[floorIndex].text) ?? 0;
-                                        setState(() {
-                                          _floorControllers[floorIndex].text = (currentValue + 1).toString();
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
+                                  
 
                                   Container(
                                     width: 40,
@@ -1398,6 +1380,26 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
                                       },
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 40,
+                                    height: 54,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF245C4C),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () {
+                                        int currentValue = int.tryParse(_floorControllers[floorIndex].text) ?? 0;
+                                        setState(() {
+                                          _floorControllers[floorIndex].text = (currentValue + 1).toString();
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
                                 ],
                               ),
                             ],

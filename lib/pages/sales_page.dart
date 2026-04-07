@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/transaction_service.dart';
-import 'package:swiftlead/services/pdf_service.dart';
+import 'package:swiftlead/services/pdf_service.dart'
+    if (dart.library.html) 'package:swiftlead/services/pdf_service_web.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/pages/add_income_page.dart';
 import 'package:swiftlead/pages/add_expense_page.dart';
 import 'package:swiftlead/pages/transaction_history_page.dart';
@@ -45,11 +49,18 @@ class _SalesPageState extends State<SalesPage> {
 
 
   List<dynamic> _transactions = [];
+  List<dynamic> _allTransactions = []; // All transactions for selected house (for Laporan Keuangan)
   List<dynamic> _houses = [];
   String? _selectedHouseId; // Track selected RBW
   double _totalIncome = 0.0;
   double _totalExpense = 0.0;
   double _netProfit = 0.0;
+
+
+  String _recapType = 'monthly'; // 'monthly' or 'annual'
+  double _annualTotalIncome = 0.0;
+  double _annualTotalExpense = 0.0;
+  double _annualNetProfit = 0.0;
 
   int _currentIndex = 3;
 
@@ -74,6 +85,8 @@ class _SalesPageState extends State<SalesPage> {
 
         await _loadHouses();
         await _loadHarvestSales();
+        await _loadAllTransactions(); // Load all transactions for Laporan Keuangan
+        await _loadAnnualData();
       }
     } catch (e) {
       print('Error initializing sales data: $e');
@@ -119,27 +132,49 @@ class _SalesPageState extends State<SalesPage> {
         houseId: _selectedHouseId, // Pass the selected house ID
       );
 
-      print('[SALES PAGE] Loaded ${transactions.length} transactions');
+      print('[SALES PAGE] Loaded ${transactions.length} transactions from API');
       if (transactions.isNotEmpty) {
-        print('[SALES PAGE] First transaction sample: ${transactions.first}');
-        print('[SALES PAGE] Sample transaction fields:');
-        print('  - type: ${transactions.first['type']}');
-        print('  - amount: ${transactions.first['amount']}');
-        print('  - description: ${transactions.first['description']}');
-        print('  - transaction_date: ${transactions.first['transaction_date']}');
-        print('  - rbw_id: ${transactions.first['rbw_id']}');
+        print('[SALES PAGE] All transactions received:');
+        for (var i = 0; i < transactions.length; i++) {
+          final txn = transactions[i];
+          print('  [$i] id: ${txn['id']}, date: ${txn['transaction_date']}, amount: ${txn['amount']}, type: ${txn['type']}');
+        }
       }
+
+
+      final filteredTransactions = transactions.where((transaction) {
+        final transactionDateStr = transaction['transaction_date']?.toString();
+        if (transactionDateStr == null) {
+          print('[SALES PAGE] ⚠️ Transaction has no date, skipping');
+          return false;
+        }
+        
+        try {
+          final transactionDate = DateTime.parse(transactionDateStr);
+          final isCorrectMonth = transactionDate.month == _selectedMonth && transactionDate.year == _selectedYear;
+          
+          if (!isCorrectMonth) {
+            print('[SALES PAGE] ❌ Filtering out: ${transactionDate.year}-${transactionDate.month.toString().padLeft(2, '0')}-${transactionDate.day.toString().padLeft(2, '0')} (expected: $_selectedYear-${_selectedMonth.toString().padLeft(2, '0')})');
+          } else {
+            print('[SALES PAGE] ✓ Including: ${transactionDate.year}-${transactionDate.month.toString().padLeft(2, '0')}-${transactionDate.day.toString().padLeft(2, '0')}');
+          }
+          
+          return isCorrectMonth;
+        } catch (e) {
+          print('[SALES PAGE] ⚠️ Error parsing date: $transactionDateStr');
+          return false;
+        }
+      }).toList();
+
+      print('[SALES PAGE] After filtering: ${filteredTransactions.length} transactions for ${_months[_selectedMonth - 1]} $_selectedYear');
 
 
       double income = 0.0;
       double expense = 0.0;
 
-      for (var transaction in transactions) {
+      for (var transaction in filteredTransactions) {
         final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
         final type = transaction['type']?.toString() ?? '';
-
-        print(
-            '[SALES PAGE] Transaction: type=$type, amount=$amount');
 
         if (type == 'income') {
           income += amount;
@@ -148,12 +183,15 @@ class _SalesPageState extends State<SalesPage> {
         }
       }
 
-      print(
-          '[SALES PAGE] Totals - Income: $income, Expense: $expense, Net: ${income - expense}');
+      print('[SALES PAGE] 📊 Monthly Summary for ${_months[_selectedMonth - 1]} $_selectedYear:');
+      print('[SALES PAGE]   - Transactions: ${filteredTransactions.length}');
+      print('[SALES PAGE]   - Income: Rp ${income.toStringAsFixed(0)}');
+      print('[SALES PAGE]   - Expense: Rp ${expense.toStringAsFixed(0)}');
+      print('[SALES PAGE]   - Net Profit: Rp ${(income - expense).toStringAsFixed(0)}');
 
       if (mounted) {
         setState(() {
-          _transactions = transactions;
+          _transactions = filteredTransactions;
           _totalIncome = income;
           _totalExpense = expense;
           _netProfit = income - expense;
@@ -169,6 +207,141 @@ class _SalesPageState extends State<SalesPage> {
           _netProfit = 0.0;
         });
       }
+    }
+  }
+
+  Future<void> _loadAllTransactions() async {
+    try {
+      print('[SALES PAGE] Loading ALL transactions for house: $_selectedHouseId');
+      
+      if (_selectedHouseId == null) {
+        if (mounted) {
+          setState(() {
+            _allTransactions = [];
+          });
+        }
+        return;
+      }
+
+
+      final allTransactions = await _transactionService.listTransactionsByRbw(
+        token: _authToken!,
+        rbwId: _selectedHouseId!,
+        limit: 100, // Get up to 100 transactions
+      );
+
+      final transactions = allTransactions['data'] ?? [];
+      print('[SALES PAGE] Loaded ${transactions.length} total transactions for Laporan Keuangan');
+
+      if (mounted) {
+        setState(() {
+          _allTransactions = transactions;
+        });
+      }
+    } catch (e) {
+      print('Error loading all transactions: $e');
+      if (mounted) {
+        setState(() {
+          _allTransactions = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _loadAnnualData() async {
+    try {
+      print('[SALES PAGE] Loading annual data for $_selectedYear');
+      
+      double annualIncome = 0.0;
+      double annualExpense = 0.0;
+      Set<String> processedTransactionIds = {}; // Track unique transactions
+
+
+      for (int month = 1; month <= 12; month++) {
+        final transactions = await _transactionService.getAll(
+          _authToken!,
+          month: month,
+          year: _selectedYear,
+          houseId: _selectedHouseId,
+        );
+
+        print('[SALES PAGE] Month $month: Loaded ${transactions.length} transactions from API');
+
+        for (var transaction in transactions) {
+
+          final transactionDateStr = transaction['transaction_date']?.toString();
+          if (transactionDateStr != null) {
+            try {
+              final transactionDate = DateTime.parse(transactionDateStr);
+              if (transactionDate.year != _selectedYear) {
+                print('[SALES PAGE] Skipping transaction from wrong year: ${transactionDate.year} (expected $_selectedYear)');
+                continue;
+              }
+            } catch (e) {
+              print('[SALES PAGE] Error parsing date for annual data: $transactionDateStr');
+              continue;
+            }
+          }
+
+
+          final transactionId = transaction['id']?.toString() ?? 
+                                transaction['transaction_id']?.toString() ?? 
+                                '${transaction['transaction_date']}_${transaction['amount']}_${transaction['description']}';
+          
+
+          if (processedTransactionIds.contains(transactionId)) {
+            print('[SALES PAGE] Skipping duplicate transaction ID: $transactionId');
+            continue;
+          }
+          processedTransactionIds.add(transactionId);
+
+          final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+          final type = transaction['type']?.toString() ?? '';
+
+          if (type == 'income') {
+            annualIncome += amount;
+          } else if (type == 'expense') {
+            annualExpense += amount;
+          }
+        }
+      }
+
+      print('[SALES PAGE] 📊 Annual Summary for $_selectedYear:');
+      print('[SALES PAGE]   - Unique Transactions: ${processedTransactionIds.length}');
+      print('[SALES PAGE]   - Income: Rp ${annualIncome.toStringAsFixed(0)}');
+      print('[SALES PAGE]   - Expense: Rp ${annualExpense.toStringAsFixed(0)}');
+      print('[SALES PAGE]   - Net Profit: Rp ${(annualIncome - annualExpense).toStringAsFixed(0)}');
+
+      if (mounted) {
+        setState(() {
+          _annualTotalIncome = annualIncome;
+          _annualTotalExpense = annualExpense;
+          _annualNetProfit = annualIncome - annualExpense;
+        });
+      }
+    } catch (e) {
+      print('Error loading annual data: $e');
+      if (mounted) {
+        setState(() {
+          _annualTotalIncome = 0.0;
+          _annualTotalExpense = 0.0;
+          _annualNetProfit = 0.0;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshData() async {
+    print('[SALES PAGE] 🔄 Manual refresh triggered');
+    print('[SALES PAGE] Current month: ${_months[_selectedMonth - 1]} $_selectedYear');
+    print('[SALES PAGE] Current house: $_selectedHouseId');
+    
+    await _loadHarvestSales();
+    await _loadAllTransactions(); // Refresh all transactions
+    await _loadAnnualData();
+    
+    if (mounted) {
+      ModernSnackBar.success(context, 'Data berhasil dimuat ulang', duration: const Duration(seconds: 2));
     }
   }
 
@@ -236,6 +409,7 @@ class _SalesPageState extends State<SalesPage> {
             onPressed: () {
               Navigator.pop(context);
               _loadHarvestSales(); // Reload data for new period
+              _loadAnnualData(); // Reload annual data
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF245C4C),
@@ -253,53 +427,108 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   Future<void> _downloadEStatement(String type) async {
+    if (kIsWeb) {
+      ModernSnackBar.warning(context, 'Download PDF tidak didukung di versi web. Gunakan aplikasi Android.');
+      return;
+    }
+
+    bool dialogShown = false;
 
     try {
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return const Center(
+      // Show loading spinner
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(
             child: CircularProgressIndicator(color: Color(0xFF245C4C)),
-          );
-        },
-      );
+          ),
+        );
+        dialogShown = true;
+      }
 
-
+      // --- Resolve house name & period ---
       String houseName = 'Semua Kandang';
       if (_selectedHouseId != null) {
         final house = _houses.firstWhere(
           (h) => h['id']?.toString() == _selectedHouseId,
-          orElse: () => {'name': 'Kandang'},
+          orElse: () => <String, dynamic>{'name': 'Kandang'},
         );
-        houseName = house['name'] ?? 'Kandang';
+        houseName = (house as Map<String, dynamic>)['name'] ?? 'Kandang';
       }
-
-
-      String period = type == 'bulanan'
+      final String period = type == 'bulanan'
           ? '${_months[_selectedMonth - 1]} $_selectedYear'
           : 'Tahun $_selectedYear';
 
+      // --- Collect transactions ---
+      List<dynamic> pdfTransactions = _transactions;
+      double pdfIncome = _totalIncome;
+      double pdfExpense = _totalExpense;
+      double pdfNetProfit = _netProfit;
 
-      final filePath = await PdfService.generateEStatement(
+      if (type == 'tahunan') {
+        final List<dynamic> yearTransactions = [];
+        double yearIncome = 0.0;
+        double yearExpense = 0.0;
+        final Set<String> seen = {};
+
+        for (int month = 1; month <= 12; month++) {
+          // Each month call already has a 15-second timeout in TransactionService
+          final monthTxns = await _transactionService.getAll(
+            _authToken!,
+            month: month,
+            year: _selectedYear,
+            houseId: _selectedHouseId,
+          );
+          for (final txn in monthTxns) {
+            final dateStr = txn['transaction_date']?.toString();
+            if (dateStr != null) {
+              try {
+                if (DateTime.parse(dateStr).year != _selectedYear) continue;
+              } catch (_) {
+                continue;
+              }
+            }
+            final txnId = txn['id']?.toString() ??
+                '${txn['transaction_date']}_${txn['amount']}_${txn['description']}';
+            if (seen.contains(txnId)) continue;
+            seen.add(txnId);
+            yearTransactions.add(txn);
+            final amount = (txn['amount'] as num?)?.toDouble() ?? 0.0;
+            final t = txn['type']?.toString() ?? '';
+            if (t == 'income') yearIncome += amount;
+            if (t == 'expense') yearExpense += amount;
+          }
+        }
+
+        pdfTransactions = yearTransactions;
+        pdfIncome = yearIncome;
+        pdfExpense = yearExpense;
+        pdfNetProfit = yearIncome - yearExpense;
+      }
+
+      // --- Generate & save PDF (90-second hard timeout) ---
+      final String filePath = await PdfService.generateEStatement(
         period: period,
         houseName: houseName,
-        totalIncome: _totalIncome,
-        totalExpense: _totalExpense,
-        netProfit: _netProfit,
-        transactions: _transactions,
+        totalIncome: pdfIncome,
+        totalExpense: pdfExpense,
+        netProfit: pdfNetProfit,
+        transactions: pdfTransactions,
         type: type,
-      );
+      ).timeout(const Duration(seconds: 90));
 
+      // Dismiss loading dialog
+      if (dialogShown && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogShown = false;
+      }
 
-      if (mounted) Navigator.of(context).pop();
-
-
+      // Show success dialog
       if (mounted) {
         showDialog(
           context: context,
-          builder: (BuildContext context) {
+          builder: (BuildContext ctx) {
             return AlertDialog(
               title: Row(
                 children: const [
@@ -317,7 +546,7 @@ class _SalesPageState extends State<SalesPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('File tersimpan di folder Download'),
+                  const Text('File berhasil dibuat'),
                   const SizedBox(height: 8),
                   Text(
                     'Nama file: ${filePath.split('/').last}',
@@ -328,21 +557,15 @@ class _SalesPageState extends State<SalesPage> {
               actions: [
                 TextButton.icon(
                   onPressed: () async {
-                    Navigator.of(context).pop();
-
+                    Navigator.of(ctx).pop();
                     try {
                       await PdfService.sharePdfFile(
                         filePath,
                         'E-Statement $period - Smartlet Management System',
                       );
                     } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Gagal membagikan file: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
+                      if (ctx.mounted) {
+                        ModernSnackBar.error(ctx, 'Gagal membagikan file');
                       }
                     }
                   },
@@ -351,16 +574,12 @@ class _SalesPageState extends State<SalesPage> {
                 ),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    Navigator.of(context).pop();
-
+                    Navigator.of(ctx).pop();
                     final opened = await PdfService.openPdfFile(filePath);
-                    if (!opened && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'Tidak dapat membuka file PDF. Silakan buka dari folder Download.'),
-                          backgroundColor: Colors.orange,
-                        ),
+                    if (!opened && ctx.mounted) {
+                      ModernSnackBar.warning(
+                        ctx,
+                        'Tidak dapat membuka file PDF secara langsung. Gunakan tombol Bagikan.',
                       );
                     }
                   },
@@ -377,25 +596,15 @@ class _SalesPageState extends State<SalesPage> {
         );
       }
     } catch (e) {
-
-      if (mounted) Navigator.of(context).pop();
-
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text('Gagal membuat E-Statement: $e'),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+      print('[PDF ERROR] $e');
+      final String msg = e is TimeoutException
+          ? 'Koneksi timeout. Periksa jaringan internet dan coba lagi.'
+          : 'Gagal membuat E-Statement: ${e.toString().split('\n').first}';
+      if (mounted) ModernSnackBar.error(context, msg);
+    } finally {
+      // Always ensure the loading dialog is dismissed
+      if (dialogShown && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
       }
     }
   }
@@ -478,10 +687,13 @@ class _SalesPageState extends State<SalesPage> {
                   Navigator.pop(context);
                   _downloadEStatement('tahunan');
                 },
+                
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 32),
             ],
+            
           ),
+          
         );
       },
     );
@@ -492,9 +704,9 @@ class _SalesPageState extends State<SalesPage> {
       context,
       MaterialPageRoute(
         builder: (context) => TransactionHistoryPage(
-          transactions: _transactions,
+          transactions: _allTransactions,
           houses: _houses,
-          selectedMonth: _months[_selectedMonth - 1],
+          selectedMonth: 'Semua',
           selectedYear: _selectedYear.toString(),
         ),
       ),
@@ -502,7 +714,24 @@ class _SalesPageState extends State<SalesPage> {
 
 
     if (result == true) {
-      _loadHarvestSales();
+      print('[SALES PAGE] 🔄 Transaction edited/deleted, refreshing data...');
+      print('[SALES PAGE] Current month: ${_months[_selectedMonth - 1]} $_selectedYear');
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+      
+      await _loadHarvestSales();
+      await _loadAllTransactions(); // Reload all transactions for Laporan Keuangan
+      await _loadAnnualData(); // Reload annual data after editing/deleting transactions
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -525,6 +754,13 @@ class _SalesPageState extends State<SalesPage> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF245C4C)),
+            tooltip: 'Muat Ulang Data',
+            onPressed: _isLoading ? null : _refreshData,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(
@@ -538,11 +774,14 @@ class _SalesPageState extends State<SalesPage> {
                 ],
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          : RefreshIndicator(
+              onRefresh: _refreshData,
+              color: const Color(0xFF245C4C),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
 
                   Center(
                     child: Column(
@@ -595,6 +834,8 @@ class _SalesPageState extends State<SalesPage> {
                                       _selectedHouseId = value;
                                     });
                                     _loadHarvestSales(); // Reload data for new house
+                                    _loadAllTransactions(); // Reload all transactions
+                                    _loadAnnualData(); // Reload annual data for new house
                                   }
                                 },
                               ),
@@ -781,9 +1022,86 @@ class _SalesPageState extends State<SalesPage> {
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
+
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (mounted) {
+                                      setState(() {
+                                        _recapType = 'monthly';
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: _recapType == 'monthly'
+                                          ? Colors.white
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Bulanan',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _recapType == 'monthly'
+                                            ? const Color(0xFF245C4C)
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (mounted) {
+                                      setState(() {
+                                        _recapType = 'annual';
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: _recapType == 'annual'
+                                          ? Colors.white
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Tahunan',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _recapType == 'annual'
+                                            ? const Color(0xFF245C4C)
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Text(
-                          '${_months[_selectedMonth - 1]} $_selectedYear',
+                          _recapType == 'monthly'
+                              ? '${_months[_selectedMonth - 1]} $_selectedYear'
+                              : 'Tahun $_selectedYear',
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.white70,
@@ -801,7 +1119,7 @@ class _SalesPageState extends State<SalesPage> {
                                   fontSize: 14, color: Colors.white70),
                             ),
                             Text(
-                              _formatCurrency(_totalIncome),
+                              _formatCurrency(_recapType == 'monthly' ? _totalIncome : _annualTotalIncome),
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -822,7 +1140,7 @@ class _SalesPageState extends State<SalesPage> {
                                   fontSize: 14, color: Colors.white70),
                             ),
                             Text(
-                              _formatCurrency(_totalExpense),
+                              _formatCurrency(_recapType == 'monthly' ? _totalExpense : _annualTotalExpense),
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -847,11 +1165,11 @@ class _SalesPageState extends State<SalesPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _formatCurrency(_netProfit),
+                              _formatCurrency(_recapType == 'monthly' ? _netProfit : _annualNetProfit),
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
-                                color: _netProfit >= 0
+                                color: (_recapType == 'monthly' ? _netProfit : _annualNetProfit) >= 0
                                     ? const Color(0xFFffc200)
                                     : Colors.redAccent,
                               ),
@@ -860,7 +1178,9 @@ class _SalesPageState extends State<SalesPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${_transactions.length} transaksi',
+                          _recapType == 'monthly'
+                              ? '${_transactions.length} transaksi bulan ini'
+                              : 'Tahun $_selectedYear',
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.white70,
@@ -873,35 +1193,46 @@ class _SalesPageState extends State<SalesPage> {
                   const SizedBox(height: 24),
 
 
-                  if (_transactions.isNotEmpty) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Laporan Keuangan',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF245C4C),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF245C4C).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${_transactions.length} transaksi',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF245C4C),
+                  if (_allTransactions.isNotEmpty) ...[
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        final isSmallScreen = screenWidth < 360;
+                        
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Laporan Keuangan',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 16 : 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF245C4C),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: isSmallScreen ? 8 : 12,
+                                  vertical: isSmallScreen ? 4 : 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF245C4C).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${_allTransactions.length} transaksi',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 10 : 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF245C4C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
 
@@ -919,7 +1250,7 @@ class _SalesPageState extends State<SalesPage> {
                         ],
                       ),
                       child: Column(
-                        children: _transactions.take(3).map((transaction) {
+                        children: _allTransactions.take(3).map((transaction) {
                           final type = transaction['type']?.toString() ?? '';
                           final isIncome = type == 'income';
 
@@ -947,147 +1278,165 @@ class _SalesPageState extends State<SalesPage> {
                             houseName = house['name']?.toString() ?? 'Unknown';
                           }
 
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: Colors.grey[200]!),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: isIncome
-                                        ? const Color(0xFF245C4C)
-                                            .withOpacity(0.1)
-                                        : Colors.red[50],
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(
-                                    isIncome
-                                        ? Icons.trending_up
-                                        : Icons.trending_down,
-                                    color: isIncome
-                                        ? const Color(0xFF245C4C)
-                                        : Colors.red[700],
-                                    size: 24,
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              final screenWidth = MediaQuery.of(context).size.width;
+                              final isSmallScreen = screenWidth < 360;
+                              final isVerySmallScreen = screenWidth < 340;
+                              
+                              return Container(
+                                padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.grey[200]!),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+
+                                    Container(
+                                      padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                                      decoration: BoxDecoration(
+                                        color: isIncome
+                                            ? const Color(0xFF245C4C)
+                                                .withOpacity(0.1)
+                                            : Colors.red[50],
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(
+                                        isIncome
+                                            ? Icons.trending_up
+                                            : Icons.trending_down,
+                                        color: isIncome
+                                            ? const Color(0xFF245C4C)
+                                            : Colors.red[700],
+                                        size: isSmallScreen ? 20 : 24,
+                                      ),
+                                    ),
+                                    SizedBox(width: isSmallScreen ? 8 : 12),
 
 
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        transaction['description'] ??
-                                            'Transaksi',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
+                                    Expanded(
+                                      flex: isVerySmallScreen ? 2 : 3,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Icon(Icons.label_outline,
-                                              size: 12,
-                                              color: Colors.grey[600]),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              categoryNameForDisplay,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Icon(Icons.home_outlined,
-                                              size: 12,
-                                              color: Colors.grey[600]),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              houseName,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Icon(Icons.calendar_today,
-                                              size: 12,
-                                              color: Colors.grey[600]),
-                                          const SizedBox(width: 4),
                                           Text(
-                                            date != null
-                                                ? '${date.day}/${date.month}/${date.year}'
-                                                : 'No date',
+                                            transaction['description'] ??
+                                                'Transaksi',
                                             style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.grey[500],
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: isSmallScreen ? 13 : 14,
                                             ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          SizedBox(height: isSmallScreen ? 3 : 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.label_outline,
+                                                  size: isSmallScreen ? 10 : 12,
+                                                  color: Colors.grey[600]),
+                                              const SizedBox(width: 2),
+                                              Flexible(
+                                                child: Text(
+                                                  categoryNameForDisplay,
+                                                  style: TextStyle(
+                                                    fontSize: isSmallScreen ? 10 : 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: isSmallScreen ? 3 : 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.home_outlined,
+                                                  size: isSmallScreen ? 10 : 12,
+                                                  color: Colors.grey[600]),
+                                              const SizedBox(width: 2),
+                                              Flexible(
+                                                child: Text(
+                                                  houseName,
+                                                  style: TextStyle(
+                                                    fontSize: isSmallScreen ? 10 : 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: isSmallScreen ? 3 : 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.calendar_today,
+                                                  size: isSmallScreen ? 10 : 12,
+                                                  color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                date != null
+                                                    ? '${date.day}/${date.month}/${date.year}'
+                                                    : 'No date',
+                                                style: TextStyle(
+                                                  fontSize: isSmallScreen ? 10 : 11,
+                                                  color: Colors.grey[500],
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
 
+                                    SizedBox(width: isSmallScreen ? 4 : 8),
 
-                                Flexible(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        isIncome ? '+' : '-',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: isIncome
-                                              ? const Color(0xFF245C4C)
-                                              : Colors.red[700],
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          isIncome ? '+' : '-',
+                                          style: TextStyle(
+                                            fontSize: isSmallScreen ? 11 : 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: isIncome
+                                                ? const Color(0xFF245C4C)
+                                                : Colors.red[700],
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        _formatCurrency(amount),
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          color: isIncome
-                                              ? const Color(0xFF245C4C)
-                                              : Colors.red[700],
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          _formatCurrency(amount),
+                                          style: TextStyle(
+                                            fontSize: isSmallScreen ? 11 : 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: isIncome
+                                                ? const Color(0xFF245C4C)
+                                                : Colors.red[700],
+                                          ),
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              );
+                            },
                           );
                         }).toList(),
                       ),
                     ),
 
 
-                    if (_transactions.length > 0) ...[
+                    if (_allTransactions.length > 0) ...[
                       const SizedBox(height: 12),
                       Center(
                         child: TextButton.icon(
@@ -1127,11 +1476,39 @@ class _SalesPageState extends State<SalesPage> {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const AddIncomePage(),
+                                builder: (context) => AddIncomePage(
+                                  initialHouseId: _selectedHouseId,
+                                ),
                               ),
                             );
                             if (result == true) {
-                              _loadHarvestSales(); // Reload data
+                              print('[SALES PAGE] 🔄 Transaction added, refreshing data...');
+                              print('[SALES PAGE] Current month: ${_months[_selectedMonth - 1]} $_selectedYear');
+                              
+
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = true;
+                                });
+                              }
+                              
+
+                              await _loadHarvestSales(); // Reload monthly data
+                              await _loadAllTransactions(); // Reload all transactions for Laporan Keuangan
+                              await _loadAnnualData(); // Reload annual data
+                              
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = false;
+                                });
+                                
+
+                                ModernSnackBar.success(
+                                  context,
+                                  'Data berhasil dimuat ulang',
+                                  duration: const Duration(seconds: 2),
+                                );
+                              }
                             }
                           },
                           icon: const Icon(Icons.add_shopping_cart,
@@ -1164,11 +1541,39 @@ class _SalesPageState extends State<SalesPage> {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const AddExpensePage(),
+                                builder: (context) => AddExpensePage(
+                                  initialHouseId: _selectedHouseId,
+                                ),
                               ),
                             );
                             if (result == true) {
-                              _loadHarvestSales(); // Reload data
+                              print('[SALES PAGE] 🔄 Transaction added, refreshing data...');
+                              print('[SALES PAGE] Current month: ${_months[_selectedMonth - 1]} $_selectedYear');
+                              
+
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = true;
+                                });
+                              }
+                              
+
+                              await _loadHarvestSales(); // Reload monthly data
+                              await _loadAllTransactions(); // Reload all transactions for Laporan Keuangan
+                              await _loadAnnualData(); // Reload annual data
+                              
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = false;
+                                });
+                                
+
+                                ModernSnackBar.success(
+                                  context,
+                                  'Data berhasil dimuat ulang',
+                                  duration: const Duration(seconds: 2),
+                                );
+                              }
                             }
                           },
                           icon: const Icon(Icons.receipt_long,
@@ -1222,6 +1627,7 @@ class _SalesPageState extends State<SalesPage> {
                 ],
               ),
             ),
+          ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,

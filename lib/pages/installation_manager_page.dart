@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/services/service_request_service.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/components/admin_bottom_navigation.dart';
 
@@ -28,16 +29,33 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; });
     final token = await TokenManager.getToken();
-    if (token == null) return setState(() => _loading = false);
-    final res = await _service.list(token, queryParams: {'status': 'pending', 'per_page': '50'});
-    if (res['success'] == true && res['data'] != null) {
-      setState(() => _items = res['data'] as List<dynamic>);
+    if (token == null) {
+      setState(() { _loading = false; });
+      return;
     }
-    if (mounted) {
-
-      setState(() => _loading = false);
+    final res = await _service.list(token, queryParams: {'per_page': '50'});
+    if (!mounted) return;
+    if (res['success'] == true) {
+      final data = res['data'];
+      setState(() {
+        _items = (data is List) ? data : [];
+        _loading = false;
+      });
+    } else {
+      setState(() {
+        _items = [];
+        _loading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load requests: ${res['message'] ?? res['statusCode'] ?? 'Unknown error'}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -84,11 +102,12 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
   Future<void> _assign(String id) async {
     final token = await TokenManager.getToken();
     if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not authenticated — please log in')));
+      ModernSnackBar.error(context, 'Not authenticated — please log in');
       return;
     }
 
     String? selectedTechId;
+    final messenger = ScaffoldMessenger.of(context);
 
     final assigned = await showDialog<bool>(
       context: context,
@@ -118,19 +137,18 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
       ),
     );
 
-      if (assigned == true) {
-        const defaultUuid = '00000000-0000-0000-0000-000000000002';
-        final techId = (selectedTechId ?? (_technicians.isNotEmpty ? _technicians.first['id']?.toString() : defaultUuid))?.toString();
-        if (techId == null || techId.isEmpty) return;
+    if (assigned == true) {
+      const defaultUuid = '00000000-0000-0000-0000-000000000002';
+      final techId = (selectedTechId ?? (_technicians.isNotEmpty ? _technicians.first['id']?.toString() : defaultUuid))?.toString();
+      if (techId == null || techId.isEmpty) return;
 
-        final res = await _service.assign(token, id, {
-          'technician_id': techId,
-        });
+      final res = await _service.assignComposite(token, id, techId);
+      if (!mounted) return;
       if (res['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assigned')));
+        ModernSnackBar.success(context, 'Technician assigned successfully');
         await _load();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${res['message']}')));
+        ModernSnackBar.error(context, 'Failed to assign: ${res['message'] ?? res['statusCode'] ?? 'Unknown error'}');
       }
     }
   }
@@ -148,9 +166,9 @@ class _InstallationManagerPageState extends State<InstallationManagerPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _load,
-              child: _items.isEmpty
-                  ? ListView(children: const [SizedBox(height: 200), Center(child: Text('No pending installation requests'))])
+                onRefresh: _load,
+                child: _items.isEmpty
+                  ? ListView(children: const [SizedBox(height: 200), Center(child: Text('No installation requests'))])
                   : ListView.separated(
                       itemCount: _items.length,
                       separatorBuilder: (_, __) => const Divider(height: 1),

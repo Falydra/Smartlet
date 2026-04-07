@@ -1,7 +1,10 @@
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'utils/local_notification_helper.dart';
 import 'utils/notification_manager.dart';
+import 'services/timer_background_service.dart'
+    if (dart.library.html) 'services/timer_background_service_web.dart';
 
 import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/analysis_page.dart';
@@ -40,7 +43,14 @@ import 'package:swiftlead/pages/reports_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await LocalNotificationHelper().init();
+  if (!kIsWeb) {
+    await LocalNotificationHelper().init();
+
+    // Start global foreground timer watcher so expired timers
+    // turn off actuators even when user is on a different page
+    TimerBackgroundService.startForegroundTimerWatcher();
+  }
+  
   runApp(const MyApp());
 }
 

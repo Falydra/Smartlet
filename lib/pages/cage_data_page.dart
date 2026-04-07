@@ -5,6 +5,7 @@ import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/components/osm_location_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class CageDataPage extends StatefulWidget {
@@ -68,9 +69,7 @@ class _CageDataPageState extends State<CageDataPage> {
       if (token != null) {
 
         if (_selectedLatitude == null || _selectedLongitude == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Silakan pilih lokasi kandang melalui peta terlebih dahulu'), backgroundColor: Colors.red),
-          );
+          ModernSnackBar.error(context, 'Silakan pilih lokasi kandang melalui peta terlebih dahulu');
           setState(() { _isLoading = false; });
           return;
         }
@@ -112,9 +111,7 @@ class _CageDataPageState extends State<CageDataPage> {
         if (apiResponse.containsKey('error')) {
           final err = apiResponse['error'];
           final message = (err is Map) ? (err['message'] ?? err['detail'] ?? err.toString()) : err.toString();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal membuat RBW: $message'), backgroundColor: Colors.red),
-          );
+          ModernSnackBar.error(context, 'Gagal membuat RBW: $message');
           setState(() { _isLoading = false; });
           return; // stop here — do not save locally
         }
@@ -128,12 +125,7 @@ class _CageDataPageState extends State<CageDataPage> {
           });
 
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data kandang berhasil disimpan!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          ModernSnackBar.success(context, 'Data kandang berhasil disimpan!');
 
 
           Navigator.pushAndRemoveUntil(
@@ -152,12 +144,7 @@ class _CageDataPageState extends State<CageDataPage> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Data kandang disimpan secara lokal!'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Data kandang disimpan secara lokal!');
 
 
       Navigator.pushAndRemoveUntil(
@@ -177,12 +164,9 @@ class _CageDataPageState extends State<CageDataPage> {
           _isLoading = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data kandang disimpan secara lokal!'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        ModernSnackBar.warning(context, 'Data kandang disimpan secara lokal!');
+           
+    
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -194,12 +178,7 @@ class _CageDataPageState extends State<CageDataPage> {
           _isLoading = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menyimpan data: $localError'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal menyimpan data: $localError');
       }
     }
   }
@@ -260,12 +239,7 @@ class _CageDataPageState extends State<CageDataPage> {
       print('Empty cage data saved for kandang_$kandangCount');
       
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Data kandang dapat dilengkapi nanti'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Data kandang dapat dilengkapi nanti');
     } catch (e) {
       print('Error saving empty cage data: $e');
     }
@@ -381,7 +355,7 @@ class _CageDataPageState extends State<CageDataPage> {
                             children: [
                               TileLayer(
                                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.swiftlead',
+                                userAgentPackageName: 'com.smartlet',
                               ),
                               MarkerLayer(
                                 markers: [
@@ -423,6 +397,32 @@ class _CageDataPageState extends State<CageDataPage> {
                                 color: Colors.grey[800],
                                 fontFamily: 'monospace',
                               ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _locationController,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Masukkan alamat lengkap kandang...',
+                               
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                                suffixIcon: Icon(Icons.location_on, color: Colors.grey[400]),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Lokasi kandang tidak boleh kosong';
+                                }
+                                if (value.trim().length < 10) {
+                                  return 'Lokasi terlalu pendek (minimal 10 karakter)';
+                                }
+                                return null;
+                              },
                             ),
                             const SizedBox(height: 12),
                             Center(
@@ -485,44 +485,6 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 24),
 
 
-              const Text(
-                'Kode RBW (opsional)',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF245C4C),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _codeController,
-                decoration: InputDecoration(
-                  hintText: 'Masukkan kode RBW jika tersedia (mis. RBW-ABC-1)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  suffixIcon: Icon(Icons.confirmation_number, color: Colors.grey[400]),
-                ),
-                validator: (value) {
-                  if (value != null && value.trim().isNotEmpty && value.trim().length < 3) {
-                    return 'Kode terlalu pendek';
-                  }
-                  return null;
-                },
-              ),
 
               const SizedBox(height: 24),
 
@@ -572,50 +534,8 @@ class _CageDataPageState extends State<CageDataPage> {
               const SizedBox(height: 24),
 
 
-              const Text(
-                'Lokasi Kandang',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF245C4C),
-                ),
-              ),
+              
 
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _locationController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Masukkan alamat lengkap kandang...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF245C4C)),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  suffixIcon: Icon(Icons.location_on, color: Colors.grey[400]),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Lokasi kandang tidak boleh kosong';
-                  }
-                  if (value.trim().length < 10) {
-                    return 'Lokasi terlalu pendek (minimal 10 karakter)';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 24),
 
 
               const Text(

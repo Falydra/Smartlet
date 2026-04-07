@@ -45,21 +45,21 @@ class PdfService {
     }
 
 
-    Map<String, double> incomeByCategory = {};
-    Map<String, double> expenseByCategory = {};
+    // Keep each transaction as a separate row (no grouping by description)
+    List<Map<String, dynamic>> incomeList = [];
+    List<Map<String, dynamic>> expenseList = [];
 
     for (var transaction in transactions) {
       final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
       final type = transaction['type']?.toString() ?? '';
       final description = transaction['description']?.toString() ?? 'Transaksi';
-
+      final dateStr = transaction['transaction_date']?.toString() ?? '';
+      final date = dateStr.isNotEmpty ? dateStr.split('T')[0] : '-';
 
       if (type == 'income') {
-        incomeByCategory[description] =
-            (incomeByCategory[description] ?? 0) + amount;
+        incomeList.add({'description': description, 'amount': amount, 'date': date});
       } else if (type == 'expense') {
-        expenseByCategory[description] =
-            (expenseByCategory[description] ?? 0) + amount;
+        expenseList.add({'description': description, 'amount': amount, 'date': date});
       }
     }
 
@@ -165,7 +165,7 @@ class PdfService {
                     ),
                   ),
                   pw.SizedBox(height: 8),
-                  if (incomeByCategory.isEmpty)
+                  if (incomeList.isEmpty)
                     pw.Padding(
                       padding: const pw.EdgeInsets.symmetric(vertical: 4),
                       child: pw.Text(
@@ -175,7 +175,7 @@ class PdfService {
                       ),
                     )
                   else
-                    ...incomeByCategory.entries.map((entry) {
+                    ...incomeList.map((entry) {
                       return pw.Padding(
                         padding: const pw.EdgeInsets.symmetric(vertical: 4),
                         child: pw.Row(
@@ -183,12 +183,12 @@ class PdfService {
                           children: [
                             pw.Expanded(
                               child: pw.Text(
-                                '- ${entry.key}',
+                                '- ${entry['description']} (${entry['date']})',
                                 style: const pw.TextStyle(fontSize: 11),
                               ),
                             ),
                             pw.Text(
-                              formatCurrency(entry.value),
+                              formatCurrency(entry['amount'] as double),
                               style: pw.TextStyle(
                                 fontSize: 11,
                                 fontWeight: pw.FontWeight.bold,
@@ -245,7 +245,7 @@ class PdfService {
                     ),
                   ),
                   pw.SizedBox(height: 8),
-                  if (expenseByCategory.isEmpty)
+                  if (expenseList.isEmpty)
                     pw.Padding(
                       padding: const pw.EdgeInsets.symmetric(vertical: 4),
                       child: pw.Text(
@@ -255,7 +255,7 @@ class PdfService {
                       ),
                     )
                   else
-                    ...expenseByCategory.entries.map((entry) {
+                    ...expenseList.map((entry) {
                       return pw.Padding(
                         padding: const pw.EdgeInsets.symmetric(vertical: 4),
                         child: pw.Row(
@@ -263,12 +263,12 @@ class PdfService {
                           children: [
                             pw.Expanded(
                               child: pw.Text(
-                                '- ${entry.key}',
+                                '- ${entry['description']} (${entry['date']})',
                                 style: const pw.TextStyle(fontSize: 11),
                               ),
                             ),
                             pw.Text(
-                              formatCurrency(entry.value),
+                              formatCurrency(entry['amount'] as double),
                               style: pw.TextStyle(
                                 fontSize: 11,
                                 fontWeight: pw.FontWeight.bold,
@@ -476,27 +476,76 @@ class PdfService {
         'Financial_Statement_${houseName.replaceAll(' ', '_')}_${period.replaceAll(' ', '_')}_$dateStr.pdf';
 
     try {
-
+      // getTemporaryDirectory() is always writable on all Android versions
+      // (no special permissions needed) and is covered by <cache-path> in
+      // file_paths.xml so share_plus / open_file work via FileProvider.
+      // The old hardcoded /storage/emulated/0/Download path silently hangs
+      // on Android 10+ scoped storage in release builds.
       Directory? directory;
       try {
-        directory = Directory('/storage/emulated/0/Download');
-        if (!await directory.exists()) {
-          directory = await getTemporaryDirectory();
-        }
-      } catch (e) {
         directory = await getTemporaryDirectory();
+      } catch (e) {
+        directory = Directory('/data/data/com.swiftlead/cache');
       }
 
-      final filePath = '${directory.path}/$filename';
+      print('[PDF SERVICE] Starting PDF binary generation...');
+      List<int> bytes;
+      try {
+        bytes = await pdf.save();
+        print('[PDF SERVICE] PDF binary generated, length=${bytes.length}');
+      } catch (e) {
+        print('[PDF SERVICE] Error generating PDF bytes: $e');
+        rethrow;
+      }
 
+      // First try writing to the public Downloads folder as requested.
+      final downloadDir = Directory('/storage/emulated/0/Download');
+      final attemptedPaths = <String>[];
+      if (downloadDir.existsSync()) {
+        final tryPath = '${downloadDir.path}/$filename';
+        attemptedPaths.add(tryPath);
+        final tryFile = File(tryPath);
+        try {
+          print('[PDF SERVICE] Attempting to write to Download: $tryPath');
+          await tryFile.writeAsBytes(bytes, flush: true).timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw Exception('Write to Download timed out'),
+          );
+          print('[PDF SERVICE] Successfully wrote PDF to Download');
+          return tryPath;
+        } catch (e) {
+          print('[PDF SERVICE] Failed writing to Download ($tryPath): $e');
+          // fall through to try app-specific dirs
+        }
+      } else {
+        print('[PDF SERVICE] Download directory does not exist: ${downloadDir.path}');
+      }
+
+      // Fallback: app-specific external storage or temporary directory
+      try {
+        directory = await getExternalStorageDirectory();
+      } catch (e) {
+        directory = null;
+      }
+      directory ??= await getTemporaryDirectory();
+
+      final Directory outDir = directory!;
+      final filePath = '${outDir.path}/$filename';
+      attemptedPaths.add(filePath);
 
       final file = File(filePath);
-      await file.writeAsBytes(await pdf.save());
-
-      print('PDF saved to: $filePath');
-
-
-      return filePath;
+      try {
+        print('[PDF SERVICE] Writing PDF to file: $filePath');
+        await file.writeAsBytes(bytes, flush: true).timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw Exception('Write to app storage timed out'),
+        );
+        print('[PDF SERVICE] PDF written to file successfully: $filePath');
+        return filePath;
+      } catch (e) {
+        print('[PDF SERVICE] Error writing PDF file to any path (${attemptedPaths.join(', ')}): $e');
+        rethrow;
+      }
     } catch (e) {
       print('Error saving PDF: $e');
       rethrow;

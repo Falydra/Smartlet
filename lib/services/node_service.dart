@@ -234,7 +234,7 @@ class NodeService {
 
   Future<Map<String, dynamic>> controlAudio(String token, String id, String action, int value) async {
     try {
-      final uri = Uri.parse('$baseUrl/nodes/$id/audio');
+      final uri = Uri.parse('$baseUrl/nodes/$id/audio-control');
       final response = await http.patch(
         uri, 
         headers: {
@@ -266,7 +266,7 @@ class NodeService {
   Future<Map<String, dynamic>> patchPump(String token, String id, bool state) async {
     try {
       final uri = Uri.parse('$baseUrl/nodes/$id/pump');
-      final response = await http.patch(uri, headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"}, body: jsonEncode({'action': 'sprayer_set', 'value': state ? 1 : 0}));
+      final response = await http.patch(uri, headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"}, body: jsonEncode({'state': state}));
 
       if (response.statusCode == 200) {
         try {

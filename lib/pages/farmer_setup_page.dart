@@ -45,11 +45,11 @@ class _FarmerSetupPageState extends State<FarmerSetupPage> {
             children: [
 
               Container(
-                margin: EdgeInsets.only(bottom: height * 0.01),
+                margin: EdgeInsets.only(bottom: height * 0.0001),
                 child: Image.asset(
                   'assets/img/logo2.png',
-                  width: 160,
-                  height: 160,
+                  width: 120,
+                  height: 120,
                 ),
               ),
 
@@ -89,7 +89,7 @@ class _FarmerSetupPageState extends State<FarmerSetupPage> {
                 textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 60),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.1),
 
 
               Container(
@@ -99,13 +99,13 @@ class _FarmerSetupPageState extends State<FarmerSetupPage> {
                   borderRadius: BorderRadius.circular(50),
                 ),
                 child: const Icon(
-                  Icons.agriculture,
-                  size: 60,
+                  Icons.flutter_dash,
+                  size: 40,
                   color: Color(0xFF245C4C),
                 ),
               ),
 
-              const SizedBox(height: 60),
+             SizedBox(height: MediaQuery.of(context).size.height * 0.1),
 
 
               SizedBox(

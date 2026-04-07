@@ -1,16 +1,88 @@
 import 'dart:async';
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/utils/local_notification_helper.dart';
 
 class TimerBackgroundService {
+
+
+  static const bool FORCE_DISABLE_BACKGROUND_SERVICE = true;
+  
+  static bool _isEmulator = false;
+  static bool _emulatorCheckDone = false;
+
+
+  static Future<bool> isRunningOnEmulator() async {
+    if (FORCE_DISABLE_BACKGROUND_SERVICE) return true;
+    return await _checkIfEmulator();
+  }
+
+
+  static Future<bool> _checkIfEmulator() async {
+    if (_emulatorCheckDone) return _isEmulator;
+
+    try {
+      if (Platform.isAndroid) {
+        final deviceInfo = DeviceInfoPlugin();
+        final androidInfo = await deviceInfo.androidInfo;
+        
+
+        _isEmulator = !androidInfo.isPhysicalDevice ||
+            androidInfo.model.toLowerCase().contains('sdk') ||
+            androidInfo.model.toLowerCase().contains('emulator') ||
+            androidInfo.model.toLowerCase().contains('bluestacks') ||
+            androidInfo.product.toLowerCase().contains('sdk') ||
+            androidInfo.product.toLowerCase().contains('emulator') ||
+            androidInfo.manufacturer.toLowerCase().contains('genymotion') ||
+            androidInfo.brand.toLowerCase() == 'generic' ||
+            androidInfo.device.toLowerCase().contains('generic');
+        
+        print('[BACKGROUND SERVICE] Emulator detection:');
+        print('  - Physical device: ${androidInfo.isPhysicalDevice}');
+        print('  - Model: ${androidInfo.model}');
+        print('  - Product: ${androidInfo.product}');
+        print('  - Manufacturer: ${androidInfo.manufacturer}');
+        print('  - Brand: ${androidInfo.brand}');
+        print('  - Device: ${androidInfo.device}');
+        print('  - Is Emulator: $_isEmulator');
+      } else {
+        _isEmulator = false; // iOS simulators handle background differently
+      }
+    } catch (e, stackTrace) {
+      print('[BACKGROUND SERVICE] Error detecting emulator: $e');
+      print('[BACKGROUND SERVICE] Stack trace: $stackTrace');
+
+      _isEmulator = true;
+      print('[BACKGROUND SERVICE] Assuming emulator due to detection error (safer default)');
+    }
+
+    _emulatorCheckDone = true;
+    return _isEmulator;
+  }
+
   static Future<void> initialize() async {
     print('[BACKGROUND SERVICE] Initializing background service...');
+    
+    if (FORCE_DISABLE_BACKGROUND_SERVICE) {
+      print('[BACKGROUND SERVICE] FORCE DISABLED via kill switch - background service completely disabled');
+      return;
+    }
+    
+
+    final isEmulator = await _checkIfEmulator();
+    if (isEmulator) {
+      print('[BACKGROUND SERVICE] Running on emulator - skipping background service initialization');
+      print('[BACKGROUND SERVICE] Timer will work but notifications may be limited');
+      return; // Skip initialization on emulators
+    }
+    
     try {
       final service = FlutterBackgroundService();
 
@@ -35,7 +107,9 @@ class TimerBackgroundService {
     } catch (e, stackTrace) {
       print('[BACKGROUND SERVICE] Error initializing service: $e');
       print('[BACKGROUND SERVICE] Stack trace: $stackTrace');
-      rethrow;
+      print('[BACKGROUND SERVICE] Service may not work on this device/emulator');
+
+
     }
   }
 
@@ -148,17 +222,37 @@ class TimerBackgroundService {
         try {
           print('[BACKGROUND SERVICE] Sending notification for $device');
 
-          await LocalNotificationHelper().init();
-          await LocalNotificationHelper().showWithSound(
-            title: '⏰ Timer Selesai',
-            body: '${_getDeviceName(device)} telah dimatikan secara otomatis.',
-            payload: 'timer_expired_$device',
-          );
+          try {
+            await LocalNotificationHelper().init();
+          } catch (initError) {
+            print(
+                '[BACKGROUND SERVICE] Notification init failed (non-critical): $initError');
+          }
+          
+
+          try {
+            await LocalNotificationHelper().showWithSound(
+              title: '⏰ Timer Selesai',
+              body:
+                  '${_getDeviceName(device)} telah dimatikan secara otomatis.',
+              payload: 'timer_expired_$device',
+            );
+          } catch (soundNotifError) {
+            print(
+                '[BACKGROUND SERVICE] showWithSound failed, using simple notification: $soundNotifError');
+            await LocalNotificationHelper().show(
+              title: '⏰ Timer Selesai',
+              body:
+                  '${_getDeviceName(device)} telah dimatikan secara otomatis.',
+              payload: 'timer_expired_$device',
+            );
+          }
           print(
               '[BACKGROUND SERVICE] Notification sent successfully for $device');
         } catch (e) {
           print(
               '[BACKGROUND SERVICE] Error sending notification for $device: $e');
+
         }
       }
 
@@ -249,30 +343,78 @@ class TimerBackgroundService {
 
 
   static Future<void> startService() async {
+    if (FORCE_DISABLE_BACKGROUND_SERVICE) {
+      print('[BACKGROUND SERVICE] FORCE DISABLED - skipping service start');
+      return;
+    }
+    
+
+    final isEmulator = await _checkIfEmulator();
+    if (isEmulator) {
+      print('[BACKGROUND SERVICE] Skipping service start on emulator');
+      print('[BACKGROUND SERVICE] Timer data saved but background notifications disabled');
+      return; // Don't attempt to start service on emulators
+    }
+    
     try {
       print('[BACKGROUND SERVICE] startService() called');
       final service = FlutterBackgroundService();
-      final isRunning = await service.isRunning();
+      
+
+      bool isRunning = false;
+      try {
+        isRunning = await service.isRunning();
+      } catch (e) {
+        print('[BACKGROUND SERVICE] Error checking service status: $e');
+
+      }
+      
       print('[BACKGROUND SERVICE] Service running status: $isRunning');
+      
       if (!isRunning) {
         print('[BACKGROUND SERVICE] Attempting to start service...');
-        await service.startService();
-        print('[BACKGROUND SERVICE] Service started successfully');
+        try {
+          await service.startService();
+          print('[BACKGROUND SERVICE] Service started successfully');
 
-        await Future.delayed(const Duration(milliseconds: 500));
-        final nowRunning = await service.isRunning();
-        print('[BACKGROUND SERVICE] Service running after start: $nowRunning');
+          await Future.delayed(const Duration(milliseconds: 500));
+          
+          try {
+            final nowRunning = await service.isRunning();
+            print('[BACKGROUND SERVICE] Service running after start: $nowRunning');
+          } catch (e) {
+            print('[BACKGROUND SERVICE] Cannot verify service status (non-critical): $e');
+          }
+        } catch (startError) {
+          print('[BACKGROUND SERVICE] Failed to start service (may work in background): $startError');
+
+
+        }
       } else {
         print('[BACKGROUND SERVICE] Service already running');
       }
     } catch (e, stackTrace) {
-      print('[BACKGROUND SERVICE] Error starting service: $e');
+      print('[BACKGROUND SERVICE] Error in startService: $e');
       print('[BACKGROUND SERVICE] Stack trace: $stackTrace');
+
+      print('[BACKGROUND SERVICE] Timer will be saved to SharedPreferences anyway');
     }
   }
 
 
   static Future<void> stopService() async {
+    if (FORCE_DISABLE_BACKGROUND_SERVICE) {
+      print('[BACKGROUND SERVICE] FORCE DISABLED - skipping service stop');
+      return;
+    }
+    
+
+    final isEmulator = await _checkIfEmulator();
+    if (isEmulator) {
+      print('[BACKGROUND SERVICE] Skipping service stop on emulator (service not running)');
+      return;
+    }
+    
     final service = FlutterBackgroundService();
     service.invoke('stopService');
     print('[BACKGROUND SERVICE] Service stopped');
@@ -301,6 +443,8 @@ class TimerBackgroundService {
       print('[BACKGROUND SERVICE] Saved audio_node_id: $nodeId');
     }
 
+    // Always ensure foreground watcher is running when a timer is set
+    startForegroundTimerWatcher();
 
     await startService();
     print(
@@ -339,5 +483,74 @@ class TimerBackgroundService {
     }
 
     return endTime.difference(now);
+  }
+
+  /// Foreground timer checker - runs from main.dart to handle expired timers
+  /// even when the user is on a different page from the control page.
+  static bool _foregroundCheckRunning = false;
+  static Timer? _foregroundTimer;
+
+  static void startForegroundTimerWatcher() {
+    _foregroundTimer?.cancel();
+    _foregroundTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      await checkExpiredTimersInForeground();
+    });
+    print('[FOREGROUND WATCHER] Started global timer watcher');
+  }
+
+  static void stopForegroundTimerWatcher() {
+    _foregroundTimer?.cancel();
+    _foregroundTimer = null;
+    print('[FOREGROUND WATCHER] Stopped global timer watcher');
+  }
+
+  static Future<void> checkExpiredTimersInForeground() async {
+    if (_foregroundCheckRunning) return; // Prevent concurrent checks
+    _foregroundCheckRunning = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      List<String> expiredTimers = [];
+      bool hasActiveTimers = false;
+
+      final timerTypes = ['pump', 'audio_both', 'audio_lmb', 'audio_nest'];
+      for (final type in timerTypes) {
+        final timerEndStr = prefs.getString('${type}_timer_end');
+        if (timerEndStr != null) {
+          final endTime = DateTime.parse(timerEndStr);
+          if (now.isAfter(endTime)) {
+            print('[FOREGROUND WATCHER] $type timer EXPIRED! Turning off device...');
+            expiredTimers.add(type);
+            await _turnOffDevice(type, prefs);
+            await prefs.remove('${type}_timer_end');
+          } else {
+            hasActiveTimers = true;
+          }
+        }
+      }
+
+      // Send notifications for expired timers
+      for (final device in expiredTimers) {
+        try {
+          await LocalNotificationHelper().show(
+            title: '⏰ Timer Selesai',
+            body: '${_getDeviceName(device)} telah dimatikan secara otomatis.',
+            payload: 'timer_expired_$device',
+          );
+          print('[FOREGROUND WATCHER] Notification sent for $device');
+        } catch (e) {
+          print('[FOREGROUND WATCHER] Notification error for $device: $e');
+        }
+      }
+
+      // Stop the watcher if no more active timers
+      if (!hasActiveTimers && expiredTimers.isEmpty) {
+        // No timers at all, no need to keep checking
+      }
+    } catch (e) {
+      print('[FOREGROUND WATCHER] Error: $e');
+    } finally {
+      _foregroundCheckRunning = false;
+    }
   }
 }

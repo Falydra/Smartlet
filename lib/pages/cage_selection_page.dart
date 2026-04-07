@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
@@ -45,18 +44,12 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       _authToken = await TokenManager.getToken();
       
       if (_authToken != null) {
-
         await _loadCagesFromAPI();
-      }
-      
-
-      if (_cageList.isEmpty) {
-        await _loadCages();
+      } else {
+        _cageList = [];
       }
     } catch (e) {
       print('Error initializing cage data: $e');
-
-      await _loadCages();
     }
     
     setState(() {
@@ -102,65 +95,11 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       print('Loaded ${cageList.length} cages from API');
     } catch (e) {
       print('Error loading cages from API: $e');
-
+      setState(() {
+        _cageList = [];
+      });
     }
   }
-
-  Future<void> _loadCages() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    List<Map<String, dynamic>> cageList = [];
-    
-
-    int kandangCount = prefs.getInt('kandang_count') ?? 0;
-    
-    if (kandangCount > 0) {
-
-      for (int i = 1; i <= kandangCount; i++) {
-        final name = prefs.getString('kandang_${i}_name');
-        final address = prefs.getString('kandang_${i}_address');
-        final floors = prefs.getInt('kandang_${i}_floors');
-        final description = prefs.getString('kandang_${i}_description');
-        final image = prefs.getString('kandang_${i}_image');
-        
-
-        if (floors != null) {
-          final isEmpty = name == null || name.isEmpty || address == null || address.isEmpty;
-          cageList.add({
-            'id': 'kandang_$i',
-            'name': isEmpty ? 'Empty' : name,
-            'address': isEmpty ? 'Data belum lengkap' : address,
-            'floors': floors,
-            'description': description ?? '',
-            'image': image,
-            'isEmpty': isEmpty,
-          });
-        }
-      }
-    } else {
-
-      final savedAddress = prefs.getString('cage_address');
-      final savedFloors = prefs.getInt('cage_floors');
-      final savedImage = prefs.getString('cage_image');
-
-      if (savedAddress != null && savedAddress.isNotEmpty && savedFloors != null) {
-        cageList.add({
-          'id': 'cage_1',
-          'name': 'Kandang $savedFloors Lantai',
-          'address': savedAddress,
-          'floors': savedFloors,
-          'image': savedImage,
-        });
-      }
-    }
-
-    setState(() {
-      _cageList = cageList;
-    });
-  } catch (e) {
-    print('Error loading cages: $e');
-  }
-}
 
   void _showDeleteDialog(Map<String, dynamic> cage) {
     final isFromAPI = cage['isFromAPI'] == true;
@@ -177,16 +116,12 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
             children: [
               Text('Apakah Anda yakin ingin menghapus kandang "${cage['name']}"?'),
               const SizedBox(height: 8),
-              if (isFromAPI) 
-                Text(
-                  '• Kandang akan dihapus dari database server',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                )
-              else
-                Text(
-                  '• Kandang hanya akan dihapus dari penyimpanan lokal',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
+              Text(
+                isFromAPI
+                    ? '• Kandang akan dihapus dari database server'
+                    : '• Kandang ini bukan data server dan tidak bisa dihapus dari halaman ini',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
               if (hasDevice)
                 Text(
                   '• Perangkat yang terpasang mungkin perlu dikonfigurasi ulang',
@@ -226,89 +161,27 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
 
   Future<void> _deleteCage(Map<String, dynamic> cage) async {
     try {
-
-      if (cage['isFromAPI'] == true && cage['apiId'] != null && _authToken != null) {
-        try {
-
-          final dynamic rawId = cage['apiId'];
-          final String apiId = rawId?.toString() ?? '';
-
-          if (apiId.isEmpty) {
-            throw Exception('Invalid apiId for cage: ${cage['apiId']}');
-          }
-
-
-          final apiResponse = await _houseService.delete(_authToken!, apiId);
-
-          if (apiResponse['success'] == true || apiResponse['message'] != null || apiResponse['data'] != null) {
-            print('House deleted from database: $apiId');
-          } else {
-            throw Exception('API deletion failed: ${apiResponse['error'] ?? 'Unknown error'}');
-          }
-        } catch (apiError) {
-          print('Error deleting house from API: $apiError');
-          
-
-          final shouldDeleteLocal = await showDialog<bool>(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Gagal Hapus dari Server'),
-                content: Text(
-                  'Kandang tidak dapat dihapus dari server. Hapus hanya dari penyimpanan lokal?\n\nError: $apiError',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Batal'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                    child: const Text('Hapus Lokal Saja'),
-                  ),
-                ],
-              );
-            },
-          );
-          
-          if (shouldDeleteLocal != true) {
-            return; // User cancelled
-          }
-        }
+      if (_authToken == null) {
+        throw Exception('Sesi login tidak ditemukan. Silakan login ulang.');
       }
-      
 
-      final prefs = await SharedPreferences.getInstance();
-    final cageId = cage['id'].toString();
-      
-
-      final cageNumber = int.tryParse(cageId.replaceAll('kandang_', '').replaceAll('cage_', '').replaceAll('house_', ''));
-      
-      if (cageNumber != null) {
-
-        await prefs.remove('kandang_${cageNumber}_name');
-        await prefs.remove('kandang_${cageNumber}_address');
-        await prefs.remove('kandang_${cageNumber}_floors');
-        await prefs.remove('kandang_${cageNumber}_description');
-        await prefs.remove('kandang_${cageNumber}_image');
-        
-
-        final legacyAddress = prefs.getString('cage_address');
-        final legacyFloors = prefs.getInt('cage_floors');
-        
-        if (legacyAddress == cage['address'] && legacyFloors == cage['floors']) {
-          await prefs.remove('cage_address');
-          await prefs.remove('cage_floors');
-          await prefs.remove('cage_image');
-        }
-        
-
-        await _reorganizeKandangData();
+      if (cage['isFromAPI'] != true || cage['apiId'] == null) {
+        throw Exception('Kandang ini tidak berasal dari database server.');
       }
-      
 
-      await _initializeData();
+      final String apiId = cage['apiId'].toString();
+      final apiResponse = await _houseService.delete(_authToken!, apiId);
+      if (apiResponse['success'] != true) {
+        final statusCode = apiResponse['statusCode'] as int?;
+        final apiMessage = apiResponse['message']?.toString();
+        if (statusCode == 403) {
+          throw Exception(apiMessage ?? 'Anda tidak punya izin menghapus kandang ini.');
+        }
+        throw Exception(apiMessage ?? 'Penghapusan kandang gagal di server.');
+      }
+
+      print('House deleted from database: $apiId');
+      await _loadCagesFromAPI();
       
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -319,68 +192,13 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       );
     } catch (e) {
       print('Error deleting cage: $e');
+      final cleanMessage = e.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal menghapus kandang: ${e.toString()}'),
+          content: Text('Gagal menghapus kandang: $cleanMessage'),
           backgroundColor: Colors.red,
         ),
       );
-    }
-  }
-
-  Future<void> _reorganizeKandangData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final kandangCount = prefs.getInt('kandang_count') ?? 0;
-      
-      List<Map<String, dynamic>> validKandang = [];
-      
-
-      for (int i = 1; i <= kandangCount; i++) {
-        final name = prefs.getString('kandang_${i}_name');
-        final address = prefs.getString('kandang_${i}_address');
-        final floors = prefs.getInt('kandang_${i}_floors');
-        final description = prefs.getString('kandang_${i}_description');
-        final image = prefs.getString('kandang_${i}_image');
-        
-        if (floors != null) {
-          validKandang.add({
-            'name': name ?? '',
-            'address': address ?? '',
-            'floors': floors,
-            'description': description ?? '',
-            'image': image,
-          });
-        }
-      }
-      
-
-      for (int i = 1; i <= kandangCount; i++) {
-        await prefs.remove('kandang_${i}_name');
-        await prefs.remove('kandang_${i}_address');
-        await prefs.remove('kandang_${i}_floors');
-        await prefs.remove('kandang_${i}_description');
-        await prefs.remove('kandang_${i}_image');
-      }
-      
-
-      for (int i = 0; i < validKandang.length; i++) {
-        final kandang = validKandang[i];
-        final newIndex = i + 1;
-        
-        await prefs.setString('kandang_${newIndex}_name', kandang['name']);
-        await prefs.setString('kandang_${newIndex}_address', kandang['address']);
-        await prefs.setInt('kandang_${newIndex}_floors', kandang['floors']);
-        await prefs.setString('kandang_${newIndex}_description', kandang['description']);
-        if (kandang['image'] != null) {
-          await prefs.setString('kandang_${newIndex}_image', kandang['image']);
-        }
-      }
-      
-
-      await prefs.setInt('kandang_count', validKandang.length);
-    } catch (e) {
-      print('Error reorganizing kandang data: $e');
     }
   }
 
@@ -570,7 +388,9 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                   ),
 
                                   IconButton(
-                                    onPressed: () => _showDeleteDialog(cage),
+                                    onPressed: cage['isFromAPI'] == true
+                                        ? () => _showDeleteDialog(cage)
+                                        : null,
                                     icon: Icon(
                                       Icons.delete_outline,
                                       color: Colors.red[400],

@@ -16,6 +16,7 @@ import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/services/ai_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/utils/time_utils.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/pages/device_installation_page.dart';
 import 'package:swiftlead/services/alert_service.dart';
 import 'package:swiftlead/utils/notification_manager.dart';
@@ -102,13 +103,17 @@ class _ControlPageState extends State<ControlPage> {
   String? _pumpNodeId;
   bool? _pumpState;
   bool _pumpLoading = false;
+  bool _pumpJustTurnedOff = false;
   String? _audioNodeId;
   bool? _audioBothState;
   bool _audioBothLoading = false;
+  bool _audioBothJustTurnedOff = false;
   bool? _audioLmbState;
   bool _audioLmbLoading = false;
+  bool _audioLmbJustTurnedOff = false;
   bool? _audioNestState;
   bool _audioNestLoading = false;
+  bool _audioNestJustTurnedOff = false;
 
 
   DateTime? _pumpTimerEnd;
@@ -138,55 +143,161 @@ class _ControlPageState extends State<ControlPage> {
 
     _initDemoData();
 
-    _initBackgroundService();
+    // Initialize in sequence to avoid race conditions
+    _initializeAsync();
+  }
 
-    _initializeData();
+  Future<void> _initializeAsync() async {
+    // Initialize background service
+    await _initBackgroundService();
+    
+    // Load other data (token, nodes, sensors)
+    await _initializeData();
+    
+    // NOW check for expired timers - after _initializeData has loaded
+    // _authToken and _pumpNodeId/_audioNodeId so toggle API calls work
+    await _handleExpiredTimers();
+    
+    // Reset protection flags after initialization completes
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _pumpJustTurnedOff = false;
+          _audioBothJustTurnedOff = false;
+          _audioLmbJustTurnedOff = false;
+          _audioNestJustTurnedOff = false;
+        });
+      }
+    });
   }
 
   Future<void> _initBackgroundService() async {
-    await TimerBackgroundService.initialize();
+    try {
+      await TimerBackgroundService.initialize();
+    } catch (e) {
+      print('[CONTROL PAGE] Background service initialization failed: $e');
 
-    await _loadSavedTimers();
+    }
+
+    try {
+      await _loadSavedTimers();
+    } catch (e) {
+      print('[CONTROL PAGE] Failed to load saved timers: $e');
+    }
   }
 
   Future<void> _loadSavedTimers() async {
-    final pumpDuration = await TimerBackgroundService.getRemainingTime('pump');
-    if (pumpDuration != null) {
-      setState(() {
-        _pumpTimerEnd = DateTime.now().add(pumpDuration);
-      });
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    
+    // Check pump timer
+    final pumpTimerEndStr = prefs.getString('pump_timer_end');
+    if (pumpTimerEndStr != null) {
+      final endTime = DateTime.parse(pumpTimerEndStr);
+      if (now.isAfter(endTime)) {
+        // Timer expired - mark flags so node states won't overwrite
+        print('[LOAD TIMERS] Pump timer has expired while away');
+        setState(() {
+          _pumpState = false;
+          _pumpJustTurnedOff = true;
+        });
+        await TimerBackgroundService.clearTimer('pump');
+      } else {
+        setState(() {
+          _pumpTimerEnd = endTime;
+          _pumpState = true;
+        });
+      }
     }
 
-    final audioBothDuration =
-        await TimerBackgroundService.getRemainingTime('audio_both');
-    if (audioBothDuration != null) {
-      setState(() {
-        _audioBothTimerEnd = DateTime.now().add(audioBothDuration);
-      });
+    // Check audio both timer
+    final audioBothTimerEndStr = prefs.getString('audio_both_timer_end');
+    if (audioBothTimerEndStr != null) {
+      final endTime = DateTime.parse(audioBothTimerEndStr);
+      if (now.isAfter(endTime)) {
+        print('[LOAD TIMERS] Audio both timer has expired while away');
+        setState(() {
+          _audioBothState = false;
+          _audioBothJustTurnedOff = true;
+        });
+        await TimerBackgroundService.clearTimer('audio_both');
+      } else {
+        setState(() {
+          _audioBothTimerEnd = endTime;
+          _audioBothState = true;
+        });
+      }
     }
 
-    final audioLmbDuration =
-        await TimerBackgroundService.getRemainingTime('audio_lmb');
-    if (audioLmbDuration != null) {
-      setState(() {
-        _audioLmbTimerEnd = DateTime.now().add(audioLmbDuration);
-      });
+    // Check audio LMB timer
+    final audioLmbTimerEndStr = prefs.getString('audio_lmb_timer_end');
+    if (audioLmbTimerEndStr != null) {
+      final endTime = DateTime.parse(audioLmbTimerEndStr);
+      if (now.isAfter(endTime)) {
+        print('[LOAD TIMERS] Audio LMB timer has expired while away');
+        setState(() {
+          _audioLmbState = false;
+          _audioLmbJustTurnedOff = true;
+        });
+        await TimerBackgroundService.clearTimer('audio_lmb');
+      } else {
+        setState(() {
+          _audioLmbTimerEnd = endTime;
+          _audioLmbState = true;
+        });
+      }
     }
 
-    final audioNestDuration =
-        await TimerBackgroundService.getRemainingTime('audio_nest');
-    if (audioNestDuration != null) {
-      setState(() {
-        _audioNestTimerEnd = DateTime.now().add(audioNestDuration);
-      });
+    // Check audio nest timer
+    final audioNestTimerEndStr = prefs.getString('audio_nest_timer_end');
+    if (audioNestTimerEndStr != null) {
+      final endTime = DateTime.parse(audioNestTimerEndStr);
+      if (now.isAfter(endTime)) {
+        print('[LOAD TIMERS] Audio Nest timer has expired while away');
+        setState(() {
+          _audioNestState = false;
+          _audioNestJustTurnedOff = true;
+        });
+        await TimerBackgroundService.clearTimer('audio_nest');
+      } else {
+        setState(() {
+          _audioNestTimerEnd = endTime;
+          _audioNestState = true;
+        });
+      }
     }
 
-
+    // Start the actuator timer if any timers are still active
     if (_pumpTimerEnd != null ||
         _audioBothTimerEnd != null ||
         _audioLmbTimerEnd != null ||
         _audioNestTimerEnd != null) {
       _startActuatorTimer();
+    }
+  }
+
+  /// Called AFTER _initializeData so _authToken, _pumpNodeId, _audioNodeId are available
+  Future<void> _handleExpiredTimers() async {
+    if (!mounted) return;
+    
+    if (_pumpJustTurnedOff && _pumpNodeId != null && _authToken != null) {
+      print('[EXPIRED TIMER] Turning off pump via API (nodeId=$_pumpNodeId)');
+      await _togglePump(false);
+    }
+    
+    if (_audioBothJustTurnedOff && _audioNodeId != null && _authToken != null) {
+      print('[EXPIRED TIMER] Turning off audio both via API (nodeId=$_audioNodeId)');
+      await _toggleAudioBoth(false);
+    }
+    
+    if (_audioLmbJustTurnedOff && _audioNodeId != null && _authToken != null) {
+      print('[EXPIRED TIMER] Turning off audio LMB via API (nodeId=$_audioNodeId)');
+      await _toggleAudioLmb(false);
+    }
+    
+    if (_audioNestJustTurnedOff && _audioNodeId != null && _authToken != null) {
+      print('[EXPIRED TIMER] Turning off audio nest via API (nodeId=$_audioNodeId)');
+      await _toggleAudioNest(false);
     }
   }
 
@@ -1023,10 +1134,147 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
+  Widget _buildScrollablePicker({
+    required String label,
+    required int value,
+    required int maxValue,
+    required int step,
+    required Function(int) onChanged,
+    required Function(void Function()) setDialogState,
+  }) {
+    final int itemCount = (maxValue ~/ step) + 1;
+    final int initialIndex = value ~/ step;
+    final FixedExtentScrollController scrollController =
+        FixedExtentScrollController(initialItem: initialIndex);
+
+    return Column(
+      children: [
+        Text(label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () async {
+            final controller = TextEditingController(text: value.toString());
+            final result = await showDialog<int>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text('Masukkan $label'),
+                content: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: '0 - $maxValue',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixText: label.toLowerCase(),
+                  ),
+                  onSubmitted: (val) {
+                    final parsed = int.tryParse(val) ?? 0;
+                    Navigator.pop(ctx, parsed.clamp(0, maxValue));
+                  },
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Batal'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      final parsed =
+                          int.tryParse(controller.text) ?? 0;
+                      Navigator.pop(ctx, parsed.clamp(0, maxValue));
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF245C4C),
+                    ),
+                    child: const Text('OK',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+            if (result != null) {
+              // Snap to nearest step
+              final snapped = (result ~/ step) * step;
+              setDialogState(() {
+                onChanged(snapped);
+              });
+              final newIndex = snapped ~/ step;
+              if (newIndex < itemCount) {
+                scrollController.jumpToItem(newIndex);
+              }
+            }
+          },
+          child: Container(
+            width: 80,
+            height: 150,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Stack(
+              children: [
+                // Highlight bar for selected item
+                Center(
+                  child: Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF245C4C).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                // Scroll wheel
+                ListWheelScrollView.useDelegate(
+                  controller: scrollController,
+                  itemExtent: 40,
+                  physics: const FixedExtentScrollPhysics(),
+                  diameterRatio: 1.5,
+                  perspective: 0.003,
+                  onSelectedItemChanged: (index) {
+                    setDialogState(() {
+                      onChanged(index * step);
+                    });
+                  },
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    childCount: itemCount,
+                    builder: (context, index) {
+                      final val = index * step;
+                      final isSelected = val == value;
+                      return Center(
+                        child: Text(
+                          val.toString().padLeft(2, '0'),
+                          style: TextStyle(
+                            fontSize: isSelected ? 24 : 16,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isSelected
+                                ? const Color(0xFF245C4C)
+                                : Colors.grey[400],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text('Ketuk untuk ketik',
+            style: TextStyle(fontSize: 9, color: Colors.grey[400])),
+      ],
+    );
+  }
+
   Future<void> _showMultiSelectTimerDialog(
       String groupName, List<Map<String, dynamic>> devices) async {
     Set<String> selectedDevices = {};
-    int selectedMinutes = 5;
+    int selectedMinutes = 0;
     int selectedSeconds = 0;
 
     await showDialog(
@@ -1040,16 +1288,76 @@ class _ControlPageState extends State<ControlPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pilih perangkat yang akan diatur timer:',
+                  'Durasi waktu nyala:',
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey[700]),
                 ),
                 const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildScrollablePicker(
+                      label: 'Menit',
+                      value: selectedMinutes,
+                      maxValue: 60,
+                      step: 1,
+                      onChanged: (v) => selectedMinutes = v,
+                      setDialogState: setDialogState,
+                    ),
+                    const SizedBox(width: 16),
+                    const Text(':',
+                        style: TextStyle(
+                            fontSize: 32, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 16),
+                    _buildScrollablePicker(
+                      label: 'Detik',
+                      value: selectedSeconds,
+                      maxValue: 59,
+                      step: 1,
+                      onChanged: (v) => selectedSeconds = v,
+                      setDialogState: setDialogState,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.timer, size: 16, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Total: ${selectedMinutes}m ${selectedSeconds}d',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, color: Colors.blue),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  height: 1,
+                  color: Colors.grey[300],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pilih perangkat yang akan diatur timer:',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700]),
+                ),
+                const SizedBox(height: 8),
                 ...devices
                     .map((device) {
-
                       bool isActive = false;
                       if (device['id'] == 'pump') {
                         isActive = _pumpState == true;
@@ -1083,7 +1391,7 @@ class _ControlPageState extends State<ControlPage> {
                         value: selectedDevices.contains(device['id']),
                         activeColor: const Color(0xFF245C4C),
                         onChanged: isActive
-                            ? null // Disable checkbox if already active
+                            ? null
                             : (bool? value) {
                                 setDialogState(() {
                                   if (value == true) {
@@ -1099,224 +1407,103 @@ class _ControlPageState extends State<ControlPage> {
                     })
                     .toList(),
                 const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  height: 1,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Durasi waktu nyala:',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700]),
-                ),
-                const SizedBox(height: 12),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-
-                    Column(
-                      children: [
-                        Text('Menit',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[600])),
-                        const SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: Color(0xFF245C4C)),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Column(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.arrow_drop_up),
-                                onPressed: () {
-                                  setDialogState(() {
-                                    if (selectedMinutes < 60) selectedMinutes++;
-                                  });
-                                },
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 8),
-                                child: Text(
-                                  selectedMinutes.toString().padLeft(2, '0'),
-                                  style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.arrow_drop_down),
-                                onPressed: () {
-                                  setDialogState(() {
-                                    if (selectedMinutes > 0) selectedMinutes--;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
                         ),
-                      ],
+                        child: const Text('Batal',
+                            style: TextStyle(color: Color(0xFF245C4C))),
+                      ),
                     ),
-                    const SizedBox(width: 20),
-                    Text(':',
-                        style: TextStyle(
-                            fontSize: 32, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          if (selectedDevices.isEmpty) {
+                            ModernSnackBar.warning(context, 'Pilih minimal 1 perangkat');
+                            return;
+                          }
+                          final totalSeconds = (selectedMinutes * 60) + selectedSeconds;
+                          if (totalSeconds > 0) {
+                            final endTime =
+                                DateTime.now().add(Duration(seconds: totalSeconds));
+                            setState(() {
+                              for (final deviceId in selectedDevices) {
+                                if (deviceId == 'pump') {
+                                  _pumpTimerEnd = endTime;
+                                  if (_pumpState != true) _togglePump(true);
+                                  TimerBackgroundService.setTimer(
+                                    deviceType: 'pump',
+                                    endTime: endTime,
+                                    nodeId: _pumpNodeId,
+                                  );
+                                } else if (deviceId == 'audio_both') {
+                                  _audioBothTimerEnd = endTime;
+                                  if (_audioBothState != true) _toggleAudioBoth(true);
+                                  TimerBackgroundService.setTimer(
+                                    deviceType: 'audio_both',
+                                    endTime: endTime,
+                                    nodeId: _audioNodeId,
+                                  );
+                                } else if (deviceId == 'audio_lmb') {
+                                  _audioLmbTimerEnd = endTime;
+                                  if (_audioLmbState != true) _toggleAudioLmb(true);
+                                  TimerBackgroundService.setTimer(
+                                    deviceType: 'audio_lmb',
+                                    endTime: endTime,
+                                    nodeId: _audioNodeId,
+                                  );
+                                } else if (deviceId == 'audio_nest') {
+                                  _audioNestTimerEnd = endTime;
+                                  if (_audioNestState != true) _toggleAudioNest(true);
+                                  TimerBackgroundService.setTimer(
+                                    deviceType: 'audio_nest',
+                                    endTime: endTime,
+                                    nodeId: _audioNodeId,
+                                  );
+                                }
+                              }
+                            });
+                            _startActuatorTimer();
+                            Navigator.pop(context);
 
-                    Column(
-                      children: [
-                        Text('Detik',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[600])),
-                        const SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
+                            TimerBackgroundService.isRunningOnEmulator().then((isEmulator) {
+                              String message = 'Timer ${selectedMinutes}m ${selectedSeconds}d diatur untuk ${selectedDevices.length} perangkat';
+                              if (isEmulator) {
+                                ModernSnackBar.warning(context, message, duration: const Duration(seconds: 4));
+                              } else {
+                                ModernSnackBar.success(context, message, duration: const Duration(seconds: 3));
+                              }
+                            });
+                          } else {
+                            ModernSnackBar.warning(context, 'Pilih durasi minimal 5 detik');
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF245C4C),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Column(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.arrow_drop_up),
-                                onPressed: () {
-                                  setDialogState(() {
-                                    selectedSeconds =
-                                        (selectedSeconds + 5) % 60;
-                                  });
-                                },
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 8),
-                                child: Text(
-                                  selectedSeconds.toString().padLeft(2, '0'),
-                                  style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.arrow_drop_down),
-                                onPressed: () {
-                                  setDialogState(() {
-                                    selectedSeconds = selectedSeconds - 5 < 0
-                                        ? 55
-                                        : selectedSeconds - 5;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
                         ),
-                      ],
+                        icon: const Icon(Icons.check, color: Colors.white, size: 18),
+                        label: const Text('Set Timer',
+                            style: TextStyle(color: Colors.white)),
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.timer, size: 16, color: Colors.blue),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Total: ${selectedMinutes}m ${selectedSeconds}d',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.blue),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (selectedDevices.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Pilih minimal 1 perangkat')),
-                  );
-                  return;
-                }
-                final totalSeconds = (selectedMinutes * 60) + selectedSeconds;
-                if (totalSeconds > 0) {
-
-                  final endTime =
-                      DateTime.now().add(Duration(seconds: totalSeconds));
-                  setState(() {
-                    for (final deviceId in selectedDevices) {
-                      if (deviceId == 'pump') {
-                        _pumpTimerEnd = endTime;
-                        if (_pumpState != true) _togglePump(true);
-                        TimerBackgroundService.setTimer(
-                          deviceType: 'pump',
-                          endTime: endTime,
-                          nodeId: _pumpNodeId,
-                        );
-                      } else if (deviceId == 'audio_both') {
-                        _audioBothTimerEnd = endTime;
-                        if (_audioBothState != true) _toggleAudioBoth(true);
-                        TimerBackgroundService.setTimer(
-                          deviceType: 'audio_both',
-                          endTime: endTime,
-                          nodeId: _audioNodeId,
-                        );
-                      } else if (deviceId == 'audio_lmb') {
-                        _audioLmbTimerEnd = endTime;
-                        if (_audioLmbState != true) _toggleAudioLmb(true);
-                        TimerBackgroundService.setTimer(
-                          deviceType: 'audio_lmb',
-                          endTime: endTime,
-                          nodeId: _audioNodeId,
-                        );
-                      } else if (deviceId == 'audio_nest') {
-                        _audioNestTimerEnd = endTime;
-                        if (_audioNestState != true) _toggleAudioNest(true);
-                        TimerBackgroundService.setTimer(
-                          deviceType: 'audio_nest',
-                          endTime: endTime,
-                          nodeId: _audioNodeId,
-                        );
-                      }
-                    }
-                  });
-                  _startActuatorTimer();
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          'Timer ${selectedMinutes}m ${selectedSeconds}d diatur untuk ${selectedDevices.length} perangkat'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Pilih durasi minimal 5 detik')),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF245C4C),
-              ),
-              child: const Text('Set Timer',
-                  style: TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
       ),
     );
@@ -1324,7 +1511,7 @@ class _ControlPageState extends State<ControlPage> {
 
   Future<void> _showTimerDialog(
       String actuatorName, Function(int) onSetTimer) async {
-    int selectedMinutes = 5;
+    int selectedMinutes = 0;
     int selectedSeconds = 0;
 
     await showDialog(
@@ -1343,100 +1530,27 @@ class _ControlPageState extends State<ControlPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-
-                  Column(
-                    children: [
-                      Text('Menit',
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_drop_up),
-                              onPressed: () {
-                                setDialogState(() {
-                                  if (selectedMinutes < 60) selectedMinutes++;
-                                });
-                              },
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 8),
-                              child: Text(
-                                selectedMinutes.toString().padLeft(2, '0'),
-                                style: const TextStyle(
-                                    fontSize: 24, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.arrow_drop_down),
-                              onPressed: () {
-                                setDialogState(() {
-                                  if (selectedMinutes > 0) selectedMinutes--;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  _buildScrollablePicker(
+                    label: 'Menit',
+                    value: selectedMinutes,
+                    maxValue: 60,
+                    step: 1,
+                    onChanged: (v) => selectedMinutes = v,
+                    setDialogState: setDialogState,
                   ),
-                  const SizedBox(width: 20),
-                  Text(':',
+                  const SizedBox(width: 16),
+                  const Text(':'
+                  ,
                       style:
                           TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 20),
-
-                  Column(
-                    children: [
-                      Text('Detik',
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_drop_up),
-                              onPressed: () {
-                                setDialogState(() {
-                                  selectedSeconds = (selectedSeconds + 5) % 60;
-                                });
-                              },
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 8),
-                              child: Text(
-                                selectedSeconds.toString().padLeft(2, '0'),
-                                style: const TextStyle(
-                                    fontSize: 24, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.arrow_drop_down),
-                              onPressed: () {
-                                setDialogState(() {
-                                  selectedSeconds = selectedSeconds - 5 < 0
-                                      ? 55
-                                      : selectedSeconds - 5;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 16),
+                  _buildScrollablePicker(
+                    label: 'Detik',
+                    value: selectedSeconds,
+                    maxValue: 59,
+                    step: 1,
+                    onChanged: (v) => selectedSeconds = v,
+                    setDialogState: setDialogState,
                   ),
                 ],
               ),
@@ -1460,33 +1574,51 @@ class _ControlPageState extends State<ControlPage> {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: Color(0xFF245C4C)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Batal',
+                          style: TextStyle(color: Color(0xFF245C4C))),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final totalSeconds = (selectedMinutes * 60) + selectedSeconds;
+                        if (totalSeconds > 0) {
+                          onSetTimer(totalSeconds);
+                          Navigator.pop(context);
+                        } else {
+                          ModernSnackBar.warning(context, 'Pilih durasi minimal 5 detik');
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF245C4C),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.check, color: Colors.white, size: 18),
+                      label: const Text('Set Timer',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final totalSeconds = (selectedMinutes * 60) + selectedSeconds;
-                if (totalSeconds > 0) {
-                  onSetTimer(totalSeconds);
-                  Navigator.pop(context);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Pilih durasi minimal 5 detik')),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF245C4C),
-              ),
-              child: const Text('Set Timer',
-                  style: TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
       ),
     );
@@ -1723,9 +1855,11 @@ class _ControlPageState extends State<ControlPage> {
         type.contains('spray') ||
         hasPump) {
       _pumpNodeId ??= n['id']?.toString();
-      _pumpState ??=
-          _extractBoolState(n, ['pump_state', 'state_pump', 'state', 'active']);
-      print('[PUMP DETECTED] NodeId=$_pumpNodeId, State=$_pumpState');
+      // Don't overwrite pump state if timer is active or if we just turned it off
+      if (!_pumpJustTurnedOff && (_pumpTimerEnd == null || DateTime.now().isAfter(_pumpTimerEnd!))) {
+        _pumpState ??= _extractBoolState(n, ['pump_state', 'state_pump', 'state', 'active']);
+      }
+      print('[PUMP DETECTED] NodeId=$_pumpNodeId, State=$_pumpState, JustTurnedOff=$_pumpJustTurnedOff');
     }
 
     if (type.contains('audio') ||
@@ -1734,12 +1868,19 @@ class _ControlPageState extends State<ControlPage> {
         type.contains('speaker') ||
         hasAudio) {
       _audioNodeId ??= n['id']?.toString();
-      _audioBothState ??= _extractBoolState(
-          n, ['state_audio', 'audio_state', 'state', 'active']);
-      _audioLmbState ??= _extractBoolState(
-          n, ['state_audio_lmb', 'audio_lmb_state', 'lmb_state']);
-      _audioNestState ??= _extractBoolState(
-          n, ['state_audio_nest', 'audio_nest_state', 'nest_state']);
+      // Don't overwrite audio states if timers are active or if we just turned them off
+      if (!_audioBothJustTurnedOff && (_audioBothTimerEnd == null || DateTime.now().isAfter(_audioBothTimerEnd!))) {
+        _audioBothState ??= _extractBoolState(
+            n, ['state_audio', 'audio_state', 'state', 'active']);
+      }
+      if (!_audioLmbJustTurnedOff && (_audioLmbTimerEnd == null || DateTime.now().isAfter(_audioLmbTimerEnd!))) {
+        _audioLmbState ??= _extractBoolState(
+            n, ['state_audio_lmb', 'audio_lmb_state', 'lmb_state']);
+      }
+      if (!_audioNestJustTurnedOff && (_audioNestTimerEnd == null || DateTime.now().isAfter(_audioNestTimerEnd!))) {
+        _audioNestState ??= _extractBoolState(
+            n, ['state_audio_nest', 'audio_nest_state', 'nest_state']);
+      }
       print(
           '[AUDIO DETECTED] NodeId=$_audioNodeId, BothState=$_audioBothState, LmbState=$_audioLmbState, NestState=$_audioNestState, NodeType=$type');
     }
@@ -1804,22 +1945,17 @@ class _ControlPageState extends State<ControlPage> {
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Pump berhasil diubah ke ${value ? "ON" : "OFF"}'),
-              backgroundColor: Colors.green));
+          ModernSnackBar.success(context, 'Mist Spray berhasil ${value ? "dinyalakan" : "dimatikan"}');
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Gagal update pump: ${res['message'] ?? res['statusCode']}')));
+          ModernSnackBar.error(context, 'Gagal mengubah Mist Spray');
         }
       }
     } catch (e) {
       print('[PUMP TOGGLE ERROR] Exception: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error toggling pump: $e')));
+        ModernSnackBar.error(context, 'Gagal mengubah Mist Spray');
       }
     }
     if (mounted)
@@ -1887,23 +2023,17 @@ class _ControlPageState extends State<ControlPage> {
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Kedua Speaker berhasil ${value ? "dinyalakan" : "dimatikan"}'),
-              backgroundColor: Colors.green));
+          ModernSnackBar.success(context, 'Semua Speaker berhasil ${value ? "dinyalakan" : "dimatikan"}');
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Gagal update kedua speaker: ${res['message'] ?? res['statusCode']}')));
+          ModernSnackBar.error(context, 'Gagal mengubah Speaker');
         }
       }
     } catch (e) {
       print('[AUDIO BOTH TOGGLE ERROR] Exception: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error toggling both speakers: $e')));
+        ModernSnackBar.error(context, 'Gagal mengubah Speaker');
       }
     }
     if (mounted)
@@ -1965,23 +2095,17 @@ class _ControlPageState extends State<ControlPage> {
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Speaker LMB berhasil ${value ? "dinyalakan" : "dimatikan"}'),
-              backgroundColor: Colors.green));
+          ModernSnackBar.success(context, 'Speaker LMB berhasil ${value ? "dinyalakan" : "dimatikan"}');
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Gagal update speaker LMB: ${res['message'] ?? res['statusCode']}')));
+          ModernSnackBar.error(context, 'Gagal mengubah Speaker LMB');
         }
       }
     } catch (e) {
       print('[AUDIO LMB TOGGLE ERROR] Exception: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error toggling LMB speaker: $e')));
+        ModernSnackBar.error(context, 'Gagal mengubah Speaker LMB');
       }
     }
     if (mounted)
@@ -2043,23 +2167,17 @@ class _ControlPageState extends State<ControlPage> {
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Speaker Nest berhasil ${value ? "dinyalakan" : "dimatikan"}'),
-              backgroundColor: Colors.green));
+          ModernSnackBar.success(context, 'Speaker Nest berhasil ${value ? "dinyalakan" : "dimatikan"}');
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(
-                  'Gagal update speaker Nest: ${res['message'] ?? res['statusCode']}')));
+          ModernSnackBar.error(context, 'Gagal mengubah Speaker Nest');
         }
       }
     } catch (e) {
       print('[AUDIO NEST TOGGLE ERROR] Exception: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error toggling Nest speaker: $e')));
+        ModernSnackBar.error(context, 'Gagal mengubah Speaker Nest');
       }
     }
     if (mounted)
@@ -2072,9 +2190,7 @@ class _ControlPageState extends State<ControlPage> {
   Future<void> _testAudioEndpoint(String action) async {
     print('[TEST AUDIO] Testing action: $action');
     if (_authToken == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No auth token available'),
-          backgroundColor: Colors.red));
+      ModernSnackBar.error(context, 'Token autentikasi tidak tersedia');
       return;
     }
 
@@ -2082,9 +2198,7 @@ class _ControlPageState extends State<ControlPage> {
     final testNodeId =
         _audioNodeId ?? (_nodeIds.isNotEmpty ? _nodeIds.first : null);
     if (testNodeId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No nodes available to test'),
-          backgroundColor: Colors.red));
+      ModernSnackBar.error(context, 'Tidak ada perangkat tersedia');
       return;
     }
 
@@ -2098,19 +2212,16 @@ class _ControlPageState extends State<ControlPage> {
       print('[TEST AUDIO] Response: $res');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Test $action: ${res['success'] == true ? "SUCCESS" : "FAILED"}\n${res['message'] ?? res['statusCode'] ?? ""}'),
-          backgroundColor:
-              res['success'] == true ? Colors.green : Colors.orange,
-          duration: Duration(seconds: 3),
-        ));
+        if (res['success'] == true) {
+          ModernSnackBar.success(context, 'Test $action berhasil');
+        } else {
+          ModernSnackBar.warning(context, 'Test $action gagal');
+        }
       }
     } catch (e) {
       print('[TEST AUDIO] Error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ModernSnackBar.error(context, 'Terjadi kesalahan saat test audio');
       }
     }
     if (mounted)
@@ -2136,18 +2247,12 @@ class _ControlPageState extends State<ControlPage> {
       print('[TEST AUDIO] Audio state response: $res');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Audio State:\n${res['data']?.toString() ?? res.toString()}'),
-          backgroundColor: Colors.blue,
-          duration: Duration(seconds: 4),
-        ));
+        ModernSnackBar.info(context, 'Status audio dimuat');
       }
     } catch (e) {
       print('[TEST AUDIO] Error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ModernSnackBar.error(context, 'Gagal memuat status audio');
       }
     }
     if (mounted)
@@ -2163,8 +2268,7 @@ class _ControlPageState extends State<ControlPage> {
       required String unit,
       int? floor}) {
     if (sensorId == null || sensorId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sensor ID tidak ditemukan untuk $title')));
+      ModernSnackBar.warning(context, 'Sensor ID tidak ditemukan untuk $title');
       return;
     }
     Navigator.pushNamed(context, '/sensor-detail', arguments: {
@@ -2349,12 +2453,7 @@ class _ControlPageState extends State<ControlPage> {
 
   Future<void> _showAIAnalysisDialog() async {
     if (_authToken == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Authentication required for AI analysis'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Autentikasi diperlukan untuk analisis AI');
       return;
     }
 
@@ -2363,13 +2462,7 @@ class _ControlPageState extends State<ControlPage> {
         _latestByMetric!['temperature'] == null ||
         _latestByMetric!['humidity'] == null ||
         _latestByMetric!['ammonia'] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Data sensor tidak tersedia. Tunggu pembacaan sensor terbaru.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Data sensor tidak tersedia. Tunggu pembacaan sensor terbaru.');
       return;
     }
 
@@ -2739,12 +2832,7 @@ class _ControlPageState extends State<ControlPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mendapatkan analisis AI: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ModernSnackBar.error(context, 'Gagal mendapatkan analisis AI');
     }
   }
 
@@ -2951,21 +3039,81 @@ class _ControlPageState extends State<ControlPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Wrap(
-                              spacing: 8,
+                              spacing: MediaQuery.of(context).size.width * 0.09,
                               runSpacing: 8,
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                ElevatedButton.icon(
-                                  onPressed: _chooseCage,
-                                  icon: const Icon(Icons.business, size: 18),
-                                  label: Text(_cageName),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF245C4C),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF245C4C),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<Map<String, dynamic>>(
+                                      value: _selectedHouse,
+                                      dropdownColor: const Color(0xFFFFFFFF),
+                                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                                      isDense: true,
+                                      selectedItemBuilder: (_houses.isEmpty)
+                                          ? null
+                                          : (BuildContext context) {
+                                              return _houses.map((house) {
+                                                final h = house as Map<String, dynamic>;
+                                                return Row(
+                                                  children: [
+                                                    const Icon(Icons.business, color: Colors.white, size: 18),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      h['name'] ?? 'Kandang',
+                                                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                                                    ),
+                                                  ],
+                                                );
+                                              }).toList();
+                                            },
+                                      items: _houses.isEmpty
+                                          ? [
+                                              const DropdownMenuItem<Map<String, dynamic>>(
+                                                value: null,
+                                                child: Row(
+                                                  children: const [
+                                                    Icon(Icons.business, color: Colors.grey, size: 18),
+                                                    SizedBox(width: 6),
+                                                    Text('Tidak ada kandang', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                                                    
+                                                  ],
+                                                ),
+                                              ),
+                                            ]
+                                          : _houses.map((house) {
+                                              final h = house as Map<String, dynamic>;
+                                              return DropdownMenuItem<Map<String, dynamic>>(
+                                                value: h,
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(Icons.business, color: Colors.black87, size: 18),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      h['name'] ?? 'Kandang',
+                                                      style: const TextStyle(color: Colors.black87, fontSize: 14),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                      onChanged: _houses.isEmpty
+                                          ? null
+                                          : (Map<String, dynamic>? selected) async {
+                                              if (selected == null) return;
+                                              setState(() {
+                                                _selectedHouse = selected;
+                                                _cageName = selected['name'] ?? 'Kandang';
+                                              });
+                                              await _loadCageData();
+                                              _initDemoData();
+                                            },
+                                    ),
                                   ),
                                 ),
                                 SizedBox(
@@ -2994,28 +3142,11 @@ class _ControlPageState extends State<ControlPage> {
                                             }
                                             await testAPIConnection();
                                             if (mounted) {
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                      'Sensor data updated! Found ${_sensorData.length} data points.'),
-                                                  duration: const Duration(
-                                                      seconds: 3),
-                                                ),
-                                              );
+                                              ModernSnackBar.success(context, 'Data sensor diperbarui! Ditemukan ${_sensorData.length} data.');
                                             }
                                           } catch (e) {
                                             if (mounted) {
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                      'Error updating sensor data: $e'),
-                                                  duration: const Duration(
-                                                      seconds: 3),
-                                                  backgroundColor: Colors.red,
-                                                ),
-                                              );
+                                              ModernSnackBar.error(context, 'Gagal memperbarui data sensor');
                                             }
                                           }
                                           if (mounted) {
@@ -3038,8 +3169,10 @@ class _ControlPageState extends State<ControlPage> {
                                     backgroundColor: const Color(0xFF245C4C),
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
+                                        horizontal: 8, vertical: 8),
                                     minimumSize: Size.zero,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
                                     tapTargetSize:
                                         MaterialTapTargetSize.shrinkWrap,
                                   ),
@@ -3516,40 +3649,7 @@ class _ControlPageState extends State<ControlPage> {
                         const SizedBox(height: 16),
 
 
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                _isLoadingAI ? null : _showAIAnalysisDialog,
-                            icon: _isLoadingAI
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
-                                    ),
-                                  )
-                                : const Icon(Icons.psychology, size: 20),
-                            label: Text(
-                              _isLoadingAI ? 'Loading...' : 'Analyze With AI',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  const Color(0xFF6A1B9A), // Purple for AI
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
+                        
                         const SizedBox(height: 16),
                       ],
 
@@ -4262,13 +4362,38 @@ Widget _actuatorRow(
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF245C4C),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF245C4C),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: value ? Colors.green[50] : Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: value ? Colors.green : Colors.red,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        value ? 'ON' : 'OFF',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: value ? Colors.green[700] : Colors.red[700],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

@@ -81,7 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 margin: const EdgeInsets.only(bottom: 5),
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/img/logo.png'),
+                    image: AssetImage('assets/img/logo2.png'),
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -98,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Loading Swiftlead...',
+                'Loading Smartlet...',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
