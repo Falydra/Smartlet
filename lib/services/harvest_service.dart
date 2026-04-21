@@ -40,7 +40,7 @@ class HarvestService {
       };
 
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/harvests'),
+        Uri.parse('${ApiConstants.apiBaseUrl}/harvests'),
         headers: ApiConstants.authHeaders(token),
         body: jsonEncode(body),
       );
@@ -74,7 +74,7 @@ class HarvestService {
     Map<String, String>? queryParams,
   }) async {
     try {
-      final uri = Uri.parse('${ApiConstants.baseUrl}/harvests')
+      final uri = Uri.parse('${ApiConstants.apiBaseUrl}/harvests')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -115,7 +115,7 @@ class HarvestService {
   }) async {
     try {
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/harvests/$harvestId'),
+        Uri.parse('${ApiConstants.apiBaseUrl}/harvests/$harvestId'),
         headers: ApiConstants.authHeaders(token),
       );
 
@@ -161,7 +161,7 @@ class HarvestService {
       if (notes != null) body['notes'] = notes;
 
       final response = await http.patch(
-        Uri.parse('${ApiConstants.baseUrl}/harvests/$harvestId'),
+        Uri.parse('${ApiConstants.apiBaseUrl}/harvests/$harvestId'),
         headers: ApiConstants.authHeaders(token),
         body: jsonEncode(body),
       );
@@ -196,7 +196,7 @@ class HarvestService {
   }) async {
     try {
       final response = await http.delete(
-        Uri.parse('${ApiConstants.baseUrl}/harvests/$harvestId'),
+        Uri.parse('${ApiConstants.apiBaseUrl}/harvests/$harvestId'),
         headers: ApiConstants.authHeaders(token),
       );
 
@@ -231,7 +231,7 @@ class HarvestService {
       final queryParams = <String, String>{};
       if (rbwId != null) queryParams['rbw_id'] = rbwId;
 
-      final uri = Uri.parse('${ApiConstants.baseUrl}/harvests/stats')
+      final uri = Uri.parse('${ApiConstants.apiBaseUrl}/harvests/stats')
           .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
 
       final response = await http.get(
@@ -269,7 +269,7 @@ class HarvestService {
     Map<String, String>? queryParams,
   }) async {
     try {
-      final uri = Uri.parse('${ApiConstants.baseUrl}/rbw/$rbwId/harvests')
+      final uri = Uri.parse('${ApiConstants.apiBaseUrl}/rbw/$rbwId/harvests')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(

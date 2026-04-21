@@ -201,7 +201,7 @@ class _EditCagePageState extends State<EditCagePage> {
                             children: [
                               TileLayer(
                                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.swiftlead',
+                                userAgentPackageName: 'com.smartlet',
                               ),
                               MarkerLayer(
                                 markers: [

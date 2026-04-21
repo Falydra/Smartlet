@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 
 class AdminBottomNavigation extends StatelessWidget {

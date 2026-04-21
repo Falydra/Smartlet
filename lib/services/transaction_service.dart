@@ -307,6 +307,9 @@ class TransactionService {
       final response = await http.get(
         uri,
         headers: ApiConstants.authHeaders(token),
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => http.Response('{"data":[]}', 408),
       );
 
       print('[TRANSACTION SERVICE] Status: ${response.statusCode}');

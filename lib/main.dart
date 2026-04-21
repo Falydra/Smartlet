@@ -1,7 +1,10 @@
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'utils/local_notification_helper.dart';
 import 'utils/notification_manager.dart';
+import 'services/timer_background_service.dart'
+    if (dart.library.html) 'services/timer_background_service_web.dart';
 
 import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/analysis_page.dart';
@@ -19,6 +22,9 @@ import 'package:swiftlead/admin/admin_harvest_page.dart';
 import 'package:swiftlead/admin/admin_users_page.dart';
 import 'package:swiftlead/admin/admin_finance_page.dart';
 import 'package:swiftlead/user/user_home_page.dart';
+import 'package:swiftlead/technician/technician_home_page.dart';
+import 'package:swiftlead/technician/technician_tasks_page.dart';
+import 'package:swiftlead/technician/technician_installations_page.dart';
 import 'package:swiftlead/pages/security_page.dart';
 import 'package:swiftlead/pages/splash_screen.dart';
 import 'package:swiftlead/pages/temp_page.dart';
@@ -40,7 +46,14 @@ import 'package:swiftlead/pages/reports_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await LocalNotificationHelper().init();
+  if (!kIsWeb) {
+    await LocalNotificationHelper().init();
+
+    // Start global foreground timer watcher so expired timers
+    // turn off actuators even when user is on a different page
+    TimerBackgroundService.startForegroundTimerWatcher();
+  }
+  
   runApp(const MyApp());
 }
 
@@ -99,6 +112,9 @@ class MyApp extends StatelessWidget {
         '/admin-users': (context) => const AdminUsersPage(),
         '/admin-finance': (context) => const AdminFinancePage(),
         '/user-home': (context) => const UserHomePage(),
+        '/technician-home': (context) => const TechnicianHomePage(),
+        '/technician-tasks': (context) => const TechnicianTasksPage(),
+        '/technician-installations': (context) => const TechnicianInstallationsPage(),
         '/service-requests': (context) => const ServiceRequestsPage(),
         '/create-service-request': (context) => const CreateServiceRequestPage(),
         '/service-request-detail': (context) => const ServiceRequestDetailPage(),

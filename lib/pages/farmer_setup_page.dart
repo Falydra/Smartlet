@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/pages/home_page.dart';
 import 'package:swiftlead/admin/admin_home_page.dart';
+import 'package:swiftlead/technician/technician_home_page.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class FarmerSetupPage extends StatefulWidget {
@@ -21,10 +22,14 @@ class _FarmerSetupPageState extends State<FarmerSetupPage> {
   Future<void> _checkUserRole() async {
     final role = await TokenManager.getUserRole();
     if (role == 'admin' && mounted) {
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AdminHomePage()),
+      );
+    } else if (role == 'technician' && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const TechnicianHomePage()),
       );
     }
   }

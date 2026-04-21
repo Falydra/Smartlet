@@ -31,7 +31,7 @@ def keystorePropertiesFile = rootProject.file('key.properties')
 
 
 android {
-    namespace "com.swiftlead"
+    namespace "com.smartlet"
     compileSdkVersion 36
     ndkVersion flutter.ndkVersion
 
@@ -51,7 +51,7 @@ android {
 
     defaultConfig {
 
-        applicationId "com.swiftlead"
+        applicationId "com.smartlet"
 
 
         minSdkVersion 24

@@ -44,6 +44,9 @@ class _SplashScreenState extends State<SplashScreen> {
         if (role == 'admin') {
           print('[SPLASH] Navigating to admin-home');
           Navigator.of(context).pushReplacementNamed('/admin-home');
+        } else if (role == 'technician') {
+          print('[SPLASH] Navigating to technician-home');
+          Navigator.of(context).pushReplacementNamed('/technician-home');
         } else {
           print('[SPLASH] Navigating to home-page');
           Navigator.of(context).pushReplacementNamed('/home-page');
@@ -81,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 margin: const EdgeInsets.only(bottom: 5),
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/img/logo.png'),
+                    image: AssetImage('assets/img/logo2.png'),
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -98,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Loading Swiftlead...',
+                'Loading Smartlet...',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

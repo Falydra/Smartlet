@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/components/admin_bottom_navigation.dart';
+import 'package:swiftlead/components/technician_bottom_navigation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
@@ -113,6 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _avatarUrl;
   bool _isLoading = true;
   bool _isAdmin = false;
+  bool _isTechnician = false;
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
   bool _isUploadingImage = false;
@@ -200,6 +202,7 @@ class _ProfilePageState extends State<ProfilePage> {
             _avatarUrl = avatarUrl;
             _authToken = token; // Ensure token is always fresh
             _isAdmin = (ud['role']?.toString() == 'admin');
+            _isTechnician = (ud['role']?.toString() == 'technician');
             _isLoading = false;
           });
           print('Profile loaded. Avatar URL: $_avatarUrl');
@@ -220,6 +223,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _userName = userName ?? 'User';
         _userEmail = userEmail ?? 'No email';
         _isAdmin = (userRole == 'admin');
+        _isTechnician = (userRole == 'technician');
         _isLoading = false;
       });
     }
@@ -797,6 +801,8 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       bottomNavigationBar: _isAdmin
           ? const AdminBottomNavigation(currentIndex: 3)
+          : _isTechnician
+          ? const TechnicianBottomNavigation(currentIndex: 3)
           : BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
               currentIndex: _currentIndex,

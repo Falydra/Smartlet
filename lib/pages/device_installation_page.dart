@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:swiftlead/services/service_request_service.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class DeviceInstallationPage extends StatefulWidget {
@@ -89,14 +90,14 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
       };
       final result = await _serviceRequestService.create(_authToken!, payload);
       if (result['success'] == true) {
-        _showMessage('Installation request submitted');
+        ModernSnackBar.success(context, 'Installation request submitted');
         _reasonController.clear();
         Navigator.pop(context);
       } else {
-        _showMessage(result['message'] ?? 'Failed to submit installation request', isError: true);
+        ModernSnackBar.error(context, result['message'] ?? 'Failed to submit installation request');
       }
     } catch (e) {
-      _showMessage('Error submitting request: $e', isError: true);
+      ModernSnackBar.error(context, 'Error submitting request: $e');
     }
 
     setState(() {

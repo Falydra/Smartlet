@@ -45,7 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
       body: Column(
         children: [
           Container(
-            margin: EdgeInsets.only(top: width(context) * 0.25),
+            margin: EdgeInsets.only(top: width(context) * 0.1),
 
             width: width(context) * 0.375,
             child: const Image(

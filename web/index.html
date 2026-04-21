@@ -14,7 +14,7 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="$FLUTTER_BASE_HREF">
+  <base href="/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
@@ -34,8 +34,8 @@
   <title>swiftlead</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- Google Maps JavaScript API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE"></script>
+  <!-- Google Maps JavaScript API - Add your API key -->
+  <!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE" async defer></script> -->
 
   <script>
 
@@ -47,14 +47,6 @@
 <body>
   <script>
     window.addEventListener('load', function(ev) {
-
-      if (!_flutter.buildConfig) {
-        _flutter.buildConfig = {
-          serviceWorkerVersion: serviceWorkerVersion,
-        };
-      }
-      
-
       _flutter.loader.load({
         serviceWorker: {
           serviceWorkerVersion: serviceWorkerVersion,

@@ -1,6 +1,6 @@
 class ApiConstants {
 
-  static const String baseUrl = "https://api.swiftlead.fuadfakhruz.com";
+  static const String baseUrl = "http://192.168.18.252:8080";
   static const String apiVersion = "v1";
   static const String apiBaseUrl = "$baseUrl/api/$apiVersion";
 

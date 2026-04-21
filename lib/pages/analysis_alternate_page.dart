@@ -6,6 +6,7 @@ import 'package:swiftlead/pages/general_harvest_input_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/harvest_services.dart';
 import 'package:swiftlead/services/house_services.dart';
+import 'package:swiftlead/services/transaction_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class AnalysisPageAlternate extends StatefulWidget {
@@ -19,6 +20,7 @@ class AnalysisPageAlternate extends StatefulWidget {
 
 class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
     with WidgetsBindingObserver {
+  
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
@@ -27,6 +29,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
   final HarvestService _harvestService = HarvestService();
   final HouseService _houseService = HouseService();
+  final TransactionService _transactionService = TransactionService();
 
 
 
@@ -80,6 +83,9 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
   Map<int, List<String>> _floorHarvestIds = {};
 
+  // Monthly income from transactions (same as Sales page)
+  double _monthlyIncome = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +117,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
     if (state == AppLifecycleState.resumed) {
 
       _loadHarvestData();
+      _loadMonthlyIncome();
     }
   }
 
@@ -127,6 +134,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
 
       await _loadHarvestData();
+      await _loadMonthlyIncome();
     } catch (e) {
       print('Error initializing analysis data: $e');
     }
@@ -434,9 +442,53 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
     return total;
   }
 
+  Future<void> _loadMonthlyIncome() async {
+    if (_authToken == null || _selectedHouseId == null) return;
+    try {
+      final transactions = await _transactionService.getAll(
+        _authToken!,
+        month: _selectedMonth,
+        year: _selectedYear,
+        houseId: _selectedHouseId,
+      );
+
+      // Client-side date filtering (same as Sales page - API may return all)
+      double income = 0.0;
+      for (var transaction in transactions) {
+        final transactionDateStr = transaction['transaction_date']?.toString();
+        if (transactionDateStr == null) continue;
+        
+        try {
+          final transactionDate = DateTime.parse(transactionDateStr);
+          if (transactionDate.month != _selectedMonth || transactionDate.year != _selectedYear) {
+            continue;
+          }
+        } catch (e) {
+          continue;
+        }
+        
+        final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+        final type = transaction['type']?.toString() ?? '';
+        if (type == 'income') {
+          income += amount;
+        }
+      }
+
+      print('[ANALYSIS] Monthly income for ${_months[_selectedMonth - 1]} $_selectedYear: Rp ${income.toStringAsFixed(0)}');
+
+      if (mounted) {
+        setState(() {
+          _monthlyIncome = income;
+        });
+      }
+    } catch (e) {
+      print('[ANALYSIS] Error loading monthly income: $e');
+    }
+  }
+
   String get _totalIncome {
-    double income = _totalHarvest * 50000;
-    return 'Rp ${income.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+    // Use actual transaction income from API (same as Sales page)
+    return 'Rp ${_monthlyIncome.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
   List<PieChartSectionData> _getChartData() {
@@ -628,6 +680,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
             onPressed: () {
               Navigator.pop(context);
               _loadHarvestData();
+              _loadMonthlyIncome();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF245C4C),
@@ -1311,7 +1364,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
 
             Container(
-              height: height(context) * 0.35,
+              height: height(context) * 0.32,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -1391,11 +1444,11 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                       
                     ],
                   ),
-                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      const Text(
+                      Expanded(
+                        child: const Text(
                           'Siklus Panen\n40-45 Hari',
                           style: TextStyle(
                             fontSize: 12,
@@ -1404,16 +1457,18 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        
-                     Text(
-                      'Rekap Pendapatan\n$_totalIncome',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF245C4C),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
+                      Expanded(
+                        child: Text(
+                          'Rekap Pendapatan\n$_totalIncome',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF245C4C),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     ],
                   ),
                      
@@ -1429,23 +1484,43 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Data Panen ${_months[_selectedMonth - 1]} $_selectedYear',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF245C4C),
+                Expanded(
+                  child: Text(
+                    'Data Panen ${_months[_selectedMonth - 1]} $_selectedYear',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF245C4C),
+                    ),
                   ),
                 ),
 
-                IconButton(
-                  onPressed: _showHarvestManager,
-                  icon: const Icon(
-                    Icons.settings,
-                    color: Color(0xFF245C4C),
-                    size: 20,
-                  ),
-                  tooltip: 'Kelola Panen',
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: _showHarvestRecommendation,
+                      icon: const Icon(
+                        Icons.lightbulb_outline,
+                        color: Color(0xFFffc200),
+                        size: 20,
+                      ),
+                      tooltip: 'Rekomendasi',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    IconButton(
+                      onPressed: _showHarvestManager,
+                      icon: const Icon(
+                        Icons.settings,
+                        color: Color(0xFF245C4C),
+                        size: 20,
+                      ),
+                      tooltip: 'Kelola Panen',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
 
                 if (_generalTotalSarang > 0 &&
@@ -1639,31 +1714,20 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-
-                      Map<int, int> floorLimits = {};
-                      for (var floorItem in _floorData) {
-                        int floorNo = floorItem['floor'] as int;
-                        double preHarvestValue =
-                            double.tryParse(floorItem['mangkok'].toString()) ??
-                                0.0;
-                        floorLimits[floorNo] = preHarvestValue.toInt();
-                      }
-
+                      // Navigate to Pre-Harvest input page
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => AddHarvestPage(
+                          builder: (context) => GeneralHarvestInputPage(
                             cageName: _selectedCageName,
                             floors: _selectedCageFloors,
                             houseId: _selectedHouseId,
-                            floorLimits: floorLimits,
                             selectedMonth: _selectedMonth,
                             selectedYear: _selectedYear,
                           ),
                         ),
                       ).then((result) {
-
-
+                        // Reload harvest data after returning
                         _loadHarvestData();
                       });
                     },
@@ -1690,26 +1754,36 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
+                      // Navigate to Post-Harvest page (edit actual harvest data)
+                      Map<int, int> floorLimits = {};
+                      for (var floorItem in _floorData) {
+                        int floorNo = floorItem['floor'] as int;
+                        double preHarvestValue =
+                            double.tryParse(floorItem['mangkok'].toString()) ??
+                                0.0;
+                        floorLimits[floorNo] = preHarvestValue.toInt();
+                      }
 
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => GeneralHarvestInputPage(
+                          builder: (context) => AddHarvestPage(
                             cageName: _selectedCageName,
                             floors: _selectedCageFloors,
                             houseId: _selectedHouseId,
+                            floorLimits: floorLimits,
                             selectedMonth: _selectedMonth,
                             selectedYear: _selectedYear,
                           ),
                         ),
                       ).then((result) {
-
+                        // Reload harvest data after returning
                         _loadHarvestData();
                       });
                     },
                     icon: const Icon(Icons.edit, color: Colors.white, size: 18),
                     label: const Text(
-                      'Edit Pre-Harvest',
+                      'Edit Post Harvest',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1732,35 +1806,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
             const SizedBox(height: 12),
 
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-
-                  _showHarvestRecommendation();
-                },
-                icon: const Icon(Icons.lightbulb,
-                    color: Color(0xFF245C4C), size: 18),
-                label: const Text(
-                  'Rekomendasi Panen',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF245C4C),
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFF7CA),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: Color(0xFFffc200)),
-                  ),
-                ),
-              ),
-            ),
-
+            
             const SizedBox(height: 20),
 
             const SizedBox(height: 80),

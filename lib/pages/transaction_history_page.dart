@@ -107,8 +107,16 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
 
   Future<void> _editTransaction(Map<String, dynamic> transaction) async {
 
-    final categoryName = (transaction['category_name']?.toString() ?? '').toLowerCase();
-    final isIncome = categoryName.contains('penjualan');
+    final categoryName = (transaction['category_name']?.toString() ?? 
+                          transaction['category']?['name']?.toString() ?? 
+                          '').toLowerCase();
+    final transactionType = (transaction['type']?.toString() ?? '').toLowerCase();
+    final isIncome = transactionType == 'income' || 
+                     transactionType == 'pemasukan' ||
+                     categoryName.contains('penjualan') ||
+                     categoryName.contains('pendapatan') ||
+                     categoryName.contains('pemasukan') ||
+                     categoryName.contains('income');
     
     final result = await Navigator.push(
       context,
@@ -238,11 +246,23 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                       final categoryName = (transaction['category_name']?.toString() ??
                           transaction['category']?['name']?.toString() ??
                           '').toLowerCase();
-                      final isIncome = categoryName.contains('penjualan');
+                      
 
-                      final amount = (transaction['total'] as num?)?.toDouble() ??
+                      final transactionType = (transaction['type']?.toString() ?? '').toLowerCase();
+                      final isIncome = transactionType == 'income' || 
+                                       transactionType == 'pemasukan' ||
+                                       categoryName.contains('penjualan') ||
+                                       categoryName.contains('pendapatan') ||
+                                       categoryName.contains('pemasukan') ||
+                                       categoryName.contains('income');
+
+
+                      final amount = (transaction['amount'] as num?)?.toDouble() ??
+                          (transaction['total'] as num?)?.toDouble() ??
                           (transaction['total_amount'] as num?)?.toDouble() ??
+                          (transaction['value'] as num?)?.toDouble() ??
                           0.0;
+                      
                       final date = transaction['date'] != null
                           ? DateTime.tryParse(transaction['date'])
                           : (transaction['transaction_date'] != null

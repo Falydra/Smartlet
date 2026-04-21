@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/services/node_service.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/services/api_constants.dart';
 import 'package:swiftlead/services/auth_services.dart.dart';
@@ -126,16 +127,15 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not authenticated — please log in')));
       return;
     }
-
-    final res = await _service.assign(token, _id!, {
-      'technician_id': _selectedTechnicianId!,
-    });
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await _service.assignComposite(token, _id!, _selectedTechnicianId!);
     setState(() => _assigning = false);
+    if (!mounted) return;
     if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assigned')));
+      ModernSnackBar.success(context, 'Technician assigned successfully');
       await _load();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${res['message']}')));
+      ModernSnackBar.error(context, 'Failed to assign: ${res['message'] ?? res['statusCode'] ?? 'Unknown error'}');
     }
   }
 
@@ -143,14 +143,14 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
     if (_data == null) return;
     final rbwId = _data!['rbw_id']?.toString() ?? _data!['rbw']?['id']?.toString();
     if (rbwId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('RBW id not available')));
+      ModernSnackBar.error(context, 'RBW id not available');
       return;
     }
 
     final nodeCode = _nodeCodeController.text.trim();
     final esp = _espController.text.trim();
     if (nodeCode.isEmpty || esp.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Node code and ESP UID required')));
+      ModernSnackBar.error(context, 'Node code and ESP UID required');
       return;
     }
 
@@ -168,12 +168,17 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
 
     final res = await _nodeService.createUnderRbw(token, rbwId, payload);
     setState(() => _creatingNode = false);
+    if (!mounted) return;
     if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Node created')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Node created successfully'), backgroundColor: Colors.green),
+      );
       _nodeCodeController.clear();
       _espController.clear();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create node: ${res['message']}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create node: ${res['message'] ?? 'Unknown error'}'), backgroundColor: Colors.red),
+      );
     }
   }
 

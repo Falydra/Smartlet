@@ -10,6 +10,8 @@ import 'package:swiftlead/pages/cage_selection_page.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/services/sensor_services.dart';
+import 'package:swiftlead/services/harvest_service.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 
 
@@ -42,8 +44,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final HouseService _houseService = HouseService();
   final NodeService _nodeService = NodeService();
   final SensorService _sensorService = SensorService();
-
-
+  final HarvestService _harvestService = HarvestService();
+  final AuthService _authService = AuthService();
 
 
 
@@ -53,6 +55,61 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _authToken;
   final AlertService _alertService = AlertService();
   final NotificationManager _notif = NotificationManager();
+
+  // User profile data
+  String? _userName;
+  String? _userEmail;
+  String? _userAvatarUrl;
+
+  // Harvest statistics for current month
+  double _currentMonthHarvest = 0.0;
+  double _averagePerHouse = 0.0;
+  int _harvestCount = 0;
+  
+  // Harvest breakdown by nest type
+  Map<String, double> _harvestBreakdown = {
+    'mangkok': 0.0,
+    'sudut': 0.0,
+    'oval': 0.0,
+    'patahan': 0.0,
+  };
+
+  // Market price constant (7.1g per nest)
+  static const double GRAMS_PER_NEST = 7.1;
+  
+  // Market price data by nest type (price per kg)
+  final Map<String, double> _nestTypePrices = {
+    'Mangkok Putih Kapas': 7930000,
+    'Oval Putih Kapas': 6980000,
+    'Sudut Putih Kapas': 5997000,
+    'Patahan Putih Kapas': 3930000,
+  };
+  
+  // Selected nest type and unit
+  String _selectedNestType = 'Mangkok Putih Kapas';
+  String _selectedUnit = 'Kg'; // 'Kg' or 'Gram'
+  
+  // Format number to Indonesian rupiah format (7.930.000 for millions)
+  String _formatRupiah(double amount, {bool showDecimals = false}) {
+    if (showDecimals) {
+      // Split integer and decimal parts
+      final parts = amount.toStringAsFixed(2).split('.');
+      // Format integer part with dots as thousand separator
+      final integerPart = parts[0].replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]}.',
+      );
+      // Use comma as decimal separator (Indonesian format)
+      return '$integerPart,${parts[1]}';
+    } else {
+      // Format whole number with dots as thousand separator
+      final rounded = amount.round();
+      return rounded.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]}.',
+      );
+    }
+  }
 
 
   List<Map<String, dynamic>> _kandangList = [];
@@ -170,6 +227,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _authToken = await TokenManager.getToken();
       
       if (_authToken != null) {
+        // Load user profile
+        await _loadUserProfile().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('User profile API timeout');
+          },
+        );
 
         await _loadKandangFromAPI().timeout(
           const Duration(seconds: 30),
@@ -177,6 +241,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             print('Kandang API timeout after 30s - continuing with partial data');
           },
         );
+
+        // Load harvest statistics for current month
+        await _loadHarvestStatistics().timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            print('Harvest statistics API timeout');
+          },
+        );
+
         await _loadAlerts().timeout(
           const Duration(seconds: 10),
           onTimeout: () {
@@ -214,6 +287,131 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _notif.replaceAll(allList);
     } catch (e) {
 
+    }
+  }
+
+  Future<void> _loadUserProfile() async {
+    if (_authToken == null) return;
+    try {
+      final profileRes = await _authService.getProfile(_authToken!);
+      if (profileRes['success'] == true && profileRes['data'] != null) {
+        final userData = profileRes['data'];
+        if (mounted) {
+          setState(() {
+            _userName = userData['name']?.toString() ?? 'User';
+            _userEmail = userData['email']?.toString() ?? '';
+            _userAvatarUrl = userData['avatar_url']?.toString();
+          });
+        }
+        print('[HOME] Loaded user profile: $_userName ($_userEmail)');
+      }
+    } catch (e) {
+      print('[HOME] Error loading user profile: $e');
+    }
+  }
+
+  Future<void> _loadHarvestStatistics() async {
+    if (_authToken == null) return;
+    try {
+      final now = DateTime.now();
+      final currentMonth = now.month;
+      final currentYear = now.year;
+
+      // Get all harvests for the current month
+      final harvestRes = await _harvestService.list(
+        token: _authToken!,
+        queryParams: {
+          'per_page': '1000',
+        },
+      );
+
+      if (harvestRes['success'] == true && harvestRes['data'] != null) {
+        final List<dynamic> allHarvests = harvestRes['data'] as List<dynamic>;
+
+        double totalNests = 0.0;
+        int count = 0;
+        
+        // Breakdown by nest type
+        double mangkok = 0.0;
+        double sudut = 0.0;
+        double oval = 0.0;
+        double patahan = 0.0;
+
+        for (var harvest in allHarvests) {
+          // Parse harvest date
+          DateTime? harvestDate;
+          if (harvest['harvest_date'] != null) {
+            harvestDate = DateTime.tryParse(harvest['harvest_date']);
+          }
+          if (harvestDate == null && harvest['harvested_at'] != null) {
+            harvestDate = DateTime.tryParse(harvest['harvested_at']);
+          }
+
+          // Check if harvest is in current month
+          if (harvestDate != null &&
+              harvestDate.month == currentMonth &&
+              harvestDate.year == currentYear) {
+            // Only count post-harvest (exclude PRE_HARVEST_PLAN)
+            final notes = (harvest['notes'] as String?) ?? '';
+            if (!notes.startsWith('PRE_HARVEST_PLAN')) {
+              final nestsCount = (harvest['nests_count'] as num?)?.toDouble() ?? 0.0;
+              if (nestsCount > 0) {
+                totalNests += nestsCount;
+                count++;
+                
+                // Parse breakdown from notes
+                if (notes.contains('Mangkok:') || notes.contains('Sudut:') || 
+                    notes.contains('Oval:') || notes.contains('Patahan:')) {
+                  // Extract nest type counts from notes
+                  final mangkokMatch = RegExp(r'Mangkok:\s*(\d+(?:\.\d+)?)').firstMatch(notes);
+                  final sudutMatch = RegExp(r'Sudut:\s*(\d+(?:\.\d+)?)').firstMatch(notes);
+                  final ovalMatch = RegExp(r'Oval:\s*(\d+(?:\.\d+)?)').firstMatch(notes);
+                  final patahanMatch = RegExp(r'Patahan:\s*(\d+(?:\.\d+)?)').firstMatch(notes);
+                  
+                  if (mangkokMatch != null) {
+                    mangkok += double.tryParse(mangkokMatch.group(1) ?? '0') ?? 0.0;
+                  }
+                  if (sudutMatch != null) {
+                    sudut += double.tryParse(sudutMatch.group(1) ?? '0') ?? 0.0;
+                  }
+                  if (ovalMatch != null) {
+                    oval += double.tryParse(ovalMatch.group(1) ?? '0') ?? 0.0;
+                  }
+                  if (patahanMatch != null) {
+                    patahan += double.tryParse(patahanMatch.group(1) ?? '0') ?? 0.0;
+                  }
+                } else {
+                  // If no breakdown, add to mangkok as default
+                  mangkok += nestsCount;
+                }
+              }
+            }
+          }
+        }
+
+        // Calculate average per house
+        double avgPerHouse = _kandangList.isNotEmpty
+            ? totalNests / _kandangList.length
+            : 0.0;
+
+        if (mounted) {
+          setState(() {
+            _currentMonthHarvest = totalNests;
+            _averagePerHouse = avgPerHouse;
+            _harvestCount = count;
+            _harvestBreakdown = {
+              'mangkok': mangkok,
+              'sudut': sudut,
+              'oval': oval,
+              'patahan': patahan,
+            };
+          });
+        }
+        print('[HOME] Loaded harvest stats: Total=$totalNests nests, Count=$count, Avg/house=$avgPerHouse');
+        print('[HOME] Breakdown: M=$mangkok, S=$sudut, O=$oval, P=$patahan');
+      }
+    } catch (e) {
+      print('[HOME] Error loading harvest statistics: $e');
     }
   }
 
@@ -614,22 +812,57 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // User Profile Section
+                _buildUserProfileSection(),
+
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    bottom: 16
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    
+                    children: [
+                      
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                        children: [
+                          const Text("Statistik Perangkat", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF245C4C))),
+                          const Text("Monitoring kondisi kandang secara real-time", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w200)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
 
                 SizedBox(
 
-                  height: height(context) * 0.38,
+                  height: height(context) * 0.35,
                   child: _kandangList.isEmpty
                       ? _buildEmptyKandangCard()
                       : _buildKandangCarousel(),
                 ),
 
+                const SizedBox(height: 12),
 
-            Column(
-              children: [
+                // Harvest Statistics Section
+                _buildHarvestStatsSection(),
+
+                const SizedBox(height: 12),
+
+                // Market Price Section
+                _buildMarketPriceSection(),
+
+                const SizedBox(height: 12),
+
+                // News Section
                 Padding(
-                  padding: EdgeInsets.only(
-                    left: width(context) * 0.044,
-                    top: height(context) * 0.02,
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    top: 16,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.start,
@@ -651,11 +884,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
-                Padding(
+                const Padding(
                   padding: EdgeInsets.only(
-                      left: width(context) * 0.077,
-                      bottom: height(context) * 0.02),
-                  child: const Row(
+                      left: 28,
+                      bottom: 16),
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Text(
@@ -669,104 +902,102 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
 
                 Padding(
-                  padding: EdgeInsets.only(bottom: height(context) * 0.0001),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: GestureDetector(
                     onTap: () {
                       Navigator.push(context,
                           MaterialPageRoute(builder: (context) => const BlogPage()));
                     },
                     child: Container(
-                      alignment: Alignment.center,
-                      width: width(context) * 0.8,
+                      width: double.infinity,
                       height: height(context) * 0.25,
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFF7CA),
                         borderRadius: BorderRadius.circular(8),
-                        boxShadow: List<BoxShadow>.from([
+                        boxShadow: [
                           const BoxShadow(
                             color: Colors.black26,
-                            blurRadius: 2,
-                            offset: Offset(2, 2),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
                           ),
-                        ]),
+                        ],
                       ),
-                      child: Stack(
+                      child: Column(
                         children: [
-                          Container(
-                            width: width(context) * 0.8,
-                            height: height(context) * 0.20,
-                            decoration: const BoxDecoration(
-                                image: DecorationImage(
-                                    image:
-                                        AssetImage("assets/img/Frame_19.png"),
-                                    fit: BoxFit.cover,
-                                    scale: 0.6),
-                                borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(8),
-                                    topRight: Radius.circular(8))),
-                          ),
-                          Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                        left: 8.0, top: 8),
-                                    child: Container(
-                                      width: width(context) * 0.1,
-                                      height: height(context) * 0.02,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withAlpha(140),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceAround,
-                                        children: [
-                                          Icon(
-                                            Icons.visibility,
-                                            color: Color((0xFF245C4C)),
-                                            size: 10,
-                                          ),
-                                          Text(
-                                            "1,2rb",
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: Color(0xFF245C4C),
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(8),
+                                topRight: Radius.circular(8),
                               ),
-                            ],
+                              child: Image.asset(
+                                "assets/img/Frame_19.png",
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
                           ),
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Container(
-                                width: width(context) * 0.8,
-                                height: height(context) * 0.05,
-                                alignment: Alignment.centerLeft,
-                                padding: const EdgeInsets.only(left: 8),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xffe9f9ff),
-                                ),
-                                child: const Text(
-                                  "Cara Melakukan Budidaya Burung Walet",
-                                  style: TextStyle(
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Color(0xffe9f9ff),
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(8),
+                                bottomRight: Radius.circular(8),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    "Cara Melakukan Budidaya Burung Walet",
+                                    style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.black,
-                                      fontWeight: FontWeight.w400),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          )
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.visibility,
+                                        color: Color(0xFF245C4C),
+                                        size: 12,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        "1,2rb",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF245C4C),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -775,106 +1006,113 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
 
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0, top: 24),
-                  child: Container(
-                    alignment: Alignment.center,
-                    width: width(context) * 0.8,
-                    height: height(context) * 0.25,
-                    decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 73, 164, 118),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: List<BoxShadow>.from([
-                        const BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 2,
-                          offset: Offset(2, 2),
-                        ),
-                      ]),
-                    ),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: width(context) * 0.8,
-                          height: height(context) * 0.20,
-                          decoration: const BoxDecoration(
-                              image: DecorationImage(
-                                  image:
-                                      AssetImage("assets/img/images_(1).jpg"),
-                                  fit: BoxFit.cover),
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: 24,
+                  ),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (context) => const BlogPage()));
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      height: height(context) * 0.25,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7CA),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          const BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(8),
+                                topRight: Radius.circular(8),
+                              ),
+                              child: Image.asset(
+                                "assets/img/images_(1).jpg",
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Color(0xffe9f9ff),
                               borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(8),
-                                  topRight: Radius.circular(8))),
-                        ),
-                        Column(
-                          children: [
-                            Row(
+                                bottomLeft: Radius.circular(8),
+                                bottomRight: Radius.circular(8),
+                              ),
+                            ),
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.only(left: 8.0, top: 8),
-                                  child: Container(
-                                    width: width(context) * 0.1,
-                                    height: height(context) * 0.02,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withAlpha(140),
-                                      borderRadius: BorderRadius.circular(8),
+                                const Expanded(
+                                  child: Text(
+                                    "Tips Meningkatkan Kualitas Sarang Walet",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                    child: const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceAround,
-                                      children: [
-                                        Icon(
-                                          Icons.visibility,
-                                          color: Color((0xFF245C4C)),
-                                          size: 10,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.visibility,
+                                        color: Color(0xFF245C4C),
+                                        size: 12,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        "1,2rb",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF245C4C),
+                                          fontWeight: FontWeight.w500,
                                         ),
-                                        Text(
-                                          "1,2rb",
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Color(0xFF245C4C),
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        )
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Container(
-                              width: width(context) * 0.8,
-                              height: height(context) * 0.05,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.only(left: 8),
-                              decoration: const BoxDecoration(
-                                color: Color(0xffe9f9ff),
-                              ),
-                              child: const Text(
-                                "Tips Meningkatkan Kualitas Sarang Walet",
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.w400),
-                              ),
-                            ),
-                          ],
-                        )
+                          ),
                       ],
                     ),
                   ),
                 ),
-              ],
-            )
-          ],
-        ),
-      ),
+            )],
+            ),
+          ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
@@ -963,47 +1201,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return Column(
       children: [
 
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: width(context) * 0.075),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-
-              if (_kandangList.length > 1)
-                Row(
-                  children: List.generate(
-                    _kandangList.length,
-                    (index) => Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: _currentKandangIndex == index
-                            ? const Color(0xFF245C4C)
-                            : Colors.grey[300],
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-              if (_kandangList.length <= 1) Container(),
-
-
-              TextButton.icon(
-                onPressed: _navigateToKandangManagement,
-                icon: const Icon(Icons.settings, size: 16, color: Color(0xFF245C4C)),
-                label: const Text(
-                  'Kelola',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF245C4C),
-                    fontWeight: FontWeight.w500,
+        if (_kandangList.length > 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                _kandangList.length,
+                (index) => Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _currentKandangIndex == index
+                        ? const Color(0xFF245C4C)
+                        : Colors.grey[300],
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
 
 
         Expanded(
@@ -1028,54 +1246,74 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     bool isEmpty = kandang['isEmpty'] == true;
     
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      
-      children: [
-        Container(
-          padding: const EdgeInsets.only(top: 16),
-          width: width(context) * 0.85,
-          height: height(context) * 0.75,
-          decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.only(top: 16),
+        width: double.infinity,
+        height: height(context) * 0.75,
+        decoration: BoxDecoration(
             border: Border.all(
               color: isEmpty ? Colors.grey[300]! : const Color(0xFFffc200),
             ),
             color: isEmpty ? Colors.grey[50] : const Color(0xFFfffcee),
             borderRadius: BorderRadius.circular(8),
-          ),
-          child: isEmpty ? _buildEmptyKandangContent(kandang) : SingleChildScrollView(
+        ),
+        child: isEmpty ? _buildEmptyKandangContent(kandang) : SingleChildScrollView(
             child: Column(
             children: [
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16.0),
-                    child: Text(
-                      kandang['name']?.toString() ?? 'Kandang',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF245C4C),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            kandang['name']?.toString() ?? 'Kandang',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF245C4C),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            kandang['address']?.toString() ??
+                                'Alamat tidak tersedia',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: Text(
-                        kandang['address']?.toString() ??
-                            'Alamat tidak tersedia',
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: TextButton.icon(
+                      onPressed: _navigateToKandangManagement,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.settings, size: 16, color: Color(0xFF245C4C)),
+                      label: const Text(
+                        'Kelola',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[700],
+                          color: Color(0xFF245C4C),
+                          fontWeight: FontWeight.w500,
                         ),
-                        textAlign: TextAlign.right,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  )
+                  ),
                 ],
               ),
 
@@ -1320,7 +1558,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         backgroundColor: const Color(0xFF245C4C),
                         foregroundColor: Colors.white,
                         minimumSize: Size(
-                            width(context) * 0.75, height(context) * 0.055)),
+                            width(context) * 0.81, height(context) * 0.055)),
                     child: const Text(
                       "Lihat Analisis Panen",
                       style: TextStyle(
@@ -1330,10 +1568,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     )),
               )
             ],
-            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1393,23 +1630,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _buildEmptyKandangCard() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          alignment: Alignment.center,
-          width: width(context) * 0.85,
-          height: height( context) * 0.8 ,
-          decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        alignment: Alignment.center,
+        width: double.infinity,
+        height: height( context) * 0.8 ,
+        decoration: BoxDecoration(
             border: Border.all(
               color: Colors.grey[300]!,
               style: BorderStyle.solid,
             ),
             color: Colors.grey[50],
             borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
+        ),
+        child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
@@ -1453,8 +1689,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ],
           ),
         ),
-      ],
-    );
+      );
+    
   }
 
   Widget _buildStatCard(
@@ -1509,6 +1745,605 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (value is num) return '${value.toStringAsFixed(1)}$suffix';
     final parsed = double.tryParse(value.toString());
     return parsed != null ? '${parsed.toStringAsFixed(1)}$suffix' : '--';
+  }
+
+  // User Profile Section
+  Widget _buildUserProfileSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF245C4C), Color(0xFF2d7a5f)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        
+        children: [
+          // Avatar
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: Colors.white,
+            child: _userAvatarUrl != null && _userAvatarUrl!.isNotEmpty
+                ? ClipOval(
+                    child: Image.network(
+                      _userAvatarUrl!,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.person, size: 35, color: Color(0xFF245C4C));
+                      },
+                    ),
+                  )
+                : const Icon(Icons.person, size: 35, color: Color(0xFF245C4C)),
+          ),
+          const SizedBox(width: 16),
+          // User Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _userName ?? 'User',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _userEmail ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Harvest Statistics Section
+  // Harvest Statistics Section
+  Widget _buildHarvestStatsSection() {
+    final now = DateTime.now();
+    final monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    final currentMonthName = monthNames[now.month - 1];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.agriculture, color: Color(0xFF245C4C), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Statistik Panen $currentMonthName',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Statistics Row - Above Chart
+          Row(
+            children: [
+              Expanded(
+                child: _buildHarvestStatItem(
+                  'Total Sarang',
+                  '${_currentMonthHarvest.toStringAsFixed(0)}',
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildHarvestStatItem(
+                  'Jumlah Panen',
+                  '$_harvestCount',
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Pie Chart and Legend
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Pie Chart
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 110,
+                  child: PieChart(
+                    PieChartData(
+                      sections: _getHarvestChartSections(),
+                      centerSpaceRadius: 25,
+                      sectionsSpace: 2,
+                    ),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 32),
+              
+              // Legend
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _buildChartLegendItem('Mangkok', _harvestBreakdown['mangkok']!, const Color(0xFF245C4C)),
+                    const SizedBox(height: 6),
+                    _buildChartLegendItem('Sudut', _harvestBreakdown['sudut']!, const Color(0xFFffc200)),
+                    const SizedBox(height: 6),
+                    _buildChartLegendItem('Oval', _harvestBreakdown['oval']!, const Color(0xFF168AB5)),
+                    const SizedBox(height: 6),
+                    _buildChartLegendItem('Patahan', _harvestBreakdown['patahan']!, const Color(0xFFC20000)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<PieChartSectionData> _getHarvestChartSections() {
+    final mangkok = _harvestBreakdown['mangkok'] ?? 0.0;
+    final sudut = _harvestBreakdown['sudut'] ?? 0.0;
+    final oval = _harvestBreakdown['oval'] ?? 0.0;
+    final patahan = _harvestBreakdown['patahan'] ?? 0.0;
+    
+    final totalNests = mangkok + sudut + oval + patahan;
+    
+    // If no data, show empty state
+    if (totalNests == 0) {
+      return [
+        PieChartSectionData(
+          value: 1,
+          color: Colors.grey[300]!,
+          title: 'No Data',
+          radius: 40,
+          titleStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
+      ];
+    }
+    
+    // Check if has breakdown
+    bool hasBreakdown = (sudut > 0 || oval > 0 || patahan > 0);
+    
+    // If no breakdown, show single section
+    if (!hasBreakdown) {
+      return [
+        PieChartSectionData(
+          value: totalNests,
+          color: Colors.orange[300]!,
+          title: '${totalNests.toInt()}\nsarang',
+          radius: 40,
+          titleStyle: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ];
+    }
+    
+    // Show breakdown sections
+    List<PieChartSectionData> sections = [];
+    
+    if (mangkok > 0) {
+      final percentage = (mangkok / totalNests * 100).toStringAsFixed(1);
+      sections.add(PieChartSectionData(
+        value: mangkok,
+        color: const Color(0xFF245C4C),
+        title: '${mangkok.toInt()}\n($percentage%)',
+        radius: 40,
+        titleStyle: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (sudut > 0) {
+      final percentage = (sudut / totalNests * 100).toStringAsFixed(1);
+      sections.add(PieChartSectionData(
+        value: sudut,
+        color: const Color(0xFFffc200),
+        title: '${sudut.toInt()}\n($percentage%)',
+        radius: 40,
+        titleStyle: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (oval > 0) {
+      final percentage = (oval / totalNests * 100).toStringAsFixed(1);
+      sections.add(PieChartSectionData(
+        value: oval,
+        color: const Color(0xFF168AB5),
+        title: '${oval.toInt()}\n($percentage%)',
+        radius: 40,
+        titleStyle: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (patahan > 0) {
+      final percentage = (patahan / totalNests * 100).toStringAsFixed(1);
+      sections.add(PieChartSectionData(
+        value: patahan,
+        color: const Color(0xFFC20000),
+        title: '${patahan.toInt()}\n($percentage%)',
+        radius: 40,
+        titleStyle: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    return sections;
+  }
+
+  Widget _buildChartLegendItem(String label, double value, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Text(
+                '${value.toInt()} sarang',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHarvestStatItem(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Market Price Section
+  Widget _buildMarketPriceSection() {
+    final pricePerKg = _nestTypePrices[_selectedNestType] ?? 0;
+    final pricePerGram = pricePerKg / 1000;
+    final pricePerNest = GRAMS_PER_NEST * pricePerGram;
+    
+    // Calculate display price based on selected unit
+    final displayPrice = _selectedUnit == 'Kg' ? pricePerKg : pricePerGram;
+    final displayLabel = _selectedUnit == 'Kg' ? 'Per Kg' : 'Per Gram';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.sell, color: Color(0xFF245C4C), size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Harga Terbaru dari Pasar',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF245C4C),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Nest Type Dropdown
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7CA).withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFffc200).withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'Jenis: ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF245C4C),
+                  ),
+                ),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedNestType,
+                      isDense: true,
+                      isExpanded: true,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF245C4C),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      items: _nestTypePrices.keys.map((String type) {
+                        return DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _selectedNestType = newValue;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Unit Selection Dropdown
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7CA).withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFffc200).withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'Satuan: ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF245C4C),
+                  ),
+                ),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedUnit,
+                      isDense: true,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF245C4C),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Kg', child: Text('Kilogram (Kg)')),
+                        DropdownMenuItem(value: 'Gram', child: Text('Gram')),
+                      ],
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _selectedUnit = newValue;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          Row(
+            children: [
+              Expanded(
+                child: _buildPriceItem(
+                  displayLabel,
+                  'Rp ${_formatRupiah(displayPrice)}',
+                  Icons.scale,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPriceItem(
+                  'Per Sarang\n(${GRAMS_PER_NEST}g)',
+                  'Rp ${_formatRupiah(pricePerNest)}',
+                  Icons.egg,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7CA).withOpacity(0.3),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 16, color: Color(0xFF245C4C)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Harga berdasarkan rata-rata pasar saat ini. 1 sarang = ${GRAMS_PER_NEST}g',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[800],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceItem(String label, String price, IconData icon) {
+    return Container(
+      height: 110,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFffc200).withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: const Color(0xFFffc200), size: 22),
+          const SizedBox(height: 6),
+          Text(
+            price,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF245C4C),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<Map<String, dynamic>> _aggregateLatestReadingsFromQuery(
