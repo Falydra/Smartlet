@@ -483,47 +483,10 @@ class PdfService {
       // on Android 10+ scoped storage in release builds.
       Directory? directory;
       try {
-        directory = await getTemporaryDirectory();
-      } catch (e) {
-        directory = Directory('/data/data/com.smartlet/cache');
-      }
-
-      print('[PDF SERVICE] Starting PDF binary generation...');
-      List<int> bytes;
-      try {
-        bytes = await pdf.save();
-        print('[PDF SERVICE] PDF binary generated, length=${bytes.length}');
-      } catch (e) {
-        print('[PDF SERVICE] Error generating PDF bytes: $e');
-        rethrow;
-      }
-
-      // First try writing to the public Downloads folder as requested.
-      final downloadDir = Directory('/storage/emulated/0/Download');
-      final attemptedPaths = <String>[];
-      if (downloadDir.existsSync()) {
-        final tryPath = '${downloadDir.path}/$filename';
-        attemptedPaths.add(tryPath);
-        final tryFile = File(tryPath);
-        try {
-          print('[PDF SERVICE] Attempting to write to Download: $tryPath');
-          await tryFile.writeAsBytes(bytes, flush: true).timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw Exception('Write to Download timed out'),
-          );
-          print('[PDF SERVICE] Successfully wrote PDF to Download');
-          return tryPath;
-        } catch (e) {
-          print('[PDF SERVICE] Failed writing to Download ($tryPath): $e');
-          // fall through to try app-specific dirs
+        directory = Directory('/storage/emulated/0/Download');
+        if (!await directory.exists()) {
+          directory = await getTemporaryDirectory();
         }
-      } else {
-        print('[PDF SERVICE] Download directory does not exist: ${downloadDir.path}');
-      }
-
-      // Fallback: app-specific external storage or temporary directory
-      try {
-        directory = await getExternalStorageDirectory();
       } catch (e) {
         directory = null;
       }

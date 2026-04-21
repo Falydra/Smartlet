@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/pages/blog_page.dart';
@@ -173,6 +174,7 @@ class _UserHomePageState extends State<UserHomePage> with WidgetsBindingObserver
         print('No kandang data loaded from API');
       } else {
         print('Successfully loaded ${_kandangList.length} kandang from API');
+        await _saveSelectedKandang(_currentKandangIndex);
         _startPeriodicRefresh();
       }
     } catch (e) {
@@ -184,6 +186,36 @@ class _UserHomePageState extends State<UserHomePage> with WidgetsBindingObserver
         });
       }
     }
+  }
+
+  Future<void> _saveSelectedKandang(int index) async {
+    if (_kandangList.isEmpty || index < 0 || index >= _kandangList.length) {
+      return;
+    }
+
+    final kandang = _kandangList[index];
+    final prefs = await SharedPreferences.getInstance();
+    final selectedId = kandang['apiId']?.toString() ?? kandang['id']?.toString();
+
+    if (selectedId != null && selectedId.isNotEmpty) {
+      await prefs.setString('selected_rbw_id', selectedId);
+    }
+    if (kandang['name'] != null) {
+      await prefs.setString('selected_rbw_name', kandang['name'].toString());
+    }
+    if (kandang['address'] != null) {
+      await prefs.setString('selected_rbw_address', kandang['address'].toString());
+    }
+    final floors = kandang['floors'];
+    if (floors is int) {
+      await prefs.setInt('selected_rbw_floors', floors);
+    } else if (floors != null) {
+      final parsedFloors = int.tryParse(floors.toString());
+      if (parsedFloors != null) {
+        await prefs.setInt('selected_rbw_floors', parsedFloors);
+      }
+    }
+    await prefs.setInt('selected_rbw_index', index);
   }
 
   Future<void> _loadAlerts() async {
@@ -822,6 +854,7 @@ class _UserHomePageState extends State<UserHomePage> with WidgetsBindingObserver
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
+                  _saveSelectedKandang(_currentKandangIndex);
                   Navigator.pushReplacementNamed(context, '/control-page');
                   setState(() {
                     _currentIndex = 1;
@@ -926,6 +959,7 @@ class _UserHomePageState extends State<UserHomePage> with WidgetsBindingObserver
               setState(() {
                 _currentKandangIndex = index;
               });
+              _saveSelectedKandang(index);
             },
             itemCount: _kandangList.length,
             itemBuilder: (context, index) {
