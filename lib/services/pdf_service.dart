@@ -475,6 +475,9 @@ class PdfService {
     final filename =
         'Financial_Statement_${houseName.replaceAll(' ', '_')}_${period.replaceAll(' ', '_')}_$dateStr.pdf';
 
+    final attemptedPaths = <String>[];
+    final pdfBytes = await pdf.save();
+
     try {
       // getTemporaryDirectory() is always writable on all Android versions
       // (no special permissions needed) and is covered by <cache-path> in
@@ -492,14 +495,14 @@ class PdfService {
       }
       directory ??= await getTemporaryDirectory();
 
-      final Directory outDir = directory!;
+      final Directory outDir = directory;
       final filePath = '${outDir.path}/$filename';
       attemptedPaths.add(filePath);
 
       final file = File(filePath);
       try {
         print('[PDF SERVICE] Writing PDF to file: $filePath');
-        await file.writeAsBytes(bytes, flush: true).timeout(
+        await file.writeAsBytes(pdfBytes, flush: true).timeout(
           const Duration(seconds: 5),
           onTimeout: () => throw Exception('Write to app storage timed out'),
         );

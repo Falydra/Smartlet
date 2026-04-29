@@ -317,7 +317,8 @@ class TransactionService {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        final transactions = responseData['data'] ?? [];
+        final rawData = responseData['data'];
+        final transactions = _extractTransactionList(rawData);
         print('[TRANSACTION SERVICE] Received ${transactions.length} transactions');
         if (transactions.isNotEmpty) {
           print('[TRANSACTION SERVICE] First transaction: ${transactions.first}');
@@ -325,7 +326,7 @@ class TransactionService {
         return {
           'success': true,
           'data': transactions,
-          'meta': responseData['meta'],
+          'meta': _extractTransactionMeta(rawData),
         };
       } else {
         final errorData = _parseError(response);
@@ -373,6 +374,38 @@ class TransactionService {
 
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  List<dynamic> _extractTransactionList(dynamic rawData) {
+    if (rawData == null) {
+      return [];
+    }
+    if (rawData is List) {
+      return rawData;
+    }
+    if (rawData is Map) {
+      final nested = rawData['data'];
+      if (nested is List) {
+        return nested;
+      }
+    }
+    return [];
+  }
+
+  Map<String, dynamic>? _extractTransactionMeta(dynamic rawData) {
+    if (rawData is Map) {
+      final total = rawData['total'];
+      final limit = rawData['limit'];
+      final offset = rawData['offset'];
+      if (total != null || limit != null || offset != null) {
+        return {
+          'total': total ?? 0,
+          'limit': limit ?? 0,
+          'offset': offset ?? 0,
+        };
+      }
+    }
+    return null;
   }
 
 

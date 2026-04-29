@@ -45,6 +45,8 @@ class _AddIncomePageState extends State<AddIncomePage> {
 
   List<dynamic> _categories = [];
   String? _selectedCategoryId;
+  bool _isCategoryLoading = true;
+  bool _isCategoryLoadFailed = false;
 
   @override
   void initState() {
@@ -85,14 +87,25 @@ class _AddIncomePageState extends State<AddIncomePage> {
 
   Future<void> _loadCategories() async {
     try {
+      if (mounted) {
+        setState(() {
+          _isCategoryLoading = true;
+          _isCategoryLoadFailed = false;
+        });
+      }
       print('[CATEGORIES] Loading categories...');
       final categories = await _categoryService.getAll(_authToken!);
       print('[CATEGORIES] Received ${categories.length} categories');
       
-
       final incomeCategories = categories.where((cat) {
+        final type = (cat['type'] ?? '').toString().toLowerCase();
         final name = (cat['name'] ?? '').toString().toLowerCase();
-        return name.contains('penjualan');
+        if (type.isNotEmpty) {
+          return type == 'income';
+        }
+        return name.contains('penjualan') ||
+            name.contains('pendapatan') ||
+            name.contains('income');
       }).toList();
       
       print('[CATEGORIES] Filtered to ${incomeCategories.length} income categories');
@@ -100,16 +113,26 @@ class _AddIncomePageState extends State<AddIncomePage> {
       if (mounted) {
         setState(() {
           _categories = incomeCategories;
+          _isCategoryLoading = false;
+          _isCategoryLoadFailed = false;
 
           if (_categories.isNotEmpty && _selectedCategoryId == null) {
             _selectedCategoryId = _categories.first['id']?.toString();
             print('[CATEGORIES] Auto-selected: $_selectedCategoryId');
+          } else if (_categories.isEmpty) {
+            _selectedCategoryId = null;
           }
         });
       }
     } catch (e) {
       print('[CATEGORIES] Error loading categories: $e');
       if (mounted) {
+        setState(() {
+          _isCategoryLoading = false;
+          _isCategoryLoadFailed = true;
+          _categories = [];
+          _selectedCategoryId = null;
+        });
         ModernSnackBar.error(context, 'Gagal memuat kategori');
       }
     }
@@ -364,7 +387,7 @@ class _AddIncomePageState extends State<AddIncomePage> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF245C4C)),
                   ),
                   const SizedBox(height: 8),
-                  _categories.isEmpty
+                  _isCategoryLoading
                     ? Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -386,7 +409,41 @@ class _AddIncomePageState extends State<AddIncomePage> {
                           ],
                         ),
                       )
-                    : DropdownButtonFormField<String>(
+                    : _categories.isEmpty
+                      ? Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _isCategoryLoadFailed
+                                    ? Icons.error_outline
+                                    : Icons.info_outline,
+                                color: _isCategoryLoadFailed
+                                    ? Colors.red[600]
+                                    : Colors.grey[600],
+                                size: 18,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _isCategoryLoadFailed
+                                      ? 'Kategori gagal dimuat. Coba lagi.'
+                                      : 'Kategori pendapatan belum tersedia.',
+                                  style: TextStyle(color: Colors.grey[700]),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _loadCategories,
+                                child: const Text('Muat ulang'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : DropdownButtonFormField<String>(
                         value: _selectedCategoryId,
                         isExpanded: true,
                         decoration: InputDecoration(
