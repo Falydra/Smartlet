@@ -120,8 +120,6 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       _cageName = _selectedHouse!['name'] ?? _cageName;
       _cageFloors = _selectedHouse!['total_floors'] ?? _selectedHouse!['floor_count'] ?? _cageFloors;
       
-
-      await _loadNodes(rbwId: _selectedHouse!['id']?.toString());
       
     } catch (e) {
       print('Error initializing general harvest data: $e');
@@ -419,7 +417,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
 
   Future<void> _saveHarvestData() async {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState?.validate() != true) {
       if (_totalSarang == 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -484,20 +482,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         final harvestedAt = DateTime.utc(_selectedYear, _selectedMonth, 1).toIso8601String();
 
 
-        if (_selectedNode == null || _selectedNode!['id'] == null) {
-          if (mounted) {
-            setState(() {
-              _isSaving = false;
-            });
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Node tidak tersedia. Silakan pilih node terlebih dahulu.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
+        
 
         final nodeId = _selectedNode!['id']?.toString();
 
@@ -515,8 +500,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             
 
             final apiPayload = <String, dynamic>{
-              'rbw_id': rbwId,
-              'node_id': nodeId, // Required: node from node management table
+              'rbw_id': rbwId,// Required: node from node management table
               'floor_no': floor + 1,
               'harvested_at': harvestedAt,
               'nests_count': floorTotal,

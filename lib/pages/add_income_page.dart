@@ -5,6 +5,7 @@ import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/currency_input_formatter.dart';
+import 'package:intl/intl.dart';
 
 class AddIncomePage extends StatefulWidget {
   final Map<String, dynamic>? transaction; // Optional transaction for editing
@@ -178,7 +179,12 @@ class _AddIncomePageState extends State<AddIncomePage> {
     return _items.fold(0.0, (sum, item) => sum + (item['subtotal'] as double));
   }
 
+  int get _totalQuantity {
+    return _items.fold(0, (sum, item) => sum + (item['quantity'] as int));
+  }
+
   Future<void> _saveIncome() async {
+    final formattedDate = _formatApiDate(_selectedDate);
     if (!_formKey.currentState!.validate()) return;
     
     if (_items.isEmpty) {
@@ -207,8 +213,11 @@ class _AddIncomePageState extends State<AddIncomePage> {
       print('[ADD INCOME]   - House Name: ${selectedHouse['name']}');
       print('[ADD INCOME]   - Category ID: $_selectedCategoryId');
       print('[ADD INCOME]   - Amount: $_grandTotal');
-      print('[ADD INCOME]   - Date: $_selectedDate');
+      print('[ADD INCOME]   - Date: $formattedDate');
 
+
+      final totalQuantity = _totalQuantity;
+      final unitPrice = totalQuantity > 0 ? (_grandTotal / totalQuantity) : _grandTotal;
 
       final result = await _transactionService.createIncome(
         token: _authToken!,
@@ -218,7 +227,9 @@ class _AddIncomePageState extends State<AddIncomePage> {
         description: _descriptionController.text.isNotEmpty 
             ? _descriptionController.text 
             : null,
-        transactionDate: _selectedDate,
+        transactionDate: formattedDate,
+        quantity: totalQuantity,
+        unitPrice: unitPrice,
       );
 
       if (mounted) {
@@ -279,6 +290,11 @@ class _AddIncomePageState extends State<AddIncomePage> {
 
   String _formatCurrency(double amount) {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+  }
+
+  String _formatApiDate(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    return DateFormat('yyyy-MM-dd', 'en_US').format(normalized);
   }
 
   @override

@@ -32,16 +32,21 @@ class TransactionService {
     required double amount,
     required String type, // "income" or "expense"
     String? description,
-    required DateTime transactionDate,
+    required String transactionDate,
+    int? quantity,
+    double? unitPrice,
   }) async {
     try {
+      final normalizedDate = _normalizeDateString(transactionDate);
+      final resolvedQuantity = quantity ?? 1;
+      final resolvedUnitPrice = unitPrice ?? amount;
       final body = {
         "rbw_id": rbwId,
+        "date": normalizedDate,
         "category_id": categoryId,
-        "amount": amount,
-        "type": type,
-        if (description != null) "description": description,
-        "transaction_date": transactionDate.toUtc().toIso8601String(),
+        "qty": resolvedQuantity,
+        "unit_price": resolvedUnitPrice,
+        if (description != null) "note": description,
       };
 
       print('[TRANSACTION SERVICE] POST ${ApiConstants.transactions}');
@@ -87,7 +92,9 @@ class TransactionService {
     required String categoryId,
     required double amount,
     String? description,
-    required DateTime transactionDate,
+    required String transactionDate,
+    int? quantity,
+    double? unitPrice,
   }) async {
     return createTransaction(
       token: token,
@@ -97,6 +104,8 @@ class TransactionService {
       type: ApiConstants.transactionTypeIncome,
       description: description,
       transactionDate: transactionDate,
+      quantity: quantity,
+      unitPrice: unitPrice,
     );
   }
 
@@ -107,7 +116,9 @@ class TransactionService {
     required String categoryId,
     required double amount,
     String? description,
-    required DateTime transactionDate,
+    required String transactionDate,
+    int? quantity,
+    double? unitPrice,
   }) async {
     return createTransaction(
       token: token,
@@ -117,6 +128,8 @@ class TransactionService {
       type: ApiConstants.transactionTypeExpense,
       description: description,
       transactionDate: transactionDate,
+      quantity: quantity,
+      unitPrice: unitPrice,
     );
   }
 
@@ -144,9 +157,10 @@ class TransactionService {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
+        final normalized = _normalizeTransaction(_extractTransactionMap(responseData));
         return {
           'success': true,
-          'data': responseData['data'] ?? responseData,
+          'data': normalized,
         };
       } else {
         final errorData = _parseError(response);
@@ -295,8 +309,8 @@ class TransactionService {
         'page': page.toString(),
         'limit': limit.toString(),
         if (type != null) 'type': type,
-        if (startDate != null) 'start_date': _formatDate(startDate),
-        if (endDate != null) 'end_date': _formatDate(endDate),
+        if (startDate != null) 'from': _formatDate(startDate),
+        if (endDate != null) 'to': _formatDate(endDate),
       };
 
       final uri = Uri.parse(ApiConstants.rbwTransactions(rbwId))
@@ -318,7 +332,7 @@ class TransactionService {
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         final rawData = responseData['data'];
-        final transactions = _extractTransactionList(rawData);
+        final transactions = _normalizeTransactions(_extractTransactionList(rawData));
         print('[TRANSACTION SERVICE] Received ${transactions.length} transactions');
         if (transactions.isNotEmpty) {
           print('[TRANSACTION SERVICE] First transaction: ${transactions.first}');
@@ -356,6 +370,13 @@ class TransactionService {
     try {
       if (response.body.isNotEmpty) {
         final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['error'] is Map) {
+          final nestedError = errorData['error'] as Map;
+          return {
+            'message': nestedError['message'] ?? nestedError['error'] ?? 'Unknown error',
+            'error': nestedError,
+          };
+        }
         return {
           'message': errorData['message'] ?? errorData['error'] ?? 'Unknown error',
           'error': errorData['error'],
@@ -374,6 +395,107 @@ class TransactionService {
 
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _normalizeDateString(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
+    }
+    if (trimmed.contains('T')) {
+      return trimmed.split('T').first;
+    }
+    if (trimmed.length >= 10) {
+      return trimmed.substring(0, 10);
+    }
+    return trimmed;
+  }
+
+  Map<String, dynamic> _extractTransactionMap(dynamic rawData) {
+    if (rawData is Map && rawData['data'] is Map) {
+      return Map<String, dynamic>.from(rawData['data'] as Map);
+    }
+    if (rawData is Map) {
+      return Map<String, dynamic>.from(rawData);
+    }
+    return <String, dynamic>{};
+  }
+
+  List<Map<String, dynamic>> _normalizeTransactions(List<dynamic> rawList) {
+    return rawList
+        .whereType<Map>()
+        .map((item) => _normalizeTransaction(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  Map<String, dynamic> _normalizeTransaction(Map<String, dynamic> raw) {
+    final categoryName = _extractCategoryName(raw);
+    final type = _inferTransactionType(raw, categoryName);
+    final amount = _extractAmount(raw);
+    final description = raw['description'] ?? raw['note'] ?? raw['notes'];
+    final dateValue = raw['transaction_date'] ?? raw['date'] ?? raw['created_at'] ?? raw['createdAt'];
+    final transactionDate = dateValue?.toString();
+
+    return {
+      ...raw,
+      'category_name': categoryName,
+      'type': type,
+      'amount': amount,
+      'description': description,
+      'transaction_date': transactionDate,
+    };
+  }
+
+  String? _extractCategoryName(Map<String, dynamic> raw) {
+    final direct = raw['category_name']?.toString();
+    if (direct != null && direct.isNotEmpty) {
+      return direct;
+    }
+    final category = raw['category'];
+    if (category is Map) {
+      final name = category['name']?.toString();
+      if (name != null && name.isNotEmpty) {
+        return name;
+      }
+    }
+    return null;
+  }
+
+  String _inferTransactionType(Map<String, dynamic> raw, String? categoryName) {
+    final type = raw['type']?.toString().toLowerCase() ?? '';
+    if (type == 'income' || type == 'expense') {
+      return type;
+    }
+    final name = (categoryName ?? '').toLowerCase();
+    if (name.contains('penjualan') ||
+        name.contains('pendapatan') ||
+        name.contains('pemasukan') ||
+        name.contains('income')) {
+      return 'income';
+    }
+    if (name.contains('biaya') ||
+        name.contains('pengeluaran') ||
+        name.contains('expense')) {
+      return 'expense';
+    }
+    return 'expense';
+  }
+
+  double _extractAmount(Map<String, dynamic> raw) {
+    final amount = raw['amount'];
+    if (amount is num) {
+      return amount.toDouble();
+    }
+    final total = raw['total'] ?? raw['total_amount'];
+    if (total is num) {
+      return total.toDouble();
+    }
+    final qty = raw['qty'];
+    final unitPrice = raw['unit_price'];
+    if (qty is num && unitPrice is num) {
+      return qty.toDouble() * unitPrice.toDouble();
+    }
+    return 0.0;
   }
 
   List<dynamic> _extractTransactionList(dynamic rawData) {
@@ -441,7 +563,11 @@ class TransactionService {
       limit: 100,
     );
 
-    return result['data'] ?? [];
+    final raw = result['data'] ?? [];
+    if (raw is List) {
+      return _normalizeTransactions(raw);
+    }
+    return [];
   }
 
 

@@ -5,6 +5,7 @@ import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/currency_input_formatter.dart';
+import 'package:intl/intl.dart';
 
 class AddExpensePage extends StatefulWidget {
   final Map<String, dynamic>? transaction; // Optional transaction for editing
@@ -178,6 +179,10 @@ class _AddExpensePageState extends State<AddExpensePage> {
     return _items.fold(0.0, (sum, item) => sum + (item['subtotal'] as double));
   }
 
+  int get _totalQuantity {
+    return _items.fold(0, (sum, item) => sum + (item['quantity'] as int));
+  }
+
   Future<void> _saveExpense() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -207,7 +212,11 @@ class _AddExpensePageState extends State<AddExpensePage> {
       print('[ADD EXPENSE]   - House Name: ${selectedHouse['name']}');
       print('[ADD EXPENSE]   - Category ID: $_selectedCategoryId');
       print('[ADD EXPENSE]   - Amount: $_grandTotal');
-      print('[ADD EXPENSE]   - Date: $_selectedDate');
+      final formattedDate = _formatApiDate(_selectedDate);
+      print('[ADD EXPENSE]   - Date: $formattedDate');
+
+      final totalQuantity = _totalQuantity;
+      final unitPrice = totalQuantity > 0 ? (_grandTotal / totalQuantity) : _grandTotal;
 
 
       final result = await _transactionService.createExpense(
@@ -218,7 +227,9 @@ class _AddExpensePageState extends State<AddExpensePage> {
         description: _descriptionController.text.isNotEmpty 
             ? _descriptionController.text 
             : null,
-        transactionDate: _selectedDate,
+        transactionDate: formattedDate,
+        quantity: totalQuantity,
+        unitPrice: unitPrice,
       );
 
       if (mounted) {
@@ -279,6 +290,11 @@ class _AddExpensePageState extends State<AddExpensePage> {
 
   String _formatCurrency(double amount) {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+  }
+
+  String _formatApiDate(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    return DateFormat('yyyy-MM-dd', 'en_US').format(normalized);
   }
 
   @override

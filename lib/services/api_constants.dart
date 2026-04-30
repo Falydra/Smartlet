@@ -1,6 +1,6 @@
 class ApiConstants {
 
-  static const String baseUrl = "http://192.168.1.31:8080";
+  static const String baseUrl = "http://10.71.227.50:8080";
   static const String apiVersion = "v1";
   static const String apiBaseUrl = "$baseUrl/api/$apiVersion";
 

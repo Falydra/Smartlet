@@ -143,27 +143,21 @@ class _SalesPageState extends State<SalesPage> {
 
 
       final filteredTransactions = transactions.where((transaction) {
-        final transactionDateStr = transaction['transaction_date']?.toString();
-        if (transactionDateStr == null) {
+        final transactionDate = _resolveTransactionDate(transaction);
+        if (transactionDate == null) {
           print('[SALES PAGE] ⚠️ Transaction has no date, skipping');
           return false;
         }
-        
-        try {
-          final transactionDate = DateTime.parse(transactionDateStr);
-          final isCorrectMonth = transactionDate.month == _selectedMonth && transactionDate.year == _selectedYear;
-          
-          if (!isCorrectMonth) {
-            print('[SALES PAGE] ❌ Filtering out: ${transactionDate.year}-${transactionDate.month.toString().padLeft(2, '0')}-${transactionDate.day.toString().padLeft(2, '0')} (expected: $_selectedYear-${_selectedMonth.toString().padLeft(2, '0')})');
-          } else {
-            print('[SALES PAGE] ✓ Including: ${transactionDate.year}-${transactionDate.month.toString().padLeft(2, '0')}-${transactionDate.day.toString().padLeft(2, '0')}');
-          }
-          
-          return isCorrectMonth;
-        } catch (e) {
-          print('[SALES PAGE] ⚠️ Error parsing date: $transactionDateStr');
-          return false;
+
+        final isCorrectMonth = transactionDate.month == _selectedMonth && transactionDate.year == _selectedYear;
+
+        if (!isCorrectMonth) {
+          print('[SALES PAGE] ❌ Filtering out: ${transactionDate.year}-${transactionDate.month.toString().padLeft(2, '0')}-${transactionDate.day.toString().padLeft(2, '0')} (expected: $_selectedYear-${_selectedMonth.toString().padLeft(2, '0')})');
+        } else {
+          print('[SALES PAGE] ✓ Including: ${transactionDate.year}-${transactionDate.month.toString().padLeft(2, '0')}-${transactionDate.day.toString().padLeft(2, '0')}');
         }
+
+        return isCorrectMonth;
       }).toList();
 
       print('[SALES PAGE] After filtering: ${filteredTransactions.length} transactions for ${_months[_selectedMonth - 1]} $_selectedYear');
@@ -173,8 +167,8 @@ class _SalesPageState extends State<SalesPage> {
       double expense = 0.0;
 
       for (var transaction in filteredTransactions) {
-        final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
-        final type = transaction['type']?.toString() ?? '';
+        final amount = _resolveTransactionAmount(transaction);
+        final type = _resolveTransactionType(transaction);
 
         if (type == 'income') {
           income += amount;
@@ -268,19 +262,10 @@ class _SalesPageState extends State<SalesPage> {
         print('[SALES PAGE] Month $month: Loaded ${transactions.length} transactions from API');
 
         for (var transaction in transactions) {
-
-          final transactionDateStr = transaction['transaction_date']?.toString();
-          if (transactionDateStr != null) {
-            try {
-              final transactionDate = DateTime.parse(transactionDateStr);
-              if (transactionDate.year != _selectedYear) {
-                print('[SALES PAGE] Skipping transaction from wrong year: ${transactionDate.year} (expected $_selectedYear)');
-                continue;
-              }
-            } catch (e) {
-              print('[SALES PAGE] Error parsing date for annual data: $transactionDateStr');
-              continue;
-            }
+          final transactionDate = _resolveTransactionDate(transaction);
+          if (transactionDate != null && transactionDate.year != _selectedYear) {
+            print('[SALES PAGE] Skipping transaction from wrong year: ${transactionDate.year} (expected $_selectedYear)');
+            continue;
           }
 
 
@@ -295,8 +280,8 @@ class _SalesPageState extends State<SalesPage> {
           }
           processedTransactionIds.add(transactionId);
 
-          final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
-          final type = transaction['type']?.toString() ?? '';
+          final amount = _resolveTransactionAmount(transaction);
+          final type = _resolveTransactionType(transaction);
 
           if (type == 'income') {
             annualIncome += amount;
@@ -426,6 +411,57 @@ class _SalesPageState extends State<SalesPage> {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
+  double _resolveTransactionAmount(Map<String, dynamic> transaction) {
+    final amount = transaction['amount'];
+    if (amount is num) {
+      return amount.toDouble();
+    }
+    final total = transaction['total'] ?? transaction['total_amount'];
+    if (total is num) {
+      return total.toDouble();
+    }
+    final qty = transaction['qty'];
+    final unitPrice = transaction['unit_price'];
+    if (qty is num && unitPrice is num) {
+      return qty.toDouble() * unitPrice.toDouble();
+    }
+    return 0.0;
+  }
+
+  String _resolveTransactionType(Map<String, dynamic> transaction) {
+    final type = transaction['type']?.toString().toLowerCase() ?? '';
+    if (type == 'income' || type == 'expense') {
+      return type;
+    }
+    final categoryName = (transaction['category_name']?.toString() ??
+            transaction['category']?['name']?.toString() ??
+            '')
+        .toLowerCase();
+    if (categoryName.contains('penjualan') ||
+        categoryName.contains('pendapatan') ||
+        categoryName.contains('pemasukan') ||
+        categoryName.contains('income')) {
+      return 'income';
+    }
+    if (categoryName.contains('biaya') ||
+        categoryName.contains('pengeluaran') ||
+        categoryName.contains('expense')) {
+      return 'expense';
+    }
+    return 'expense';
+  }
+
+  DateTime? _resolveTransactionDate(Map<String, dynamic> transaction) {
+    final dateValue = transaction['transaction_date'] ??
+        transaction['date'] ??
+        transaction['created_at'] ??
+        transaction['createdAt'];
+    if (dateValue == null) {
+      return null;
+    }
+    return DateTime.tryParse(dateValue.toString());
+  }
+
   Future<void> _downloadEStatement(String type) async {
     if (kIsWeb) {
       ModernSnackBar.warning(context, 'Download PDF tidak didukung di versi web. Gunakan aplikasi Android.');
@@ -481,21 +517,17 @@ class _SalesPageState extends State<SalesPage> {
             houseId: _selectedHouseId,
           );
           for (final txn in monthTxns) {
-            final dateStr = txn['transaction_date']?.toString();
-            if (dateStr != null) {
-              try {
-                if (DateTime.parse(dateStr).year != _selectedYear) continue;
-              } catch (_) {
-                continue;
-              }
+            final txnDate = _resolveTransactionDate(txn);
+            if (txnDate != null && txnDate.year != _selectedYear) {
+              continue;
             }
             final txnId = txn['id']?.toString() ??
                 '${txn['transaction_date']}_${txn['amount']}_${txn['description']}';
             if (seen.contains(txnId)) continue;
             seen.add(txnId);
             yearTransactions.add(txn);
-            final amount = (txn['amount'] as num?)?.toDouble() ?? 0.0;
-            final t = txn['type']?.toString() ?? '';
+            final amount = _resolveTransactionAmount(txn);
+            final t = _resolveTransactionType(txn);
             if (t == 'income') yearIncome += amount;
             if (t == 'expense') yearExpense += amount;
           }
@@ -924,8 +956,8 @@ class _SalesPageState extends State<SalesPage> {
                                         transaction['house_id']?.toString();
                                 if (transactionHouseId ==
                                     house['id']?.toString()) {
-                                  final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
-                                  final type = transaction['type']?.toString() ?? '';
+                                  final amount = _resolveTransactionAmount(transaction);
+                                  final type = _resolveTransactionType(transaction);
 
                                   if (type == 'income') {
                                     houseIncome += amount;
@@ -1157,7 +1189,7 @@ class _SalesPageState extends State<SalesPage> {
                         Column(
                           children: [
                             const Text(
-                              'Total Pendapatan',
+                              'Laba Bersih',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.white70,
@@ -1251,13 +1283,11 @@ class _SalesPageState extends State<SalesPage> {
                       ),
                       child: Column(
                         children: _allTransactions.take(3).map((transaction) {
-                          final type = transaction['type']?.toString() ?? '';
+                          final type = _resolveTransactionType(transaction);
                           final isIncome = type == 'income';
 
-                          final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
-                          final date = transaction['transaction_date'] != null
-                              ? DateTime.tryParse(transaction['transaction_date'])
-                              : null;
+                          final amount = _resolveTransactionAmount(transaction);
+                          final date = _resolveTransactionDate(transaction);
                           final categoryNameForDisplay = isIncome ? 'Pendapatan' : 'Pengeluaran';
 
 
@@ -1325,6 +1355,7 @@ class _SalesPageState extends State<SalesPage> {
                                         children: [
                                           Text(
                                             transaction['description'] ??
+                                                transaction['note'] ??
                                                 'Transaksi',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
