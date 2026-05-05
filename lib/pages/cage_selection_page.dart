@@ -3,8 +3,9 @@ import 'package:swiftlead/pages/analysis_alternate_page.dart';
 import 'package:swiftlead/pages/cage_data_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/house_services.dart';
+import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/pages/edit_cage_page.dart';
-
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class CageSelectionPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
   
 
   final HouseService _houseService = HouseService();
+  final ServiceRequestService _srService = ServiceRequestService();
 
   
 
@@ -102,56 +104,97 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
   }
 
   void _showDeleteDialog(Map<String, dynamic> cage) {
-    final isFromAPI = cage['isFromAPI'] == true;
-    final hasDevice = cage['hasDeviceInstalled'] == true;
+    final noteCtrl = TextEditingController();
     
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogCtx) {
         return AlertDialog(
-          title: const Text('Hapus Kandang'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.send_outlined, color: Colors.orange, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Ajukan Penghapusan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Apakah Anda yakin ingin menghapus kandang "${cage['name']}"?'),
-              const SizedBox(height: 8),
-              Text(
-                isFromAPI
-                    ? '• Kandang akan dihapus dari database server'
-                    : '• Kandang ini bukan data server dan tidak bisa dihapus dari halaman ini',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-              if (hasDevice)
-                Text(
-                  '• Perangkat yang terpasang mungkin perlu dikonfigurasi ulang',
-                  style: TextStyle(fontSize: 12, color: Colors.orange[600]),
+              RichText(
+                text: TextSpan(
+                  style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+                  children: [
+                    const TextSpan(text: 'Anda akan mengajukan permintaan penghapusan kandang '),
+                    TextSpan(
+                      text: '"${cage['name']}"',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF245C4C)),
+                    ),
+                    const TextSpan(text: ' kepada Admin.'),
+                  ],
                 ),
-              const SizedBox(height: 8),
-              const Text(
-                'Tindakan ini tidak dapat dibatalkan.',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: noteCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Alasan penghapusan (opsional)',
+                  hintText: 'Contoh: Kandang sudah tidak digunakan',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Admin akan meninjau dan memproses permintaan Anda.',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Batal',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: Text('Batal', style: TextStyle(color: Colors.grey[600])),
             ),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: () {
-                Navigator.of(context).pop();
-                _deleteCage(cage);
+                Navigator.of(dialogCtx).pop();
+                _requestDeleteCage(cage, noteCtrl.text);
               },
+              icon: const Icon(Icons.send, size: 18),
+              label: const Text('Ajukan'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: Colors.orange[700],
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text('Hapus'),
             ),
           ],
         );
@@ -159,7 +202,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
     );
   }
 
-  Future<void> _deleteCage(Map<String, dynamic> cage) async {
+  Future<void> _requestDeleteCage(Map<String, dynamic> cage, String notes) async {
     try {
       if (_authToken == null) {
         throw Exception('Sesi login tidak ditemukan. Silakan login ulang.');
@@ -170,35 +213,37 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
       }
 
       final String apiId = cage['apiId'].toString();
-      final apiResponse = await _houseService.delete(_authToken!, apiId);
-      if (apiResponse['success'] != true) {
-        final statusCode = apiResponse['statusCode'] as int?;
-        final apiMessage = apiResponse['message']?.toString();
-        if (statusCode == 403) {
-          throw Exception(apiMessage ?? 'Anda tidak punya izin menghapus kandang ini.');
-        }
-        throw Exception(apiMessage ?? 'Penghapusan kandang gagal di server.');
-      }
-
-      print('House deleted from database: $apiId');
-      await _loadCagesFromAPI();
       
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kandang berhasil dihapus'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Create a service request of type 'uninstall' for this RBW
+      final payload = {
+        'rbw_id': apiId,
+        'type': 'uninstall',
+        'issue': 'Permintaan penghapusan kandang: ${cage['name']}',
+        'notes': notes.isNotEmpty ? notes : 'Farmer mengajukan penghapusan kandang',
+      };
+      
+      final res = await _srService.create(_authToken!, payload);
+      
+      if (res['success'] == true) {
+        if (mounted) {
+          ModernSnackBar.success(context, 'Permintaan penghapusan berhasil diajukan. Admin akan meninjaunya.');
+        }
+      } else {
+        final msg = res['message'];
+        String errorMsg;
+        if (msg is Map) {
+          errorMsg = msg['message']?.toString() ?? msg.toString();
+        } else {
+          errorMsg = msg?.toString() ?? 'Gagal mengajukan permintaan';
+        }
+        throw Exception(errorMsg);
+      }
     } catch (e) {
-      print('Error deleting cage: $e');
+      print('Error requesting cage deletion: $e');
       final cleanMessage = e.toString().replaceFirst('Exception: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menghapus kandang: $cleanMessage'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ModernSnackBar.error(context, 'Gagal: $cleanMessage');
+      }
     }
   }
 
@@ -396,6 +441,7 @@ class _CageSelectionPageState extends State<CageSelectionPage> {
                                       color: Colors.red[400],
                                       size: 20,
                                     ),
+                                    tooltip: 'Ajukan Penghapusan',
                                   ),
                                   Icon(
                                     Icons.arrow_forward_ios,

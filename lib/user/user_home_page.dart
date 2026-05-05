@@ -15,6 +15,7 @@ import 'package:swiftlead/pages/device_installation_page.dart';
 import 'dart:async';
 import 'package:swiftlead/services/alert_service.dart';
 import 'package:swiftlead/utils/notification_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -486,12 +487,7 @@ class _UserHomePageState extends State<UserHomePage> with WidgetsBindingObserver
         _initializeData();
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kandang harus disimpan ke database terlebih dahulu'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Kandang harus disimpan ke database terlebih dahulu');
     }
   }
 

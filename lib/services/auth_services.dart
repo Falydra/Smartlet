@@ -165,10 +165,7 @@ class AuthService {
 
 
 
-  Future<Map<String, dynamic>> forgotPassword({
-    required String token,
-    required String email,
-  }) async {
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
       final body = {
         "email": email,
@@ -178,14 +175,16 @@ class AuthService {
 
       final response = await http.post(
         Uri.parse(ApiConstants.authForgotPassword),
-        headers: ApiConstants.authHeaders(token),
+        headers: ApiConstants.jsonHeaders,
         body: jsonEncode(body),
       );
 
       print('[AUTH SERVICE] Status: ${response.statusCode}');
       print('[AUTH SERVICE] Response: ${response.body}');
 
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+      data['success'] = response.statusCode >= 200 && response.statusCode < 300;
+      return data;
     } catch (e) {
       print('[AUTH SERVICE] Error in forgotPassword: $e');
       return {

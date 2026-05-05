@@ -11,19 +11,15 @@ import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/utils/local_notification_helper.dart';
 
 class TimerBackgroundService {
-
-
   static const bool FORCE_DISABLE_BACKGROUND_SERVICE = true;
-  
+
   static bool _isEmulator = false;
   static bool _emulatorCheckDone = false;
-
 
   static Future<bool> isRunningOnEmulator() async {
     if (FORCE_DISABLE_BACKGROUND_SERVICE) return true;
     return await _checkIfEmulator();
   }
-
 
   static Future<bool> _checkIfEmulator() async {
     if (_emulatorCheckDone) return _isEmulator;
@@ -32,7 +28,6 @@ class TimerBackgroundService {
       if (Platform.isAndroid) {
         final deviceInfo = DeviceInfoPlugin();
         final androidInfo = await deviceInfo.androidInfo;
-        
 
         _isEmulator = !androidInfo.isPhysicalDevice ||
             androidInfo.model.toLowerCase().contains('sdk') ||
@@ -43,7 +38,7 @@ class TimerBackgroundService {
             androidInfo.manufacturer.toLowerCase().contains('genymotion') ||
             androidInfo.brand.toLowerCase() == 'generic' ||
             androidInfo.device.toLowerCase().contains('generic');
-        
+
         print('[BACKGROUND SERVICE] Emulator detection:');
         print('  - Physical device: ${androidInfo.isPhysicalDevice}');
         print('  - Model: ${androidInfo.model}');
@@ -60,7 +55,8 @@ class TimerBackgroundService {
       print('[BACKGROUND SERVICE] Stack trace: $stackTrace');
 
       _isEmulator = true;
-      print('[BACKGROUND SERVICE] Assuming emulator due to detection error (safer default)');
+      print(
+          '[BACKGROUND SERVICE] Assuming emulator due to detection error (safer default)');
     }
 
     _emulatorCheckDone = true;
@@ -69,20 +65,22 @@ class TimerBackgroundService {
 
   static Future<void> initialize() async {
     print('[BACKGROUND SERVICE] Initializing background service...');
-    
+
     if (FORCE_DISABLE_BACKGROUND_SERVICE) {
-      print('[BACKGROUND SERVICE] FORCE DISABLED via kill switch - background service completely disabled');
+      print(
+          '[BACKGROUND SERVICE] FORCE DISABLED via kill switch - background service completely disabled');
       return;
     }
-    
 
     final isEmulator = await _checkIfEmulator();
     if (isEmulator) {
-      print('[BACKGROUND SERVICE] Running on emulator - skipping background service initialization');
-      print('[BACKGROUND SERVICE] Timer will work but notifications may be limited');
+      print(
+          '[BACKGROUND SERVICE] Running on emulator - skipping background service initialization');
+      print(
+          '[BACKGROUND SERVICE] Timer will work but notifications may be limited');
       return; // Skip initialization on emulators
     }
-    
+
     try {
       final service = FlutterBackgroundService();
 
@@ -107,9 +105,8 @@ class TimerBackgroundService {
     } catch (e, stackTrace) {
       print('[BACKGROUND SERVICE] Error initializing service: $e');
       print('[BACKGROUND SERVICE] Stack trace: $stackTrace');
-      print('[BACKGROUND SERVICE] Service may not work on this device/emulator');
-
-
+      print(
+          '[BACKGROUND SERVICE] Service may not work on this device/emulator');
     }
   }
 
@@ -155,7 +152,6 @@ class TimerBackgroundService {
       bool hasActiveTimers = false;
       List<String> expiredTimers = [];
 
-
       final pumpTimerEnd = prefs.getString('pump_timer_end');
       if (pumpTimerEnd != null) {
         print('[BACKGROUND SERVICE] Pump timer found: $pumpTimerEnd');
@@ -173,7 +169,6 @@ class TimerBackgroundService {
         }
       }
 
-
       final audioBothTimerEnd = prefs.getString('audio_both_timer_end');
       if (audioBothTimerEnd != null) {
         final endTime = DateTime.parse(audioBothTimerEnd);
@@ -185,7 +180,6 @@ class TimerBackgroundService {
           hasActiveTimers = true;
         }
       }
-
 
       final audioLmbTimerEnd = prefs.getString('audio_lmb_timer_end');
       if (audioLmbTimerEnd != null) {
@@ -199,7 +193,6 @@ class TimerBackgroundService {
         }
       }
 
-
       final audioNestTimerEnd = prefs.getString('audio_nest_timer_end');
       if (audioNestTimerEnd != null) {
         final endTime = DateTime.parse(audioNestTimerEnd);
@@ -211,7 +204,6 @@ class TimerBackgroundService {
           hasActiveTimers = true;
         }
       }
-
 
       if (expiredTimers.isNotEmpty) {
         print(
@@ -228,7 +220,6 @@ class TimerBackgroundService {
             print(
                 '[BACKGROUND SERVICE] Notification init failed (non-critical): $initError');
           }
-          
 
           try {
             await LocalNotificationHelper().showWithSound(
@@ -252,10 +243,8 @@ class TimerBackgroundService {
         } catch (e) {
           print(
               '[BACKGROUND SERVICE] Error sending notification for $device: $e');
-
         }
       }
-
 
       if (hasActiveTimers) {
         final remainingCount = [
@@ -273,7 +262,6 @@ class TimerBackgroundService {
           );
         }
       } else {
-
         service.stopSelf();
       }
     } catch (e) {
@@ -341,36 +329,33 @@ class TimerBackgroundService {
     }
   }
 
-
   static Future<void> startService() async {
     if (FORCE_DISABLE_BACKGROUND_SERVICE) {
       print('[BACKGROUND SERVICE] FORCE DISABLED - skipping service start');
       return;
     }
-    
 
     final isEmulator = await _checkIfEmulator();
     if (isEmulator) {
       print('[BACKGROUND SERVICE] Skipping service start on emulator');
-      print('[BACKGROUND SERVICE] Timer data saved but background notifications disabled');
+      print(
+          '[BACKGROUND SERVICE] Timer data saved but background notifications disabled');
       return; // Don't attempt to start service on emulators
     }
-    
+
     try {
       print('[BACKGROUND SERVICE] startService() called');
       final service = FlutterBackgroundService();
-      
 
       bool isRunning = false;
       try {
         isRunning = await service.isRunning();
       } catch (e) {
         print('[BACKGROUND SERVICE] Error checking service status: $e');
-
       }
-      
+
       print('[BACKGROUND SERVICE] Service running status: $isRunning');
-      
+
       if (!isRunning) {
         print('[BACKGROUND SERVICE] Attempting to start service...');
         try {
@@ -378,17 +363,18 @@ class TimerBackgroundService {
           print('[BACKGROUND SERVICE] Service started successfully');
 
           await Future.delayed(const Duration(milliseconds: 500));
-          
+
           try {
             final nowRunning = await service.isRunning();
-            print('[BACKGROUND SERVICE] Service running after start: $nowRunning');
+            print(
+                '[BACKGROUND SERVICE] Service running after start: $nowRunning');
           } catch (e) {
-            print('[BACKGROUND SERVICE] Cannot verify service status (non-critical): $e');
+            print(
+                '[BACKGROUND SERVICE] Cannot verify service status (non-critical): $e');
           }
         } catch (startError) {
-          print('[BACKGROUND SERVICE] Failed to start service (may work in background): $startError');
-
-
+          print(
+              '[BACKGROUND SERVICE] Failed to start service (may work in background): $startError');
         }
       } else {
         print('[BACKGROUND SERVICE] Service already running');
@@ -397,29 +383,28 @@ class TimerBackgroundService {
       print('[BACKGROUND SERVICE] Error in startService: $e');
       print('[BACKGROUND SERVICE] Stack trace: $stackTrace');
 
-      print('[BACKGROUND SERVICE] Timer will be saved to SharedPreferences anyway');
+      print(
+          '[BACKGROUND SERVICE] Timer will be saved to SharedPreferences anyway');
     }
   }
-
 
   static Future<void> stopService() async {
     if (FORCE_DISABLE_BACKGROUND_SERVICE) {
       print('[BACKGROUND SERVICE] FORCE DISABLED - skipping service stop');
       return;
     }
-    
 
     final isEmulator = await _checkIfEmulator();
     if (isEmulator) {
-      print('[BACKGROUND SERVICE] Skipping service stop on emulator (service not running)');
+      print(
+          '[BACKGROUND SERVICE] Skipping service stop on emulator (service not running)');
       return;
     }
-    
+
     final service = FlutterBackgroundService();
     service.invoke('stopService');
     print('[BACKGROUND SERVICE] Service stopped');
   }
-
 
   static Future<void> setTimer({
     required String deviceType,
@@ -429,11 +414,9 @@ class TimerBackgroundService {
     print('[BACKGROUND SERVICE] Setting timer for $deviceType until $endTime');
     final prefs = await SharedPreferences.getInstance();
 
-
     await prefs.setString('${deviceType}_timer_end', endTime.toIso8601String());
     print(
         '[BACKGROUND SERVICE] Timer saved to SharedPreferences: ${deviceType}_timer_end = ${endTime.toIso8601String()}');
-
 
     if (deviceType == 'pump') {
       await prefs.setString('pump_node_id', nodeId ?? '');
@@ -451,12 +434,10 @@ class TimerBackgroundService {
         '[BACKGROUND SERVICE] Timer set successfully for $deviceType until $endTime');
   }
 
-
   static Future<void> clearTimer(String deviceType) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('${deviceType}_timer_end');
     print('[BACKGROUND SERVICE] Timer cleared for $deviceType');
-
 
     final hasActiveTimers = prefs.getString('pump_timer_end') != null ||
         prefs.getString('audio_both_timer_end') != null ||
@@ -467,7 +448,6 @@ class TimerBackgroundService {
       await stopService();
     }
   }
-
 
   static Future<Duration?> getRemainingTime(String deviceType) async {
     final prefs = await SharedPreferences.getInstance();
@@ -519,7 +499,8 @@ class TimerBackgroundService {
         if (timerEndStr != null) {
           final endTime = DateTime.parse(timerEndStr);
           if (now.isAfter(endTime)) {
-            print('[FOREGROUND WATCHER] $type timer EXPIRED! Turning off device...');
+            print(
+                '[FOREGROUND WATCHER] $type timer EXPIRED! Turning off device...');
             expiredTimers.add(type);
             await _turnOffDevice(type, prefs);
             await prefs.remove('${type}_timer_end');

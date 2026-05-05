@@ -5,6 +5,7 @@ import 'package:swiftlead/services/sensor_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/utils/time_utils.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class SensorDetailPage extends StatefulWidget {
   const SensorDetailPage({super.key});
@@ -127,7 +128,7 @@ class _SensorDetailPageState extends State<SensorDetailPage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memuat data: $e')));
+        ModernSnackBar.error(context, 'Gagal memuat data: $e');
       }
     } finally {
       if (mounted) {

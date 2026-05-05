@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/components/technician_bottom_navigation.dart';
 import 'package:swiftlead/services/service_request_service.dart';
+import 'package:swiftlead/services/rbw_service.dart';
 import 'package:swiftlead/services/alert_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/utils/notification_manager.dart';
@@ -18,6 +19,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage> with WidgetsBin
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   final ServiceRequestService _serviceRequestService = ServiceRequestService();
+  final RbwService _rbwService = RbwService();
   final AlertService _alertService = AlertService();
   final NotificationManager _notif = NotificationManager();
 
@@ -107,6 +109,27 @@ class _TechnicianHomePageState extends State<TechnicianHomePage> with WidgetsBin
             inProgress++;
           } else if (status == 'resolved' || status == 'completed') {
             completed++;
+          }
+        }
+
+        // Enrich tasks with RBW details
+        final rbwCache = <String, Map<String, dynamic>>{};
+        for (final item in data) {
+          final rbwId = item['rbw_id']?.toString() ?? '';
+          if (rbwId.isNotEmpty && item['rbw'] == null) {
+            if (!rbwCache.containsKey(rbwId)) {
+              try {
+                final rbwRes = await _rbwService.getRbw(token: _authToken!, rbwId: rbwId);
+                if (rbwRes['success'] == true && rbwRes['data'] != null) {
+                  rbwCache[rbwId] = rbwRes['data'] as Map<String, dynamic>;
+                }
+              } catch (e) {
+                print('[TECH HOME] Failed to fetch RBW $rbwId: $e');
+              }
+            }
+            if (rbwCache.containsKey(rbwId)) {
+              (item as Map<String, dynamic>)['rbw'] = rbwCache[rbwId];
+            }
           }
         }
 

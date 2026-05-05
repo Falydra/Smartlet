@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/services/service_request_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class CreateServiceRequestPage extends StatefulWidget {
   const CreateServiceRequestPage({super.key});
@@ -36,7 +37,7 @@ class _CreateServiceRequestPageState extends State<CreateServiceRequestPage> {
     final token = await TokenManager.getToken();
     if (token == null) {
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not authenticated')));
+      ModernSnackBar.error(context, 'Not authenticated');
       return;
     }
 
@@ -51,10 +52,10 @@ class _CreateServiceRequestPageState extends State<CreateServiceRequestPage> {
     final res = await _service.create(token, payload);
     setState(() => _submitting = false);
     if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service request created')));
+      ModernSnackBar.success(context, 'Service request created');
       Navigator.pop(context, true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${res['message'] ?? 'unknown'}')));
+      ModernSnackBar.error(context, 'Failed: ${res['message'] ?? 'unknown'}');
     }
   }
 

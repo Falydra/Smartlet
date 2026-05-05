@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/shared/theme.dart';
 import 'package:swiftlead/components/technician_bottom_navigation.dart';
 import 'package:swiftlead/services/service_request_service.dart';
+import 'package:swiftlead/services/rbw_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 
 class TechnicianTasksPage extends StatefulWidget {
@@ -13,6 +14,7 @@ class TechnicianTasksPage extends StatefulWidget {
 
 class _TechnicianTasksPageState extends State<TechnicianTasksPage> {
   final ServiceRequestService _service = ServiceRequestService();
+  final RbwService _rbwService = RbwService();
 
   bool _isLoading = true;
   String? _authToken;
@@ -53,6 +55,28 @@ class _TechnicianTasksPageState extends State<TechnicianTasksPage> {
 
       if (result['success'] == true) {
         final data = (result['data'] as List?) ?? [];
+        
+        // Enrich each task with RBW details
+        final rbwCache = <String, Map<String, dynamic>>{};
+        for (final task in data) {
+          final rbwId = task['rbw_id']?.toString() ?? '';
+          if (rbwId.isNotEmpty && task['rbw'] == null) {
+            if (!rbwCache.containsKey(rbwId)) {
+              try {
+                final rbwRes = await _rbwService.getRbw(token: _authToken!, rbwId: rbwId);
+                if (rbwRes['success'] == true && rbwRes['data'] != null) {
+                  rbwCache[rbwId] = rbwRes['data'] as Map<String, dynamic>;
+                }
+              } catch (e) {
+                print('[TECH TASKS] Failed to fetch RBW $rbwId: $e');
+              }
+            }
+            if (rbwCache.containsKey(rbwId)) {
+              (task as Map<String, dynamic>)['rbw'] = rbwCache[rbwId];
+            }
+          }
+        }
+        
         if (mounted) {
           setState(() {
             _allTasks = data;
@@ -159,10 +183,11 @@ class _TechnicianTasksPageState extends State<TechnicianTasksPage> {
   void _showTaskDetail(Map<String, dynamic> task) {
     final id = task['id']?.toString() ?? '';
     final issue = task['issue']?.toString() ?? task['type']?.toString() ?? 'Tugas';
-    final description = task['description']?.toString() ?? '-';
+    final description = task['issue']?.toString() ?? task['description']?.toString() ?? '-';
+    final notes = task['notes']?.toString() ?? '-';
     final rbwName = task['rbw']?['name']?.toString() ?? task['rbw_id']?.toString() ?? '-';
     final rbwAddress = task['rbw']?['address']?.toString() ?? '-';
-    final ownerName = task['rbw']?['owner']?['name']?.toString() ?? task['user']?['name']?.toString() ?? '-';
+    final ownerName = task['rbw']?['owner']?['name']?.toString() ?? task['rbw']?['owner_name']?.toString() ?? '-';
     final status = task['status']?.toString() ?? 'unknown';
     final serviceType = task['type']?.toString() ?? '-';
     final scheduleDate = task['schedule_date']?.toString() ?? '-';
@@ -249,6 +274,7 @@ class _TechnicianTasksPageState extends State<TechnicianTasksPage> {
                       _detailRow('Alamat', rbwAddress),
                       _detailRow('Pemilik', ownerName),
                       _detailRow('Deskripsi', description),
+                      if (notes != '-' && notes.isNotEmpty) _detailRow('Catatan', notes),
                       _detailRow('Jadwal', _formatDate(scheduleDate)),
                       _detailRow('Dibuat', _formatDate(createdAt)),
 

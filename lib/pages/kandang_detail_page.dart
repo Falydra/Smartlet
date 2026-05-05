@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/services/rbw_service.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/auth_services.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/shared/theme.dart';
 
 class KandangDetailPage extends StatefulWidget {
@@ -33,16 +34,16 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       _authToken = await TokenManager.getToken();
-      
+
       if (_authToken != null) {
         final result = await _rbwService.getRbw(
           rbwId: widget.houseId,
           token: _authToken!,
         );
-        
+
         if (result['success'] == true && result['data'] != null) {
           print('===== RBW DATA STRUCTURE =====');
           print('Full data: ${result['data']}');
@@ -53,10 +54,8 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
           setState(() {
             _rbwData = result['data'];
           });
-          
 
           await _fetchOwnerName();
-          
 
           await _loadNodes();
         }
@@ -64,13 +63,10 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
     } catch (e) {
       print('Error loading RBW details: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     } finally {
       if (mounted) {
-
         setState(() => _isLoading = false);
       }
     }
@@ -78,14 +74,12 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
 
   Future<void> _fetchOwnerName() async {
     if (_rbwData == null) return;
-    
 
-    if (_rbwData!['owner']?['name'] != null || 
-        _rbwData!['owner_name'] != null || 
+    if (_rbwData!['owner']?['name'] != null ||
+        _rbwData!['owner_name'] != null ||
         _rbwData!['user']?['name'] != null) {
       return;
     }
-    
 
     final ownerId = _rbwData!['owner_id'];
     if (ownerId != null && _authToken != null) {
@@ -94,14 +88,14 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
           token: _authToken!,
           limit: 100, // Get a larger list to find the user
         );
-        
+
         if (usersResult['success'] == true && usersResult['data'] is List) {
           final users = usersResult['data'] as List;
           final owner = users.firstWhere(
             (user) => user['id'] == ownerId,
             orElse: () => null,
           );
-          
+
           if (owner != null && mounted) {
             setState(() {
               _ownerName = owner['name']?.toString() ?? 'Unknown';
@@ -116,15 +110,15 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
 
   Future<void> _loadNodes() async {
     if (_authToken == null) return;
-    
+
     setState(() => _loadingNodes = true);
-    
+
     try {
       final result = await _nodeService.listByRbw(
         _authToken!,
         widget.houseId,
       );
-      
+
       if (result['success'] == true && mounted) {
         setState(() {
           _nodes = result['data'] ?? [];
@@ -166,11 +160,13 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                       itemCount: _nodes.length,
                       itemBuilder: (context, index) {
                         final node = _nodes[index];
-                        final nodeType = node['node_type']?.toString() ?? 'Unknown';
+                        final nodeType =
+                            node['node_type']?.toString() ?? 'Unknown';
                         final nodeCode = node['node_code']?.toString() ?? '-';
-                        final status = node['status_node']?.toString() ?? 'offline';
+                        final status =
+                            node['status_node']?.toString() ?? 'offline';
                         final esp32Uid = node['esp32_uid']?.toString() ?? '-';
-                        
+
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
@@ -180,12 +176,15 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                                   : Colors.grey.withOpacity(0.1),
                               child: Icon(
                                 Icons.device_hub,
-                                color: status == 'online' ? Colors.green : Colors.grey,
+                                color: status == 'online'
+                                    ? Colors.green
+                                    : Colors.grey,
                               ),
                             ),
                             title: Text(
                               nodeCode,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +194,9 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                                 Text(
                                   'Status: $status',
                                   style: TextStyle(
-                                    color: status == 'online' ? Colors.green : Colors.grey,
+                                    color: status == 'online'
+                                        ? Colors.green
+                                        : Colors.grey,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -240,7 +241,6 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         Card(
                           elevation: 4,
                           child: Padding(
@@ -253,15 +253,18 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                                     CircleAvatar(
                                       radius: 30,
                                       backgroundColor: blue500.withOpacity(0.1),
-                                      child: Icon(Icons.home_work, size: 30, color: blue500),
+                                      child: Icon(Icons.home_work,
+                                          size: 30, color: blue500),
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            _rbwData!['name']?.toString() ?? 'Unknown',
+                                            _rbwData!['name']?.toString() ??
+                                                'Unknown',
                                             style: const TextStyle(
                                               fontSize: 20,
                                               fontWeight: FontWeight.bold,
@@ -285,8 +288,6 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-
-
                         Card(
                           elevation: 2,
                           child: Padding(
@@ -302,24 +303,31 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                                   ),
                                 ),
                                 const Divider(height: 24),
-                                _buildDetailRow('Owner', 
-                                  _rbwData!['owner']?['name']?.toString() ?? 
-                                  _rbwData!['owner_name']?.toString() ?? 
-                                  _rbwData!['user']?['name']?.toString() ??
-                                  _ownerName ??
-                                  'Unknown'),
-                                _buildDetailRow('Address', _rbwData!['address']?.toString() ?? '-'),
-                                _buildDetailRow('Total Floors', _rbwData!['total_floors']?.toString() ?? '0'),
-                                _buildDetailRow('Latitude', _rbwData!['latitude']?.toString() ?? '-'),
-                                _buildDetailRow('Longitude', _rbwData!['longitude']?.toString() ?? '-'),
+                                _buildDetailRow(
+                                    'Owner',
+                                    _rbwData!['owner']?['name']?.toString() ??
+                                        _rbwData!['owner_name']?.toString() ??
+                                        _rbwData!['user']?['name']
+                                            ?.toString() ??
+                                        _ownerName ??
+                                        'Unknown'),
+                                _buildDetailRow('Address',
+                                    _rbwData!['address']?.toString() ?? '-'),
+                                _buildDetailRow(
+                                    'Total Floors',
+                                    _rbwData!['total_floors']?.toString() ??
+                                        '0'),
+                                _buildDetailRow('Latitude',
+                                    _rbwData!['latitude']?.toString() ?? '-'),
+                                _buildDetailRow('Longitude',
+                                    _rbwData!['longitude']?.toString() ?? '-'),
                               ],
                             ),
                           ),
                         ),
                         const SizedBox(height: 16),
-
-
-                        if (_rbwData!['description'] != null && _rbwData!['description'].toString().isNotEmpty)
+                        if (_rbwData!['description'] != null &&
+                            _rbwData!['description'].toString().isNotEmpty)
                           Card(
                             elevation: 2,
                             child: Padding(
@@ -343,11 +351,9 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                               ),
                             ),
                           ),
-                        
-                        if (_rbwData!['description'] != null && _rbwData!['description'].toString().isNotEmpty)
+                        if (_rbwData!['description'] != null &&
+                            _rbwData!['description'].toString().isNotEmpty)
                           const SizedBox(height: 16),
-
-
                         const Text(
                           'Management',
                           style: TextStyle(
@@ -356,8 +362,6 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
-
-
                         Card(
                           elevation: 2,
                           child: ListTile(
@@ -367,50 +371,54 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                             ),
                             title: Text(
                               'Nodes (IoT Devices)',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
                             ),
                             subtitle: Text('${_nodes.length} nodes installed'),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            trailing:
+                                const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: _showNodesDialog,
                           ),
                         ),
                         const SizedBox(height: 8),
-
-
                         Card(
                           elevation: 2,
                           child: ListTile(
                             leading: CircleAvatar(
                               backgroundColor: Colors.green.withOpacity(0.1),
-                              child: const Icon(Icons.agriculture, color: Colors.green),
+                              child: const Icon(Icons.agriculture,
+                                  color: Colors.green),
                             ),
                             title: const Text(
                               'Harvest Records',
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
-                            subtitle: const Text('View and manage harvest data'),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            subtitle:
+                                const Text('View and manage harvest data'),
+                            trailing:
+                                const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: () {
                               Navigator.pushNamed(context, '/admin-harvest');
                             },
                           ),
                         ),
                         const SizedBox(height: 8),
-
-
                         Card(
                           elevation: 2,
                           child: ListTile(
                             leading: CircleAvatar(
                               backgroundColor: Colors.orange.withOpacity(0.1),
-                              child: const Icon(Icons.account_balance_wallet, color: Colors.orange),
+                              child: const Icon(Icons.account_balance_wallet,
+                                  color: Colors.orange),
                             ),
                             title: const Text(
                               'Finance & Transactions',
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
-                            subtitle: const Text('Manage financial transactions'),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            subtitle:
+                                const Text('Manage financial transactions'),
+                            trailing:
+                                const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: () {
                               Navigator.pushNamed(context, '/admin-finance');
                             },
@@ -419,7 +427,6 @@ class _KandangDetailPageState extends State<KandangDetailPage> {
                         Divider(height: 36),
                       ],
                     ),
-                    
                   ),
                 ),
     );

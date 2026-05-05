@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/services/harvest_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:intl/intl.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class AdminHarvestPage extends StatefulWidget {
   const AdminHarvestPage({super.key});
@@ -43,9 +44,7 @@ class _AdminHarvestPageState extends State<AdminHarvestPage> {
     } catch (e) {
       print('Error loading harvest list: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     } finally {
       setState(() => _isLoading = false);

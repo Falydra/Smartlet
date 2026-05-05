@@ -6,13 +6,14 @@ import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/services/api_constants.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/auth_services.dart';
 
 class ServiceRequestDetailPage extends StatefulWidget {
   const ServiceRequestDetailPage({super.key});
 
   @override
-  State<ServiceRequestDetailPage> createState() => _ServiceRequestDetailPageState();
+  State<ServiceRequestDetailPage> createState() =>
+      _ServiceRequestDetailPageState();
 }
 
 class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
@@ -42,11 +43,12 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+    final args =
+        ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
     _id = args?['id']?.toString();
     _load();
   }
-  
+
   Future<void> _load() async {
     if (_id == null) return;
     setState(() => _loading = true);
@@ -56,15 +58,12 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       return;
     }
 
-
     final res = await _service.getById(token, _id!);
     if (res['success'] == true) {
       setState(() => _data = res['data'] as Map<String, dynamic>?);
     } else {
-
       print('ServiceRequestDetailPage._load ${res['message']}');
     }
-
 
     try {
       final auth = AuthService();
@@ -77,18 +76,20 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
       print('Failed to load profile: $e');
     }
 
-
     try {
-      final assignedId = _data?['technician_id']?.toString() ?? _data?['technician']?['id']?.toString();
+      final assignedId = _data?['technician_id']?.toString() ??
+          _data?['technician']?['id']?.toString();
       setState(() {
-        _isAssignedTech = assignedId != null && _userId != null && assignedId == _userId;
+        _isAssignedTech =
+            assignedId != null && _userId != null && assignedId == _userId;
       });
     } catch (_) {}
 
-
     try {
-      final uri = Uri.parse('${ApiConstants.users}?role=technician&per_page=100');
-      final resp = await http.get(uri, headers: ApiConstants.authHeaders(token));
+      final uri =
+          Uri.parse('${ApiConstants.users}?role=technician&per_page=100');
+      final resp =
+          await http.get(uri, headers: ApiConstants.authHeaders(token));
       if (resp.statusCode == 200) {
         try {
           final body = jsonDecode(resp.body);
@@ -96,14 +97,21 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
           setState(() {
             _technicians = data;
             const special = '00000000-0000-0000-0000-000000000002';
-            final found = _technicians.isNotEmpty ? _technicians.firstWhere((e) => e['id']?.toString() == special, orElse: () => null) : null;
+            final found = _technicians.isNotEmpty
+                ? _technicians.firstWhere((e) => e['id']?.toString() == special,
+                    orElse: () => null)
+                : null;
             if (found != null) {
               _selectedTechnicianId = found['id']?.toString();
             } else if (_technicians.isNotEmpty) {
               _selectedTechnicianId = _technicians.first['id']?.toString();
             } else {
               _technicians = const [
-                {'id': special, 'name': 'Teknisi1', 'email': 'technician@swiftlead.id'}
+                {
+                  'id': special,
+                  'name': 'Teknisi1',
+                  'email': 'technician@swiftlead.id'
+                }
               ];
               _selectedTechnicianId = special;
             }
@@ -124,24 +132,26 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
     final token = await TokenManager.getToken();
     if (token == null) {
       setState(() => _assigning = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not authenticated — please log in')));
+      ModernSnackBar.error(context, 'Not authenticated — please log in');
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    final res = await _service.assignComposite(token, _id!, _selectedTechnicianId!);
+    final res =
+        await _service.assignComposite(token, _id!, _selectedTechnicianId!);
     setState(() => _assigning = false);
     if (!mounted) return;
     if (res['success'] == true) {
       ModernSnackBar.success(context, 'Technician assigned successfully');
       await _load();
     } else {
-      ModernSnackBar.error(context, 'Failed to assign: ${res['message'] ?? res['statusCode'] ?? 'Unknown error'}');
+      ModernSnackBar.error(context,
+          'Failed to assign: ${res['message'] ?? res['statusCode'] ?? 'Unknown error'}');
     }
   }
 
   Future<void> _createNode() async {
     if (_data == null) return;
-    final rbwId = _data!['rbw_id']?.toString() ?? _data!['rbw']?['id']?.toString();
+    final rbwId =
+        _data!['rbw_id']?.toString() ?? _data!['rbw']?['id']?.toString();
     if (rbwId == null) {
       ModernSnackBar.error(context, 'RBW id not available');
       return;
@@ -170,15 +180,12 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
     setState(() => _creatingNode = false);
     if (!mounted) return;
     if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Node created successfully'), backgroundColor: Colors.green),
-      );
+      ModernSnackBar.success(context, 'Node created successfully');
       _nodeCodeController.clear();
       _espController.clear();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create node: ${res['message'] ?? 'Unknown error'}'), backgroundColor: Colors.red),
-      );
+      ModernSnackBar.error(context,
+          'Failed to create node: ${res['message'] ?? 'Unknown error'}');
     }
   }
 
@@ -200,44 +207,61 @@ class _ServiceRequestDetailPageState extends State<ServiceRequestDetailPage> {
                       const SizedBox(height: 8),
                       Text('Status: ${_data!['status'] ?? ''}'),
                       const SizedBox(height: 8),
-                      Text('RBW: ${_data!['rbw']?['name'] ?? _data!['rbw_id'] ?? ''}'),
+                      Text(
+                          'RBW: ${_data!['rbw']?['name'] ?? _data!['rbw_id'] ?? ''}'),
                       const SizedBox(height: 12),
-
-
                       const Divider(),
                       const Text('Assign Technician (admin only)'),
                       const SizedBox(height: 8),
                       if (_role == 'admin') ...[
                         DropdownButtonFormField<String>(
                           initialValue: _selectedTechnicianId,
-                          items: _technicians.map<DropdownMenuItem<String>>((e) {
+                          items:
+                              _technicians.map<DropdownMenuItem<String>>((e) {
                             final id = e['id']?.toString() ?? '';
                             final name = e['name'] ?? e['email'] ?? id;
-                            return DropdownMenuItem(value: id, child: Text(name.toString()));
+                            return DropdownMenuItem(
+                                value: id, child: Text(name.toString()));
                           }).toList(),
-                          onChanged: (v) => setState(() => _selectedTechnicianId = v),
-                          decoration: const InputDecoration(labelText: 'Select Technician'),
+                          onChanged: (v) =>
+                              setState(() => _selectedTechnicianId = v),
+                          decoration: const InputDecoration(
+                              labelText: 'Select Technician'),
                         ),
                         const SizedBox(height: 8),
-                        ElevatedButton(onPressed: _assigning ? null : _assign, child: _assigning ? const CircularProgressIndicator() : const Text('Assign')),
+                        ElevatedButton(
+                            onPressed: _assigning ? null : _assign,
+                            child: _assigning
+                                ? const CircularProgressIndicator()
+                                : const Text('Assign')),
                       ] else ...[
-                        const Text('You are not allowed to assign technicians.'),
+                        const Text(
+                            'You are not allowed to assign technicians.'),
                       ],
-
                       const SizedBox(height: 20),
-
-
                       const Divider(),
                       const Text('Technician Actions'),
                       const SizedBox(height: 8),
                       if (_role == 'technician' && _isAssignedTech) ...[
-                        TextField(controller: _nodeCodeController, decoration: const InputDecoration(labelText: 'Node code')),
+                        TextField(
+                            controller: _nodeCodeController,
+                            decoration:
+                                const InputDecoration(labelText: 'Node code')),
                         const SizedBox(height: 8),
-                        TextField(controller: _espController, decoration: const InputDecoration(labelText: 'ESP32 UID (eg. 4C:C3:82:BF:09:E8)')),
+                        TextField(
+                            controller: _espController,
+                            decoration: const InputDecoration(
+                                labelText:
+                                    'ESP32 UID (eg. 4C:C3:82:BF:09:E8)')),
                         const SizedBox(height: 8),
-                        ElevatedButton(onPressed: _creatingNode ? null : _createNode, child: _creatingNode ? const CircularProgressIndicator() : const Text('Create Node for RBW')),
+                        ElevatedButton(
+                            onPressed: _creatingNode ? null : _createNode,
+                            child: _creatingNode
+                                ? const CircularProgressIndicator()
+                                : const Text('Create Node for RBW')),
                       ] else ...[
-                        const Text('Technician actions are available only to the assigned technician.'),
+                        const Text(
+                            'Technician actions are available only to the assigned technician.'),
                       ],
                     ],
                   ),

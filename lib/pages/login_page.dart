@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/pages/register_page.dart';
 import 'package:swiftlead/pages/farmer_setup_page.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/auth_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/biometric_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:swiftlead/pages/forgot_password_page.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class LoginPage extends StatefulWidget {
   final TextEditingController? controller;
@@ -20,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _canCheckBiometrics = false;
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
@@ -28,6 +33,16 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     showPassword = false;
+    _checkBiometricSupport();
+  }
+
+  Future<void> _checkBiometricSupport() async {
+    final canCheck = await BiometricHelper.canCheckBiometrics();
+    if (mounted) {
+      setState(() {
+        _canCheckBiometrics = canCheck;
+      });
+    }
   }
 
   @override
@@ -139,35 +154,81 @@ class _LoginPageState extends State<LoginPage> {
                   keyboardType: TextInputType.visiblePassword,
                   textInputAction: TextInputAction.done,
                 ),
-                const SizedBox(
-                  height: 20,
-                ),
-                ElevatedButton(
-                    onPressed: _isLoading ? null : () {
-                      _signin();
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/forgot-password');
                     },
-                    style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10.0),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                    child: const Text(
+                      "Lupa Password?",
+                      style: TextStyle(
+                          color: Color(0xff245C4C),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: "TT Norms"),
+                    ),
+                  ),
+                ),
+                const SizedBox(
+                  height: 10,
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  _signin();
+                                },
+                          style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.0),
+                              ),
+                              backgroundColor: const Color(0xFF204941),
+                              foregroundColor: Colors.white,
+                              minimumSize: Size(width(context) * 0.6,
+                                  height(context) * 0.075)),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white)
+                              : const Text(
+                                  "Masuk",
+                                  style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w500,
+                                      fontFamily: "TT Norms"),
+                                )),
+                    ),
+                    if (_canCheckBiometrics) ...[
+                      const SizedBox(width: 10),
+                      InkWell(
+                        onTap: _biometricLogin,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          height: height(context) * 0.075,
+                          width: height(context) * 0.075,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFF204941), width: 1.5),
+                          ),
+                          child: const Icon(
+                            Icons.fingerprint,
+                            size: 35,
+                            color: Color(0xFF204941),
+                          ),
                         ),
-                        backgroundColor: const Color(0xFF204941),
-                        foregroundColor: Colors.white,
-                        minimumSize: Size(
-                            width(context) * 0.75, height(context) * 0.075)),
-                    child: _isLoading 
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            "Masuk",
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                                fontFamily: "TT Norms"),
-                          )),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(
                   height: 5,
                 ),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -205,7 +266,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-
   void _signin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       _showErrorDialog("Email dan password tidak boleh kosong");
@@ -220,21 +280,19 @@ class _LoginPageState extends State<LoginPage> {
     String password = _passwordController.text;
 
     try {
-
       final apiResponse = await _apiAuth.login(email, password);
-      
-
 
       final dynamic responseBody = apiResponse;
-      final dynamic userData = (responseBody is Map && responseBody.containsKey('data'))
-          ? responseBody['data']
-          : responseBody;
+      final dynamic userData =
+          (responseBody is Map && responseBody.containsKey('data'))
+              ? responseBody['data']
+              : responseBody;
 
-      if (userData != null && userData is Map && (userData['token'] != null || userData.containsKey('user'))) {
-
+      if (userData != null &&
+          userData is Map &&
+          (userData['token'] != null || userData.containsKey('user'))) {
         final token = userData['token'];
         final user = userData['user'] ?? userData;
-        
 
         await TokenManager.saveAuthData(
           token: token,
@@ -243,10 +301,16 @@ class _LoginPageState extends State<LoginPage> {
           userEmail: user['email'] ?? email,
           userRole: user['role']?.toString() ?? 'farmer',
         );
-        
+
         if (!mounted) return;
 
         print("API Login successful");
+
+        // Save credentials for biometric login if success
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('bio_email', email);
+        await prefs.setString('bio_password', password);
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const FarmerSetupPage()),
@@ -254,20 +318,20 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-
       print('API login response (not successful): $apiResponse');
-      if (apiResponse.containsKey('message') && apiResponse['message'] != null) {
-        _showErrorDialog(apiResponse['message'].toString());
-        setState(() { _isLoading = false; });
+      if (apiResponse.containsKey('message') &&
+          apiResponse['message'] != null) {
+        ModernSnackBar.error(context, apiResponse['message'].toString());
+        setState(() {
+          _isLoading = false;
+        });
         return;
       }
     } catch (e) {
       print("API Login failed: $e");
-
     }
 
-
-    _showErrorDialog("Email atau password salah");
+    ModernSnackBar.error(context, "Email atau password salah");
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -277,7 +341,7 @@ class _LoginPageState extends State<LoginPage> {
 
   void _showErrorDialog(String message) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -293,5 +357,27 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Future<void> _biometricLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('bio_email');
+    final savedPassword = prefs.getString('bio_password');
 
+    if (savedEmail == null || savedPassword == null) {
+      if (mounted) {
+        ModernSnackBar.warning(context,
+            'Silakan login manual terlebih dahulu untuk mengaktifkan biometrik');
+      }
+      return;
+    }
+
+    final authenticated = await BiometricHelper.authenticate(
+      reason: 'Silakan verifikasi identitas Anda untuk login',
+    );
+
+    if (authenticated) {
+      _emailController.text = savedEmail;
+      _passwordController.text = savedPassword;
+      _signin();
+    }
+  }
 }

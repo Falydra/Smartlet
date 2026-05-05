@@ -1,4 +1,4 @@
-import 'auth_services.dart.dart';
+import 'auth_services.dart';
 import 'house_services.dart';
 import 'sensor_services.dart';
 import 'harvest_services.dart';
@@ -6,9 +6,7 @@ import 'request_services.dart';
 import 'file_services.dart';
 import 'health_check_service.dart';
 
-
 class ApiServiceManager {
-
   static final AuthService _authService = AuthService();
   static final HouseService _houseService = HouseService();
   static final SensorService _sensorService = SensorService();
@@ -16,7 +14,6 @@ class ApiServiceManager {
   static final RequestService _requestService = RequestService();
   static final FileService _fileService = FileService();
   static final HealthCheckService _healthCheckService = HealthCheckService();
-
 
   static AuthService get auth => _authService;
   static HouseService get house => _houseService;
@@ -26,7 +23,6 @@ class ApiServiceManager {
   static FileService get file => _fileService;
   static HealthCheckService get health => _healthCheckService;
 
-
   static Future<bool> isSystemReady() async {
     try {
       return await _healthCheckService.isSystemHealthy();
@@ -35,13 +31,12 @@ class ApiServiceManager {
     }
   }
 
-
   static Future<Map<String, dynamic>> getSystemStatus() async {
     try {
       final health = await _healthCheckService.healthCheck();
       final ready = await _healthCheckService.readinessCheck();
       final live = await _healthCheckService.livenessCheck();
-      
+
       return {
         'overall': 'healthy',
         'health': health,
@@ -59,7 +54,6 @@ class ApiServiceManager {
   }
 }
 
-
 class ApiResponse<T> {
   final bool success;
   final String? message;
@@ -75,17 +69,19 @@ class ApiResponse<T> {
     this.errors,
   });
 
-  factory ApiResponse.fromJson(Map<String, dynamic> json, T Function(dynamic)? fromJsonT) {
+  factory ApiResponse.fromJson(
+      Map<String, dynamic> json, T Function(dynamic)? fromJsonT) {
     return ApiResponse<T>(
       success: json['success'] ?? false,
       message: json['message'],
-      data: json['data'] != null && fromJsonT != null ? fromJsonT(json['data']) : json['data'],
+      data: json['data'] != null && fromJsonT != null
+          ? fromJsonT(json['data'])
+          : json['data'],
       meta: json['meta'],
       errors: json['errors'] != null ? List<String>.from(json['errors']) : null,
     );
   }
 }
-
 
 class PaginationInfo {
   final int limit;
@@ -118,7 +114,6 @@ class PaginationInfo {
     );
   }
 }
-
 
 class PaginatedResponse<T> {
   final List<T> data;

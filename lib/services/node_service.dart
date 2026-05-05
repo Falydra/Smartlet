@@ -9,11 +9,19 @@ class NodeService {
   Future<Map<String, dynamic>> createUnderRbw(String token, String rbwId, Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$baseUrl/rbw/$rbwId/nodes');
-      final response = await http.post(uri, headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"}, body: jsonEncode(payload));
+      final response = await http.post(
+        uri, 
+        headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"}, 
+        body: jsonEncode(payload)
+      ).timeout(const Duration(seconds: 10));
 
       try {
         final body = jsonDecode(response.body);
-        return {'success': response.statusCode == 201 || response.statusCode == 200, 'data': body['data'], 'statusCode': response.statusCode};
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return {'success': true, 'data': body['data'], 'statusCode': response.statusCode};
+        } else {
+          return {'success': false, 'message': body['message'] ?? body['error'] ?? 'Gagal dengan kode: ${response.statusCode}', 'statusCode': response.statusCode};
+        }
       } catch (e) {
         return {'success': response.statusCode == 201 || response.statusCode == 200, 'statusCode': response.statusCode, 'message': response.body.isNotEmpty ? response.body : 'Non-JSON response from create node'};
       }
@@ -161,7 +169,11 @@ class NodeService {
 
       try {
         final body = jsonDecode(response.body);
-        return {'success': response.statusCode == 200, 'data': body['data'], 'statusCode': response.statusCode};
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return {'success': true, 'data': body['data'], 'statusCode': response.statusCode};
+        } else {
+          return {'success': false, 'message': body['message'] ?? body['error'] ?? 'Gagal update node', 'statusCode': response.statusCode};
+        }
       } catch (e) {
         return {'success': response.statusCode == 200, 'statusCode': response.statusCode, 'message': response.body.isNotEmpty ? response.body : 'Non-JSON response from update node'};
       }
@@ -234,7 +246,7 @@ class NodeService {
 
   Future<Map<String, dynamic>> controlAudio(String token, String id, String action, int value) async {
     try {
-      final uri = Uri.parse('$baseUrl/nodes/$id/audio-control');
+      final uri = Uri.parse('$baseUrl/nodes/$id/audio');
       final response = await http.patch(
         uri, 
         headers: {

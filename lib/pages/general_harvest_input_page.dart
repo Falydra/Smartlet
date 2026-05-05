@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/harvest_services.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/pages/add_harvest_page.dart';
@@ -124,12 +125,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
     } catch (e) {
       print('Error initializing general harvest data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memuat data kandang: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal memuat data kandang: ${e.toString()}');
       }
     }
     
@@ -417,14 +413,9 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
 
 
   Future<void> _saveHarvestData() async {
-    if (_formKey.currentState?.validate() != true) {
+    if (_formKey.currentState?.validate() == true) {
       if (_totalSarang == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Minimal satu lantai harus memiliki sarang'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Minimal satu lantai harus memiliki sarang');
         return;
       }
 
@@ -448,12 +439,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               _isSaving = false;
             });
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Akses API diperlukan — silakan masuk terlebih dahulu'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          ModernSnackBar.error(context, 'Akses API diperlukan — silakan masuk terlebih dahulu');
           return;
         }
 
@@ -469,12 +455,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               _isSaving = false;
             });
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ID Kandang tidak tersedia, Pilih kandang terlebih dahulu'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          ModernSnackBar.error(context, 'ID Kandang tidak tersedia, Pilih kandang terlebih dahulu');
           return;
         }
 
@@ -482,9 +463,6 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         final harvestedAt = DateTime.utc(_selectedYear, _selectedMonth, 1).toIso8601String();
 
 
-        
-
-        final nodeId = _selectedNode!['id']?.toString();
 
 
 
@@ -577,18 +555,16 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               });
             }
             
-            String message = 'Data pre-harvest tersimpan di server ($successCount lantai). Rekomendasi: $recommendedHarvest sarang';
+            String message = 'Data pre-harvest tersimpan ';
             if (errors.isNotEmpty) {
               message += '\n\nPeringatan: Beberapa lantai gagal:\n${errors.join('\n')}';
             }
             
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(message),
-                backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
-                duration: const Duration(seconds: 5),
-              ),
-            );
+            if (errors.isEmpty) {
+              ModernSnackBar.success(context, message);
+            } else {
+              ModernSnackBar.error(context, message);
+            }
           } else {
 
             if (mounted) {
@@ -602,13 +578,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
               errorMessage += ':\n${errors.join('\n')}';
             }
             
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(errorMessage),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 5),
-              ),
-            );
+            ModernSnackBar.error(context, errorMessage);
           }
         } catch (e) {
           if (mounted) {
@@ -617,12 +587,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
             });
           }
           print('Error saving pre-harvest to API: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gagal terhubung ke server: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          ModernSnackBar.error(context, 'Gagal terhubung ke server: $e');
         }
       } catch (e) {
         print('Error saving harvest data: $e');
@@ -632,24 +597,14 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
           });
         }
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menyimpan data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal menyimpan data: $e');
       }
     }
   }
 
   void _showOptimalHarvestSummary() {
     if (_totalSarang == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Silakan masukkan data sarang terlebih dahulu'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ModernSnackBar.warning(context, 'Silakan masukkan data sarang terlebih dahulu');
       return;
     }
 
@@ -845,12 +800,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       }
 
       if (floorLimits.values.every((limit) => limit == 0)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Minimal satu lantai harus memiliki sarang'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Minimal satu lantai harus memiliki sarang');
         return;
       }
 
@@ -1025,12 +975,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       if (mounted) Navigator.of(context).pop();
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memuat daftar panen: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal memuat daftar panen: $e');
       }
     }
   }
@@ -1075,12 +1020,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       await _harvestService.delete(_authToken!, harvestId);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data panen berhasil dihapus'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ModernSnackBar.success(context, 'Data panen berhasil dihapus');
         
 
         Navigator.of(context).pop(); // Close current dialog
@@ -1088,12 +1028,7 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menghapus data panen: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal menghapus data panen: $e');
       }
     }
   }
@@ -1108,12 +1043,10 @@ class _GeneralHarvestInputPageState extends State<GeneralHarvestInputPage> {
         _floorControllers[floorNumber].text = amount.toString();
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Data Lantai ${floorNumber + 1} dimuat untuk diedit. Silakan ubah dan simpan.'),
-          backgroundColor: Colors.blue,
-          duration: const Duration(seconds: 3),
-        ),
+      ModernSnackBar.show(
+        context,
+        message: 'Data Lantai ${floorNumber + 1} dimuat untuk diedit. Silakan ubah dan simpan.',
+        type: SnackBarType.info,
       );
       
 

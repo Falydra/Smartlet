@@ -1,0 +1,1597 @@
+{
+  "info": {
+    "_postman_id": "0700f7fe-c69c-434c-86ab-20d309b0e2a2",
+    "name": "Smartlet Backend API",
+    "description": "Complete API collection for Smartlet Backend - Swiftlet House IoT Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "41734807"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Metrics (Prometheus)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/metrics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "metrics"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.token) {",
+                  "        pm.collectionVariables.set('auth_token', jsonData.data.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"password\": \"Password123!\",\n    \"phone\": \"+6281234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.token) {",
+                  "        pm.collectionVariables.set('auth_token', jsonData.data.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john@example.com\",\n    \"password\": \"Password123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"John Updated\",\n    \"phone\": \"+6281234567899\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"Password123!\",\n    \"new_password\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/change-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "RBW (Swiftlet Houses)",
+      "item": [
+        {
+          "name": "Create RBW",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('rbw_id', jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Rumah Walet Utama\",\n    \"location\": \"Jl. Raya Walet No. 123, Jakarta\",\n    \"latitude\": -6.2088,\n    \"longitude\": 106.8456,\n    \"address\": \"Jl. Raya Walet No. 123\",\n    \"city\": \"Jakarta\",\n    \"province\": \"DKI Jakarta\",\n    \"postal_code\": \"12345\",\n    \"floors\": 3,\n    \"rooms_per_floor\": 4,\n    \"description\": \"Rumah walet berlantai 3 dengan kapasitas besar\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All RBW",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get RBW by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update RBW",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Rumah Walet Utama (Updated)\",\n    \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete RBW",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Nodes (IoT Devices)",
+      "item": [
+        {
+          "name": "Create Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('node_id', jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rbw_id\": \"{{rbw_id}}\",\n    \"name\": \"LMB Node 1\",\n    \"type\": \"lmb\",\n    \"floor_no\": 1,\n    \"room_no\": 1,\n    \"esp32_uid\": \"ESP32-001\",\n    \"description\": \"LMB node with full sensors\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Nodes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Node by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get RBW Nodes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/nodes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "nodes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Node",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"LMB Node 1 (Updated)\",\n    \"floor_no\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Control Pump",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"state\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}/pump",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}",
+                "pump"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Control Audio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"action\": \"audio_set_lmb\",\n    \"value\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}/audio",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}",
+                "audio"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Node",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sensors",
+      "item": [
+        {
+          "name": "Create Sensor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('sensor_id', jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"node_id\": \"{{node_id}}\",\n    \"sensor_type\": \"temp\",\n    \"name\": \"Temperature Sensor\",\n    \"unit\": \"°C\",\n    \"min_value\": 0,\n    \"max_value\": 50,\n    \"description\": \"DHT22 Temperature Sensor\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Sensors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sensor by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "{{sensor_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Node Sensors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}/sensors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}",
+                "sensors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Sensor",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Temperature Sensor (Updated)\",\n    \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "{{sensor_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Sensor",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "{{sensor_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sensor Readings (Telemetry)",
+      "item": [
+        {
+          "name": "Create Reading",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sensor_id\": \"{{sensor_id}}\",\n    \"value\": 28.5,\n    \"recorded_at\": \"2026-02-18T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors/{{sensor_id}}/readings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "{{sensor_id}}",
+                "readings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sensor Readings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sensors/{{sensor_id}}/readings?limit=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "{{sensor_id}}",
+                "readings"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-02-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-02-28",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Node Latest Readings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/nodes/{{node_id}}/readings/latest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}",
+                "readings",
+                "latest"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "Create Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rbw_id\": \"{{rbw_id}}\",\n    \"node_id\": \"{{node_id}}\",\n    \"sensor_id\": \"{{sensor_id}}\",\n    \"alert_type\": \"temp_high\",\n    \"severity\": 3,\n    \"message\": \"Temperature exceeded threshold\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/alerts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alerts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/alerts?unread_only=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "unread_only",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get RBW Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/alerts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "alerts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Alert as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/alerts/{alert_id}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alerts",
+                "{alert_id}",
+                "read"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Alert",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/alerts/{alert_id}/resolve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alerts",
+                "{alert_id}",
+                "resolve"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Service Requests",
+      "item": [
+        {
+          "name": "Create Service Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rbw_id\": \"{{rbw_id}}\",\n    \"node_id\": \"{{node_id}}\",\n    \"sensor_id\": \"{{sensor_id}}\",\n    \"request_type\": \"maintenance\",\n    \"priority\": \"high\",\n    \"title\": \"Sensor malfunction\",\n    \"description\": \"Temperature sensor not responding\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/service-requests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "service-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Service Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/service-requests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "service-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get RBW Service Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/service-requests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "service-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service Request",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/service-requests/{request_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "service-requests",
+                "{request_id}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Technician",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"technician_id\": \"technician-uuid\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/service-requests/{request_id}/assign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "service-requests",
+                "{request_id}",
+                "assign"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Harvests",
+      "item": [
+        {
+          "name": "Create Harvest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rbw_id\": \"{{rbw_id}}\",\n    \"node_id\": \"{{node_id}}\",\n    \"floor_no\": 1,\n    \"nests_count\": 50,\n    \"weight_kg\": 2.5,\n    \"grade\": \"A\",\n    \"harvest_date\": \"2026-02-18\",\n    \"notes\": \"Good quality harvest\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/harvests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "harvests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Harvests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/harvests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "harvests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get RBW Harvests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/harvests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "harvests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Harvest Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/harvests/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "harvests",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Harvest",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"grade\": \"B\",\n    \"notes\": \"Updated grade after inspection\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/harvests/{harvest_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "harvests",
+                "{harvest_id}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rbw_id\": \"{{rbw_id}}\",\n    \"category_id\": \"category-uuid\",\n    \"type\": \"income\",\n    \"amount\": 5000000,\n    \"description\": \"Penjualan sarang walet grade A\",\n    \"transaction_date\": \"2026-02-18\",\n    \"payment_method\": \"transfer\",\n    \"reference_type\": \"harvest\",\n    \"reference_id\": \"harvest-uuid\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get RBW Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/transactions?type=income&start_date=2026-02-01&end_date=2026-02-28",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "income"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-02-01"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-02-28"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Transaction by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/{transaction_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                "{transaction_id}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Transaction",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amount\": 5500000,\n    \"description\": \"Updated amount after negotiation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/{transaction_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                "{transaction_id}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Transaction",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/{transaction_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                "{transaction_id}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Penjualan Sarang\",\n    \"type\": \"income\",\n    \"description\": \"Pendapatan dari penjualan sarang walet\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transaction-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transaction-categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/transaction-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transaction-categories"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Financial Statements",
+      "item": [
+        {
+          "name": "Generate Financial Statement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rbw_id\": \"{{rbw_id}}\",\n    \"period_type\": \"monthly\",\n    \"year\": 2026,\n    \"month\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/financial-statements/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial-statements",
+                "generate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Financial Statements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/financial-statements",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "financial-statements"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Monthly Statement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/financial-statements/monthly/2026/2",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "financial-statements",
+                "monthly",
+                "2026",
+                "2"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Yearly Statement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/rbw/{{rbw_id}}/financial-statements/yearly/2026",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rbw",
+                "{{rbw_id}}",
+                "financial-statements",
+                "yearly",
+                "2026"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dummy Data (Testing)",
+      "item": [
+        {
+          "name": "Get Dummy Sensor Data",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dummy/sensor-data?sensor_type=temp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dummy",
+                "sensor-data"
+              ],
+              "query": [
+                {
+                  "key": "sensor_type",
+                  "value": "temp",
+                  "description": "Options: temp, humid, ammonia"
+                }
+              ]
+            },
+            "description": "Returns random sensor data for testing purposes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dummy Node Data",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dummy/node-data",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dummy",
+                "node-data"
+              ]
+            },
+            "description": "Returns random data for all sensor types in a node"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "rbw_id",
+      "value": ""
+    },
+    {
+      "key": "node_id",
+      "value": ""
+    },
+    {
+      "key": "sensor_id",
+      "value": ""
+    }
+  ]
+}

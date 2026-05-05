@@ -5,6 +5,7 @@ import 'package:swiftlead/pages/add_harvest_page.dart';
 import 'package:swiftlead/pages/general_harvest_input_page.dart';
 import 'package:swiftlead/components/custom_bottom_navigation.dart';
 import 'package:swiftlead/services/harvest_services.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/transaction_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
@@ -884,25 +885,14 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
       if (mounted) {
         if (successCount > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Berhasil menghapus $successCount data lantai $floorNo'),
-              backgroundColor: const Color(0xFF245C4C),
-            ),
-          );
+          ModernSnackBar.success(context, 'Berhasil menghapus $successCount data lantai $floorNo');
         } else if (errors.isNotEmpty) {
 
           String errorMsg = errors.first;
           if (errorMsg.contains('403') || errorMsg.contains('forbidden')) {
             errorMsg = 'Tidak memiliki izin untuk menghapus data panen';
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMsg),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          ModernSnackBar.error(context, errorMsg);
         }
       }
 
@@ -911,12 +901,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
     } catch (e) {
       print('Error deleting floor harvests: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Terjadi kesalahan saat menghapus data'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Terjadi kesalahan saat menghapus data');
       }
     }
   }
@@ -945,25 +930,14 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
       if (mounted) {
         if (successCount > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Berhasil menghapus $successCount data panen'),
-              backgroundColor: const Color(0xFF245C4C),
-            ),
-          );
+          ModernSnackBar.success(context, 'Berhasil menghapus $successCount data panen');
         } else if (errors.isNotEmpty) {
 
           String errorMsg = errors.first;
           if (errorMsg.contains('403') || errorMsg.contains('forbidden')) {
             errorMsg = 'Tidak memiliki izin untuk menghapus data panen.\nHubungi administrator untuk akses penghapusan.';
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMsg),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
+          ModernSnackBar.error(context, errorMsg);
         }
       }
 
@@ -972,12 +946,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
     } catch (e) {
       print('Error deleting all harvests: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Terjadi kesalahan saat menghapus data'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Terjadi kesalahan saat menghapus data');
       }
     }
   }
@@ -1088,13 +1057,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               final inputTotal = mangkok + sudut + sudut + oval + patahan;
 
               if ((inputTotal - totalNests).abs() > 0.1) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                        'Total input (${inputTotal.toInt()}) harus sama dengan total sarang (${totalNests.toInt()})'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                ModernSnackBar.error(context, 'Total input (${inputTotal.toInt()}) harus sama dengan total sarang (${totalNests.toInt()})');
                 return;
               }
 
@@ -1112,12 +1075,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
 
               Navigator.pop(context);
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Detail sarang berhasil diinput'),
-                  backgroundColor: Color(0xFF245C4C),
-                ),
-              );
+              ModernSnackBar.success(context, 'Detail sarang berhasil diinput');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF245C4C),
@@ -1336,10 +1294,10 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ElevatedButton.icon(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
                   onPressed: _showDatePicker,
                   icon: const Icon(Icons.calendar_month, size: 18),
                   label: Text(
@@ -1352,15 +1310,38 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
                     foregroundColor: const Color(0xFF245C4C),
                     elevation: 2,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
+                        horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                       side: const BorderSide(color: Color(0xFFffc200)),
                     ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ModernSnackBar.success(context, 'Menyiapkan laporan panen $_selectedCageName untuk ${_months[_selectedMonth - 1]} $_selectedYear...');
+                    // Implementation for download would go here
+                  },
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text(
+                    'Unduh Laporan',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF245C4C),
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
 
 
             Container(
@@ -1829,7 +1810,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               currentIndex: _currentIndex,
               itemIndex: 0,
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/home-page');
+                Navigator.pushNamed(context, '/home-page');
                 setState(() {
                   _currentIndex = 0;
                 });
@@ -1844,7 +1825,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               currentIndex: _currentIndex,
               itemIndex: 1,
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/control-page');
+                Navigator.pushNamed(context, '/control-page');
                 setState(() {
                   _currentIndex = 1;
                 });
@@ -1859,7 +1840,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               currentIndex: _currentIndex,
               itemIndex: 2,
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                Navigator.pushNamed(context, '/harvest/analysis');
                 setState(() {
                   _currentIndex = 2;
                 });
@@ -1874,7 +1855,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               currentIndex: _currentIndex,
               itemIndex: 3,
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/store-page');
+                Navigator.pushNamed(context, '/store-page');
                 setState(() {
                   _currentIndex = 3;
                 });
@@ -1889,7 +1870,7 @@ class _AnalysisPageAlternateState extends State<AnalysisPageAlternate>
               currentIndex: _currentIndex,
               itemIndex: 4,
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/profile-page');
+                Navigator.pushNamed(context, '/profile-page');
                 setState(() {
                   _currentIndex = 4;
                 });

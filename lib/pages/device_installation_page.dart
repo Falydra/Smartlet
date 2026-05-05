@@ -106,12 +106,11 @@ class _DeviceInstallationPageState extends State<DeviceInstallationPage> {
   }
 
   void _showMessage(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-      ),
-    );
+    if (isError) {
+      ModernSnackBar.error(context, message);
+    } else {
+      ModernSnackBar.success(context, message);
+    }
   }
 
   void _showInstallationRequestDialog() {

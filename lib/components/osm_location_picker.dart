@@ -3,6 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class OsmLocationPicker extends StatefulWidget {
   final LatLng? initialPosition;
@@ -45,9 +49,7 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Layanan lokasi tidak aktif')),
-          );
+          ModernSnackBar.warning(context, 'Layanan lokasi tidak aktif');
         }
         return;
       }
@@ -57,9 +59,7 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Izin lokasi ditolak')),
-            );
+            ModernSnackBar.error(context, 'Izin lokasi ditolak');
           }
           return;
         }
@@ -67,10 +67,7 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
 
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Izin lokasi ditolak secara permanen')),
-          );
+          ModernSnackBar.error(context, 'Izin lokasi ditolak secara permanen');
         }
         return;
       }
@@ -88,9 +85,7 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
       await _getAddressFromLatLng(newPosition);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error mengambil lokasi: $e')),
-        );
+        ModernSnackBar.error(context, 'Error mengambil lokasi: $e');
       }
     } finally {
       if (mounted) {
@@ -108,22 +103,87 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
     });
 
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+      // 1. Try native geocoding first (Android/iOS only)
+      if (!kIsWeb) {
+        try {
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          ).timeout(const Duration(seconds: 5));
 
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks[0];
+          if (placemarks.isNotEmpty) {
+            Placemark place = placemarks[0];
+            setState(() {
+              _address = [
+                place.street,
+                place.subLocality,
+                place.locality,
+                place.subAdministrativeArea,
+                place.administrativeArea,
+                place.postalCode,
+              ].where((s) => s != null && s.isNotEmpty).join(', ');
+            });
+            return;
+          }
+        } catch (e) {
+          print('Native geocoding failed: $e');
+        }
+      }
+
+      // 2. Try ArcGIS (Best for house numbers on Web/Global)
+      try {
+        final arcgisUrl = Uri.parse(
+            'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${position.longitude},${position.latitude}&f=json');
+        
+        final response = await http.get(arcgisUrl).timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['address'] != null) {
+            String matchAddr = data['address']['Match_addr'] ?? '';
+            // ArcGIS often returns "Street Name, House Number" or "Street Name No. X"
+            // We ensure it looks good
+            if (matchAddr.isNotEmpty) {
+              setState(() {
+                _address = matchAddr;
+              });
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        print('ArcGIS failed: $e');
+      }
+
+      // 3. Fallback: Nominatim (OpenStreetMap)
+      final url = Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}&zoom=18&addressdetails=1');
+
+      final response = await http.get(url, headers: {
+        'User-Agent': 'SmartletApp/1.0',
+        'Accept-Language': 'id',
+      }).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null) {
+          final addr = data['address'];
+          String displayName = data['display_name'] ?? '';
+          
+          if (addr != null && addr['house_number'] != null) {
+            String houseNumber = addr['house_number'];
+            String road = addr['road'] ?? addr['pedestrian'] ?? '';
+            if (road.isNotEmpty && !displayName.contains(houseNumber)) {
+              displayName = displayName.replaceFirst(road, '$road No. $houseNumber');
+            }
+          }
+          
+          setState(() {
+            _address = displayName.isNotEmpty ? displayName : 'Alamat tidak ditemukan';
+          });
+        }
+      } else {
         setState(() {
-          _address = [
-            place.street,
-            place.subLocality,
-            place.locality,
-            place.subAdministrativeArea,
-            place.administrativeArea,
-            place.postalCode,
-          ].where((s) => s != null && s.isNotEmpty).join(', ');
+          _address = 'Alamat tidak tersedia';
         });
       }
     } catch (e) {
@@ -132,9 +192,11 @@ class _OsmLocationPickerState extends State<OsmLocationPicker> {
         _address = 'Alamat tidak tersedia';
       });
     } finally {
-      setState(() {
-        _isLoadingAddress = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingAddress = false;
+        });
+      }
     }
   }
 

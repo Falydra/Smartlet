@@ -3,6 +3,7 @@ import 'package:swiftlead/utils/token_manager.dart';
 import 'package:swiftlead/services/transaction_service.dart';
 import 'package:swiftlead/pages/add_income_page.dart';
 import 'package:swiftlead/pages/add_expense_page.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class TransactionHistoryPage extends StatefulWidget {
   final List<dynamic> transactions;
@@ -41,9 +42,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       final token = await TokenManager.getToken();
       if (token == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Session expired. Please login again.')),
-          );
+          ModernSnackBar.error(context, 'Session expired. Please login again.');
         }
         return;
       }
@@ -55,25 +54,16 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
           setState(() {
             _transactions.removeAt(index);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaksi berhasil dihapus'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          ModernSnackBar.success(context, 'Transaksi berhasil dihapus');
 
           Navigator.pop(context, true);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal menghapus transaksi: ${result['message']}')),
-          );
+          ModernSnackBar.error(context, 'Gagal menghapus transaksi: ${result['message']}');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     }
   }

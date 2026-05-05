@@ -5,6 +5,7 @@ import 'package:swiftlead/components/osm_location_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class EditCagePage extends StatefulWidget {
   final Map<String, dynamic> cage;
@@ -96,12 +97,12 @@ class _EditCagePageState extends State<EditCagePage> {
         final hs = HouseService();
         final res = await hs.update(token, id, payload);
         if (res['success'] == true || res['data'] != null) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perubahan berhasil disimpan'), backgroundColor: Colors.green));
+          ModernSnackBar.success(context, 'Perubahan berhasil disimpan');
           Navigator.of(context).pop(true); // signal success
           return;
         } else {
           final message = res['message'] ?? res['error'] ?? 'Failed to update';
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan perubahan: $message'), backgroundColor: Colors.red));
+          ModernSnackBar.error(context, 'Gagal menyimpan perubahan: $message');
           setState(() { _isLoading = false; });
           return;
         }
@@ -119,11 +120,11 @@ class _EditCagePageState extends State<EditCagePage> {
         await prefs.setString('kandang_${idx}_code', _codeController.text.trim());
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perubahan disimpan secara lokal'), backgroundColor: Colors.orange));
+      ModernSnackBar.warning(context, 'Perubahan disimpan secara lokal');
       Navigator.of(context).pop(true);
     } catch (e) {
       print('Error updating cage: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e'), backgroundColor: Colors.red));
+      ModernSnackBar.error(context, 'Gagal menyimpan: $e');
       setState(() { _isLoading = false; });
     }
   }

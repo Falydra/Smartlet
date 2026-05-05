@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/admin_bottom_navigation.dart';
 import 'package:swiftlead/services/rbw_service.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/auth_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class AdminRbwPage extends StatefulWidget {
   const AdminRbwPage({super.key});
@@ -27,18 +28,17 @@ class _AdminRbwPageState extends State<AdminRbwPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       _authToken = await TokenManager.getToken();
-      
+
       if (_authToken != null) {
         final result = await _rbwService.listRbw(token: _authToken!);
-        
+
         if (result['success'] == true) {
           setState(() {
             _rbwList = result['data'] ?? [];
           });
-          
 
           await _fetchOwnerNames();
         }
@@ -46,13 +46,10 @@ class _AdminRbwPageState extends State<AdminRbwPage> {
     } catch (e) {
       print('Error loading RBW list: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     } finally {
       if (mounted) {
-
         setState(() => _isLoading = false);
       }
     }
@@ -60,37 +57,38 @@ class _AdminRbwPageState extends State<AdminRbwPage> {
 
   Future<void> _fetchOwnerNames() async {
     if (_rbwList.isEmpty || _authToken == null) return;
-    
 
     final ownerIdsToFetch = <String>{};
     for (final rbw in _rbwList) {
-      if (rbw['owner']?['name'] == null && 
-          rbw['owner_name'] == null && 
+      if (rbw['owner']?['name'] == null &&
+          rbw['owner_name'] == null &&
           rbw['owner_id'] != null) {
         ownerIdsToFetch.add(rbw['owner_id'].toString());
       }
     }
-    
+
     if (ownerIdsToFetch.isEmpty) return;
-    
+
     try {
       final usersResult = await _authService.listUsers(
         token: _authToken!,
         limit: 100,
       );
-      
+
       if (usersResult['success'] == true && usersResult['data'] is List) {
         final users = usersResult['data'] as List;
         final ownerNamesMap = <String, String>{};
-        
+
         for (final user in users) {
           final userId = user['id']?.toString();
           final userName = user['name']?.toString();
-          if (userId != null && userName != null && ownerIdsToFetch.contains(userId)) {
+          if (userId != null &&
+              userName != null &&
+              ownerIdsToFetch.contains(userId)) {
             ownerNamesMap[userId] = userName;
           }
         }
-        
+
         if (mounted && ownerNamesMap.isNotEmpty) {
           setState(() {
             _ownerNames = ownerNamesMap;
@@ -162,15 +160,21 @@ class _AdminRbwPageState extends State<AdminRbwPage> {
                               itemCount: _rbwList.length,
                               itemBuilder: (context, index) {
                                 final rbw = _rbwList[index];
-                                final name = rbw['name']?.toString() ?? 'Unknown';
+                                final name =
+                                    rbw['name']?.toString() ?? 'Unknown';
                                 final code = rbw['code']?.toString() ?? '-';
-                                final address = rbw['address']?.toString() ?? '-';
-                                final floors = rbw['total_floors']?.toString() ?? '0';
+                                final address =
+                                    rbw['address']?.toString() ?? '-';
+                                final floors =
+                                    rbw['total_floors']?.toString() ?? '0';
                                 final ownerId = rbw['owner_id']?.toString();
-                                final ownerName = rbw['owner']?['name']?.toString() ?? 
-                                                  rbw['owner_name']?.toString() ?? 
-                                                  (ownerId != null ? _ownerNames[ownerId] : null) ??
-                                                  'Unknown Owner';
+                                final ownerName =
+                                    rbw['owner']?['name']?.toString() ??
+                                        rbw['owner_name']?.toString() ??
+                                        (ownerId != null
+                                            ? _ownerNames[ownerId]
+                                            : null) ??
+                                        'Unknown Owner';
 
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 12),
@@ -181,7 +185,8 @@ class _AdminRbwPageState extends State<AdminRbwPage> {
                                       vertical: 8,
                                     ),
                                     leading: CircleAvatar(
-                                      backgroundColor: const Color(0xFF245C4C).withOpacity(0.1),
+                                      backgroundColor: const Color(0xFF245C4C)
+                                          .withOpacity(0.1),
                                       child: const Icon(
                                         Icons.home_work,
                                         color: Color(0xFF245C4C),
@@ -195,7 +200,8 @@ class _AdminRbwPageState extends State<AdminRbwPage> {
                                       ),
                                     ),
                                     subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const SizedBox(height: 4),
                                         Text('Code: $code'),

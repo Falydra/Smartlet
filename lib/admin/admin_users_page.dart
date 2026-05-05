@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/components/admin_bottom_navigation.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/auth_services.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
@@ -24,17 +25,17 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       _authToken = await TokenManager.getToken();
-      
+
       if (_authToken != null) {
         final result = await _authService.listUsers(
           token: _authToken!,
           page: 1,
           limit: 100,
         );
-        
+
         if (result['success'] == true) {
           setState(() {
             _userList = result['data'] ?? [];
@@ -44,9 +45,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     } catch (e) {
       print('Error loading users: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     } finally {
       if (mounted) {
@@ -128,9 +127,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                               itemCount: _userList.length,
                               itemBuilder: (context, index) {
                                 final user = _userList[index];
-                                final name = user['name']?.toString() ?? 'Unknown';
+                                final name =
+                                    user['name']?.toString() ?? 'Unknown';
                                 final email = user['email']?.toString() ?? '-';
-                                final role = user['role']?.toString() ?? 'farmer';
+                                final role =
+                                    user['role']?.toString() ?? 'farmer';
                                 final phone = user['phone']?.toString() ?? '-';
 
                                 return Card(
@@ -142,7 +143,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                       vertical: 8,
                                     ),
                                     leading: CircleAvatar(
-                                      backgroundColor: _getRoleColor(role).withOpacity(0.2),
+                                      backgroundColor:
+                                          _getRoleColor(role).withOpacity(0.2),
                                       child: Icon(
                                         Icons.person,
                                         color: _getRoleColor(role),
@@ -156,7 +158,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                       ),
                                     ),
                                     subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const SizedBox(height: 4),
                                         Text('Email: $email'),
@@ -165,13 +168,16 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                           children: [
                                             const Text('Role: '),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
                                                 horizontal: 8,
                                                 vertical: 2,
                                               ),
                                               decoration: BoxDecoration(
-                                                color: _getRoleColor(role).withOpacity(0.2),
-                                                borderRadius: BorderRadius.circular(12),
+                                                color: _getRoleColor(role)
+                                                    .withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
                                               ),
                                               child: Text(
                                                 role.toUpperCase(),
@@ -189,14 +195,14 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                     isThreeLine: true,
                                     trailing: const Icon(Icons.chevron_right),
                                     onTap: () {
-
                                       showDialog(
                                         context: context,
                                         builder: (context) => AlertDialog(
                                           title: const Text('User Details'),
                                           content: SingleChildScrollView(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text('Name: $name'),
@@ -205,13 +211,15 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                                 Text('Phone: $phone'),
                                                 Text('Role: $role'),
                                                 if (user['created_at'] != null)
-                                                  Text('Created: ${user['created_at']}'),
+                                                  Text(
+                                                      'Created: ${user['created_at']}'),
                                               ],
                                             ),
                                           ),
                                           actions: [
                                             TextButton(
-                                              onPressed: () => Navigator.pop(context),
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
                                               child: const Text('Close'),
                                             ),
                                           ],

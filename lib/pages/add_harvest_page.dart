@@ -4,6 +4,7 @@ import 'package:swiftlead/services/harvest_services.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class AddHarvestPage extends StatefulWidget {
   final String? cageName;
@@ -152,11 +153,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     } catch (e) {
       print('Error initializing harvest data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Gagal memuat data kandang: ${e.toString()}'),
-              backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Gagal memuat data kandang: ${e.toString()}');
       }
     }
 
@@ -276,24 +273,13 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedHouse == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Tidak ada kandang yang dipilih'),
-            backgroundColor: Colors.red),
-      );
+      ModernSnackBar.error(context, 'Tidak ada kandang yang dipilih');
       return;
     }
 
     for (int i = 0; i < _cageFloors; i++) {
       if (_isFloorTotalExceeded(i)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Lantai ${i + 1}: Jumlah panen (${_floorControllers[i].text}) melebihi data pre-harvest (${_floorPreHarvest[i]}) sarang'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ModernSnackBar.error(context, 'Lantai ${i + 1}: Jumlah panen (${_floorControllers[i].text}) melebihi data pre-harvest (${_floorPreHarvest[i]}) sarang');
         return;
       }
     }
@@ -302,11 +288,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
         0, (sum, controller) => sum + (int.tryParse(controller.text) ?? 0));
 
     if (totalActualHarvest == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Minimal satu lantai harus memiliki hasil panen'),
-            backgroundColor: Colors.red),
-      );
+      ModernSnackBar.error(context, 'Minimal satu lantai harus memiliki hasil panen');
       return;
     }
 
@@ -336,18 +318,6 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
           DateTime.utc(_selectedYear, _selectedMonth, 1).toIso8601String();
       final rbwId = _selectedHouse!['id']?.toString();
 
-      if (_selectedNode == null || _selectedNode!['id'] == null) {
-        if (mounted) setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Node tidak tersedia. Silakan pilih node terlebih dahulu.'),
-              backgroundColor: Colors.red),
-        );
-        return;
-      }
-
-      final nodeId = _selectedNode!['id']?.toString();
       int successCount = 0;
 
       for (int floor = 0; floor < _cageFloors; floor++) {
@@ -369,7 +339,6 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
 
         final apiPayload = <String, dynamic>{
           'rbw_id': rbwId,
-          'node_id': nodeId,
           'floor_no': floor + 1,
           'harvested_at': harvestedAt,
           'nests_count': floorHarvest,
@@ -397,41 +366,21 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
               ? 'Ratio: 75% (Mengikuti rekomendasi ✓)'
               : 'Ratio: ${(harvestRatio * 100).toStringAsFixed(1)}%';
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                      'Data panen ${_months[_selectedMonth - 1]} $_selectedYear berhasil disimpan ($successCount lantai)!'),
-                  Text(ratioText, style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          ModernSnackBar.success(context, 'Data panen ${_months[_selectedMonth - 1]} $_selectedYear berhasil disimpan ($successCount lantai)! $ratioText');
         }
 
         await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) Navigator.pop(context, true);
       } else {
         if (mounted) setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Gagal menyimpan data post-harvest'),
-              backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Gagal menyimpan data post-harvest');
       }
     } catch (e) {
       print('Error saving harvest: $e');
       if (mounted) setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Terjadi kesalahan: $e'),
-            backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ModernSnackBar.error(context, 'Terjadi kesalahan: $e');
+      }
     }
   }
 
@@ -664,14 +613,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
 
 
               if (currentTotal > 0 && breakdownTotal != currentTotal) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Total breakdown ($breakdownTotal) harus sama dengan total sarang ($currentTotal)',
-                    ),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                ModernSnackBar.error(context, 'Total breakdown ($breakdownTotal) harus sama dengan total sarang ($currentTotal)');
                 return;
               }
 
@@ -687,12 +629,7 @@ class _AddHarvestPageState extends State<AddHarvestPage> {
 
               Navigator.pop(context);
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Detail breakdown Lantai $floorNo berhasil disimpan'),
-                  backgroundColor: const Color(0xFF245C4C),
-                ),
-              );
+              ModernSnackBar.success(context, 'Detail breakdown Lantai $floorNo berhasil disimpan');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF245C4C),

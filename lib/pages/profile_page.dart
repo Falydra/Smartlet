@@ -9,8 +9,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'package:swiftlead/shared/theme.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
+import 'package:swiftlead/services/auth_services.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/services/api_constants.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:path_provider/path_provider.dart';
@@ -111,6 +113,7 @@ class _ProfilePageState extends State<ProfilePage> {
   int _currentIndex = 4;
   String? _userName;
   String? _userEmail;
+  String? _userPhone;
   String? _avatarUrl;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -193,12 +196,26 @@ class _ProfilePageState extends State<ProfilePage> {
           
 
           if (avatarUrl != null && !avatarUrl.startsWith('http')) {
-            avatarUrl = 'https://api.swiftlead.fuadfakhruz.com$avatarUrl';
+            try {
+              final urlResponse = await http.get(
+                Uri.parse('${ApiConstants.baseUrl}/api/v1/files/url?path=$avatarUrl'),
+                headers: {'Authorization': 'Bearer $token'},
+              );
+              if (urlResponse.statusCode == 200) {
+                final urlData = jsonDecode(urlResponse.body);
+                avatarUrl = urlData['url'];
+              }
+            } catch (e) {
+              print('Failed to get presigned URL for avatar: $e');
+              // Fallback to old hardcoded URL just in case, but using baseUrl
+              avatarUrl = '${ApiConstants.baseUrl}/$avatarUrl';
+            }
           }
           
           setState(() {
             _userName = ud['name'] ?? ud['full_name'] ?? ud['username'] ?? 'User';
             _userEmail = ud['email'] ?? ud['user_email'] ?? 'No email';
+            _userPhone = ud['phone'] ?? ud['user_phone'] ?? '';
             _avatarUrl = avatarUrl;
             _authToken = token; // Ensure token is always fresh
             _isAdmin = (ud['role']?.toString() == 'admin');
@@ -218,10 +235,12 @@ class _ProfilePageState extends State<ProfilePage> {
     final userName = await TokenManager.getUserName();
     final userEmail = await TokenManager.getUserEmail();
     final userRole = await TokenManager.getUserRole();
+    final userPhone = await TokenManager.getUserPhone();
     if (mounted) {
       setState(() {
         _userName = userName ?? 'User';
         _userEmail = userEmail ?? 'No email';
+        _userPhone = userPhone ?? '';
         _isAdmin = (userRole == 'admin');
         _isTechnician = (userRole == 'technician');
         _isLoading = false;
@@ -359,72 +378,42 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://api.swiftlead.fuadfakhruz.com/api/v1/uploads/avatar'),
+        Uri.parse('${ApiConstants.baseUrl}/api/v1/users/me/avatar'),
       );
       request.headers['Authorization'] = 'Bearer $token';
-      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+      request.files.add(await http.MultipartFile.fromPath('avatar', imageFile.path));
       
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
       
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        String avatarUrl = data['data']['url'];
+        String avatarUrl = data['file_url'] ?? '';
         
 
-        if (!avatarUrl.startsWith('http')) {
-          avatarUrl = 'https://api.swiftlead.fuadfakhruz.com$avatarUrl';
-        }
-        
-        print('Avatar URL received: $avatarUrl');
+        print('Avatar upload successful. New URL: $avatarUrl');
         
 
-        final updateResponse = await http.patch(
-          Uri.parse('https://api.swiftlead.fuadfakhruz.com/api/v1/users/me'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'avatar_url': avatarUrl}),
-        );
+        await _cacheProfileImage(imageFile);
         
-        if (updateResponse.statusCode == 200) {
-
-          await _cacheProfileImage(imageFile);
-          
-          setState(() {
-            _avatarUrl = avatarUrl;
-            _profileImage = imageFile; // Keep local file for display (storage is private)
-            _authToken = token; // Ensure token is set for image loading
-            _isUploadingImage = false;
-          });
-          print('Avatar URL set in state: $_avatarUrl');
-          print('Auth token refreshed in state');
-          print('⚠️  Using local cache - backend storage requires fix (enable public read or use pre-signed URLs)');
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Foto profil berhasil disimpan'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-        } else {
-          throw Exception('Failed to update profile');
+        setState(() {
+          _avatarUrl = avatarUrl;
+          _profileImage = imageFile;
+          _authToken = token;
+          _isUploadingImage = false;
+        });
+        
+        if (mounted) {
+          ModernSnackBar.success(context, 'Foto profil berhasil diperbarui secara permanen');
         }
       } else {
-        throw Exception('Failed to upload image');
+        print('Upload failed with status: ${response.statusCode}');
+        throw Exception('Gagal mengunggah foto');
       }
     } catch (e) {
       setState(() => _isUploadingImage = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal mengunggah foto: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal mengunggah foto: $e');
       }
     }
   }
@@ -467,12 +456,7 @@ class _ProfilePageState extends State<ProfilePage> {
         });
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Foto profil dihapus'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          ModernSnackBar.warning(context, 'Foto profil dihapus');
         }
       } else {
         throw Exception('Failed to delete avatar');
@@ -480,18 +464,12 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       setState(() => _isUploadingImage = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menghapus foto: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ModernSnackBar.error(context, 'Gagal menghapus foto: $e');
       }
     }
   }
 
   Future<void> _pickProfileImage() async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     showModalBottomSheet(
       context: context,
@@ -514,12 +492,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     setState(() {
                       _profileImage = File(image.path);
                     });
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Foto profil berhasil diperbarui'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                    ModernSnackBar.success(context, 'Foto profil berhasil diperbarui');
                   }
                 },
               ),
@@ -561,243 +534,254 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Widget _buildMenuSection() {
+    return Column(
+      children: [
+        _buildMenuItem(
+          icon: Icons.edit_outlined,
+          title: "Edit Profil",
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const EditProfilePage()),
+            );
+          },
+        ),
+        _buildMenuItem(
+          icon: Icons.summarize_outlined,
+          title: "Laporan",
+          onTap: () {
+            Navigator.pushNamed(context, '/reports-page');
+          },
+        ),
+        _buildMenuItem(
+          icon: Icons.money_outlined,
+          title: "Pendapatan",
+          onTap: () {},
+        ),
+        _buildMenuItem(
+          icon: Icons.question_mark_outlined,
+          title: "FAQ",
+          onTap: () {},
+        ),
+        _buildMenuItem(
+          icon: Icons.info_outline,
+          title: "Bantuan",
+          onTap: () {},
+        ),
+        _buildMenuItem(
+          icon: Icons.fact_check_outlined,
+          title: "Tentang Aplikasi",
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF245C4C).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: const Color(0xFF245C4C)),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        onTap: onTap,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: blue400,
-      body: Stack(
-        children: [
-          SizedBox(
-            width: width(context),
-            height: height(context) * 0.35,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  children: [
-                    GestureDetector(
-                      onTap: _showImagePreview,
-                      child: Container(
-                        width: 96,
-                        height: 96,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          image: DecorationImage(
-                            image: _getProfileImageProvider(),
-                            fit: BoxFit.cover,
-                            onError: (exception, stackTrace) {
-                              print('Error loading avatar image: $exception');
-                              print('Avatar URL was: $_avatarUrl');
-                            },
-                          ),
-                        ),
-                        child: _isUploadingImage
-                            ? Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black.withOpacity(0.5),
-                                ),
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              )
-                            : null,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: _pickProfileImage,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF245C4C),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          "Profil Saya",
+          style: TextStyle(
+            color: Color(0xFF245C4C),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Header Section
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF245C4C), Color(0xFF2d7a5f)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 10.0),
-                if (_isLoading)
-                  const CircularProgressIndicator(color: Colors.white)
-                else ...[
-                  Text(
-                    _userName ?? 'User',
-                    style: const TextStyle(
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF245C4C).withOpacity(0.3),
+                    spreadRadius: 2,
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  const SizedBox(height: 5.0),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 5.0,
-                      horizontal: 20.0,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18.0),
-                      color: blue300,
-                    ),
-                    child: Text(
-                      _userEmail ?? 'No email',
+                ],
+              ),
+              child: Column(
+                children: [
+                  Stack(
+                    children: [
+                      GestureDetector(
+                        onTap: _showImagePreview,
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                            image: DecorationImage(
+                              image: _getProfileImageProvider(),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          child: _isUploadingImage
+                              ? Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.black.withOpacity(0.5),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(color: Colors.white),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: _pickProfileImage,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt, color: Color(0xFF245C4C), size: 20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (_isLoading)
+                    const CircularProgressIndicator(color: Colors.white)
+                  else ...[
+                    Text(
+                      _userName ?? 'User',
                       style: const TextStyle(
-                        fontSize: 16.0,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _userEmail ?? 'No email',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                    if (_userPhone != null && _userPhone!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _userPhone!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.only(top: 30, left: 10, right: 10),
-            alignment: Alignment.centerLeft,
-            margin: EdgeInsets.only(top: height(context) * 0.35),
-            width: width(context),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20.0),
-                topRight: Radius.circular(20.0),
               ),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  
-                  
-                  TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.money_outlined),
-                  label: const Text(
-                    "Pendapatan",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.question_mark_outlined),
-                  label: const Text(
-                    "FAQ",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: const Text(
-                    "Tentang",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.info_outline),
-                  label: const Text(
-                    "Bantuan",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/reports-page');
-                  },
-                  icon: const Icon(Icons.summarize_outlined),
-                  label: const Text(
-                    "Laporan",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                TextButton.icon(
-                  onPressed: () async {
 
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const EditProfilePage()),
-                    );
-                  },
-                  icon: const Icon(Icons.edit),
+            const SizedBox(height: 8),
+
+            // Menu Section
+            _buildMenuSection(),
+
+            const SizedBox(height: 24),
+
+            // Logout Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout, color: Colors.white),
                   label: const Text(
-                    "Edit Profil",
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  style: TextButton.styleFrom(iconColor: Colors.black, alignment: Alignment.centerLeft),
-                ),
-                const Divider(
-                  color: Color(0xff767676),
-                  height: 0.3,
-                ),
-                Container(
-                  alignment: Alignment.bottomCenter,
-                  child: ElevatedButton(
-                    onPressed: _logout,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                    "Keluar Akun",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.logout, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text('Logout', style: TextStyle(color: Colors.white)),
-                        ],
-                      ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
-                const SizedBox(height: 80), // Bottom padding for navigation bar
-              ],
+              ),
             ),
-          ),
-          ),
-        ],
+            const SizedBox(height: 100),
+          ],
+        ),
       ),
       bottomNavigationBar: _isAdmin
           ? const AdminBottomNavigation(currentIndex: 3)
@@ -819,7 +803,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       currentIndex: _currentIndex,
                       itemIndex: 0,
                       onTap: () {
-                        Navigator.pushReplacementNamed(context, '/home-page');
+                        Navigator.pushNamed(context, '/home-page');
                         setState(() {
                           _currentIndex = 0;
                         });
@@ -834,7 +818,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       currentIndex: _currentIndex,
                       itemIndex: 1,
                       onTap: () {
-                        Navigator.pushReplacementNamed(context, '/control-page');
+                        Navigator.pushNamed(context, '/control-page');
                         setState(() {
                           _currentIndex = 1;
                         });
@@ -848,7 +832,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       currentIndex: _currentIndex,
                       itemIndex: 2,
                       onTap: () {
-                        Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                        Navigator.pushNamed(context, '/harvest/analysis');
                         setState(() {
                           _currentIndex = 2;
                         });
@@ -862,7 +846,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       currentIndex: _currentIndex,
                       itemIndex: 3,
                       onTap: () {
-                        Navigator.pushReplacementNamed(context, '/store-page');
+                        Navigator.pushNamed(context, '/store-page');
                         setState(() {
                           _currentIndex = 3;
                         });
@@ -876,7 +860,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       currentIndex: _currentIndex,
                       itemIndex: 4,
                       onTap: () {
-                        Navigator.pushReplacementNamed(context, '/profile-page');
+                        Navigator.pushNamed(context, '/profile-page');
                         setState(() {
                           _currentIndex = 4;
                         });
@@ -901,6 +885,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
   @override
   void initState() {
@@ -939,8 +924,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     final storedName = await TokenManager.getUserName();
     final storedEmail = await TokenManager.getUserEmail();
+    final storedPhone = await TokenManager.getUserPhone();
     _nameController.text = storedName ?? '';
     _emailController.text = storedEmail ?? '';
+    _phoneController.text = storedPhone ?? '';
   }
 
   Future<void> _updateProfile() async {
@@ -948,6 +935,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final payload = {
       'name': _nameController.text,
       'email': _emailController.text,
+      'phone': _phoneController.text,
     };
 
     if (token != null && token != 'firebase_user') {
@@ -971,6 +959,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         userId: storedUserId,
         userName: _nameController.text,
         userEmail: _emailController.text,
+        userPhone: _phoneController.text,
       );
     }
   }
@@ -992,6 +981,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
             TextField(
               controller: _emailController,
               decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _phoneController,
+              decoration: const InputDecoration(labelText: 'Phone'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(

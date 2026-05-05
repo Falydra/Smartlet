@@ -10,6 +10,7 @@ import 'package:swiftlead/services/sensor_services.dart';
 import 'package:swiftlead/services/house_services.dart';
 import 'package:swiftlead/services/node_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({super.key});
@@ -81,9 +82,7 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (e) {
       print('Error loading houses: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading houses: $e'), backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Error loading houses: $e');
       }
     }
   }
@@ -104,9 +103,7 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (e) {
       print('Error loading report data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     } finally {
       setState(() => _isLoading = false);
@@ -163,9 +160,7 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (e) {
       print('Error loading harvest data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     }
   }
@@ -219,9 +214,7 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (e) {
       print('Error loading sensor data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading sensor: $e'), backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Error loading sensor: $e');
       }
     }
   }
@@ -229,9 +222,7 @@ class _ReportsPageState extends State<ReportsPage> {
   Future<void> _generatePDF() async {
     if (_authToken == null || _selectedHouse == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pilih kandang terlebih dahulu'), backgroundColor: Colors.orange),
-        );
+        ModernSnackBar.warning(context, 'Pilih kandang terlebih dahulu');
       }
       return;
     }
@@ -247,9 +238,7 @@ class _ReportsPageState extends State<ReportsPage> {
       if (_harvestData.isEmpty) {
         setState(() => _isGenerating = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tidak ada data panen untuk periode ini'), backgroundColor: Colors.orange),
-          );
+          ModernSnackBar.warning(context, 'Tidak ada data panen untuk periode ini');
         }
         return;
       }
@@ -258,9 +247,7 @@ class _ReportsPageState extends State<ReportsPage> {
       if (_sensorData.isEmpty) {
         setState(() => _isGenerating = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tidak ada data sensor untuk periode ini'), backgroundColor: Colors.orange),
-          );
+          ModernSnackBar.warning(context, 'Tidak ada data sensor untuk periode ini');
         }
         return;
       }
@@ -287,16 +274,12 @@ class _ReportsPageState extends State<ReportsPage> {
       
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Laporan berhasil dibuat: $fileName'),
-            backgroundColor: Colors.green,
-            action: SnackBarAction(
-              label: 'Buka',
-              textColor: Colors.white,
-              onPressed: () => OpenFile.open(file.path),
-            ),
-          ),
+        ModernSnackBar.show(
+          context,
+          message: 'Laporan berhasil dibuat: $fileName',
+          type: SnackBarType.success,
+          actionLabel: 'Buka',
+          onAction: () => OpenFile.open(file.path),
         );
       }
       
@@ -306,9 +289,7 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (e) {
       setState(() => _isGenerating = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     }
   }

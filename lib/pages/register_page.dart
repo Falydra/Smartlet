@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:swiftlead/pages/login_page.dart';
-import 'package:swiftlead/services/auth_services.dart.dart';
- 
-
+import 'package:swiftlead/services/auth_services.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class RegisterPage extends StatefulWidget {
   final TextEditingController? controller;
@@ -13,23 +12,20 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-
 class _RegisterPageState extends State<RegisterPage> {
-
   final AuthService _apiAuth = AuthService();
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   bool _isLoading = false;
-
 
   double width(BuildContext context) => MediaQuery.of(context).size.width;
   double height(BuildContext context) => MediaQuery.of(context).size.height;
 
   @override
-
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -46,7 +42,6 @@ class _RegisterPageState extends State<RegisterPage> {
         children: [
           Container(
             margin: EdgeInsets.only(top: width(context) * 0.1),
-
             width: width(context) * 0.375,
             child: const Image(
               image: AssetImage("assets/img/logo2.png"),
@@ -66,12 +61,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(
                   height: 10,
                 ),
-
-
                 const Text(
                   "Nama Lengkap",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _nameController,
@@ -100,12 +96,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(
                   height: 10,
                 ),
-
-
                 const Text(
                   "Email",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _emailController,
@@ -131,15 +128,16 @@ class _RegisterPageState extends State<RegisterPage> {
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-
                 const SizedBox(
                   height: 10,
                 ),
-
                 const Text(
                   "Password",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _passwordController,
@@ -166,16 +164,16 @@ class _RegisterPageState extends State<RegisterPage> {
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-
-
                 const SizedBox(
                   height: 10,
                 ),
-
                 const Text(
                   "Konfirmasi Password",
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Color(0xff245C4C)),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xff245C4C)),
                 ),
                 TextFormField(
                   controller: _confirmPasswordController,
@@ -202,39 +200,48 @@ class _RegisterPageState extends State<RegisterPage> {
                         vertical: 15, horizontal: 18),
                   ),
                 ),
-
                 const SizedBox(
                   height: 20,
                 ),
                 ElevatedButton(
-                    onPressed: _isLoading ? null : () {
-                      _signup();
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            _signup();
+                          },
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      backgroundColor:
-                          const Color(0xff245C4C), // Background color
-                      foregroundColor: Colors.white,
-                      minimumSize: Size(width(context) * 0.75, height(context
-                        ) * 0.075) // Text color
-                    ),
-                    child: _isLoading 
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                        ),
+                        backgroundColor:
+                            const Color(0xff245C4C), // Background color
+                        foregroundColor: Colors.white,
+                        minimumSize: Size(width(context) * 0.75,
+                            height(context) * 0.075) // Text color
+                        ),
+                    child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text(
                             "Daftar",
-                            style:
-                                TextStyle(fontSize: 20, fontWeight: FontWeight.w500, fontFamily: "TT Norms"),
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: "TT Norms"),
                           )),
-                    const SizedBox(
-                      height: 5,
-                    ),
+                const SizedBox(
+                  height: 5,
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Sudah punya akun? ", style: TextStyle(color: Color(0xff245C4C), fontSize: 16, fontWeight: FontWeight.w500),),
+                    const Text(
+                      "Sudah punya akun? ",
+                      style: TextStyle(
+                          color: Color(0xff245C4C),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500),
+                    ),
                     TextButton(
                       onPressed: () {
                         Navigator.push(context,
@@ -243,15 +250,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             controller: TextEditingController(),
                           );
                         }));
-
                       },
-                      style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
                       child: const Text("Klik Disini",
                           style: TextStyle(
                               color: Color(0xff245C4C),
                               fontSize: 16,
-                              fontWeight: FontWeight.w500, fontFamily: "TT Norms")),
+                              fontWeight: FontWeight.w500,
+                              fontFamily: "TT Norms")),
                     ),
                   ],
                 ),
@@ -264,9 +270,8 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _signup() async {
-
-    if (_nameController.text.isEmpty || 
-        _emailController.text.isEmpty || 
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
         _passwordController.text.isEmpty ||
         _confirmPasswordController.text.isEmpty) {
       _showErrorDialog("Semua field harus diisi");
@@ -292,7 +297,6 @@ class _RegisterPageState extends State<RegisterPage> {
     String password = _passwordController.text;
 
     try {
-
       final apiResponse = await _apiAuth.register(
         name: name,
         email: email,
@@ -301,7 +305,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (apiResponse['success'] == true) {
         if (!mounted) return;
-        _showSuccessDialog("Registrasi berhasil! Silakan login dengan akun Anda.");
+        ModernSnackBar.success(
+            context, "Registrasi berhasil! Silakan login dengan akun Anda.");
+        Navigator.pop(context); // Auto go back to login
         return;
       } else {
         String errorMessage = "Registrasi gagal";
@@ -313,7 +319,7 @@ class _RegisterPageState extends State<RegisterPage> {
             _isLoading = false;
           });
         }
-        _showErrorDialog(errorMessage);
+        ModernSnackBar.error(context, errorMessage);
         return;
       }
     } catch (e) {
@@ -323,7 +329,8 @@ class _RegisterPageState extends State<RegisterPage> {
           _isLoading = false;
         });
       }
-      _showErrorDialog("Registrasi gagal. Periksa koneksi internet dan coba lagi.");
+      _showErrorDialog(
+          "Registrasi gagal. Periksa koneksi internet dan coba lagi.");
     }
 
     if (mounted) {
@@ -335,7 +342,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void _showErrorDialog(String message) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -353,7 +360,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void _showSuccessDialog(String message) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -364,11 +371,10 @@ class _RegisterPageState extends State<RegisterPage> {
             onPressed: () {
               Navigator.of(context).pop();
 
-              Navigator.pushReplacement(context, 
-                MaterialPageRoute(builder: (context) {
-                  return LoginPage(controller: TextEditingController());
-                })
-              );
+              Navigator.pushReplacement(context,
+                  MaterialPageRoute(builder: (context) {
+                return LoginPage(controller: TextEditingController());
+              }));
             },
             child: const Text("OK"),
           ),
@@ -376,5 +382,4 @@ class _RegisterPageState extends State<RegisterPage> {
       ),
     );
   }
-
 }

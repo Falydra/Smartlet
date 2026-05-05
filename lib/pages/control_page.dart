@@ -560,8 +560,9 @@ class _ControlPageState extends State<ControlPage> {
               }
 
 
+              final sensorType = sensor['sensor_type'] ?? sensor['type'] ?? sensor['name'] ?? sensor['label'] ?? 'Unknown';
               print(
-                  '[CONTROL] Sensor $sid type=${sensor['type'] ?? sensor['name'] ?? sensor['label']} classified=$metric value=$val at ${newest['recorded_at']}');
+                  '[CONTROL] Sensor $sid type=$sensorType classified=$metric value=$val at ${newest['recorded_at']}');
             }
           }
         }
@@ -1857,7 +1858,7 @@ class _ControlPageState extends State<ControlPage> {
       _pumpNodeId ??= n['id']?.toString();
       // Don't overwrite pump state if timer is active or if we just turned it off
       if (!_pumpJustTurnedOff && (_pumpTimerEnd == null || DateTime.now().isAfter(_pumpTimerEnd!))) {
-        _pumpState ??= _extractBoolState(n, ['pump_state', 'state_pump', 'state', 'active']);
+        _pumpState ??= _extractBoolState(n, ['pump_state', 'state_pump', 'state', 'active']) ?? false;
       }
       print('[PUMP DETECTED] NodeId=$_pumpNodeId, State=$_pumpState, JustTurnedOff=$_pumpJustTurnedOff');
     }
@@ -1871,15 +1872,15 @@ class _ControlPageState extends State<ControlPage> {
       // Don't overwrite audio states if timers are active or if we just turned them off
       if (!_audioBothJustTurnedOff && (_audioBothTimerEnd == null || DateTime.now().isAfter(_audioBothTimerEnd!))) {
         _audioBothState ??= _extractBoolState(
-            n, ['state_audio', 'audio_state', 'state', 'active']);
+            n, ['state_audio', 'audio_state', 'state', 'active']) ?? false;
       }
       if (!_audioLmbJustTurnedOff && (_audioLmbTimerEnd == null || DateTime.now().isAfter(_audioLmbTimerEnd!))) {
         _audioLmbState ??= _extractBoolState(
-            n, ['state_audio_lmb', 'audio_lmb_state', 'lmb_state']);
+            n, ['state_audio_lmb', 'audio_lmb_state', 'lmb_state']) ?? false;
       }
       if (!_audioNestJustTurnedOff && (_audioNestTimerEnd == null || DateTime.now().isAfter(_audioNestTimerEnd!))) {
         _audioNestState ??= _extractBoolState(
-            n, ['state_audio_nest', 'audio_nest_state', 'nest_state']);
+            n, ['state_audio_nest', 'audio_nest_state', 'nest_state']) ?? false;
       }
       print(
           '[AUDIO DETECTED] NodeId=$_audioNodeId, BothState=$_audioBothState, LmbState=$_audioLmbState, NestState=$_audioNestState, NodeType=$type');
@@ -3148,33 +3149,42 @@ class _ControlPageState extends State<ControlPage> {
                                             if (mounted) {
                                               ModernSnackBar.error(context, 'Gagal memperbarui data sensor');
                                             }
-                                          }
-                                          if (mounted) {
-                                            setState(() {
-                                              _isLoading = false;
-                                            });
+                                          } finally {
+                                            if (mounted) {
+                                              setState(() {
+                                                _isLoading = false;
+                                              });
+                                            }
                                           }
                                         },
                                   icon: _isLoading
                                       ? const SizedBox(
-                                          width: 14,
-                                          height: 14,
+                                          width: 16,
+                                          height: 16,
                                           child: CircularProgressIndicator(
-                                              strokeWidth: 2))
-                                      : const Icon(Icons.refresh, size: 14),
-                                  label: Text(
-                                      _isLoading ? 'Loading...' : 'Refresh',
-                                      style: const TextStyle(fontSize: 11)),
+                                              color: Colors.white, strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.refresh, size: 18),
+                                  label: const Text('Refresh', style: TextStyle(fontSize: 13)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF245C4C),
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 8),
-                                    minimumSize: Size.zero,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8)),
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    ModernSnackBar.success(context, 'Menyiapkan laporan sensor untuk $_cageName...');
+                                    // Implementation for download would go here
+                                  },
+                                  icon: const Icon(Icons.download, size: 18),
+                                  label: const Text('Laporan', style: TextStyle(fontSize: 13)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFffc200),
+                                    foregroundColor: const Color(0xFF245C4C),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
                                 ),
                               ],
@@ -3694,7 +3704,7 @@ class _ControlPageState extends State<ControlPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 0,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/home-page');
+                  Navigator.pushNamed(context, '/home-page');
                   setState(() {
                     _currentIndex = 0;
                   });
@@ -3722,7 +3732,7 @@ class _ControlPageState extends State<ControlPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 2,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                  Navigator.pushNamed(context, '/harvest/analysis');
                   setState(() {
                     _currentIndex = 2;
                   });
@@ -3736,7 +3746,7 @@ class _ControlPageState extends State<ControlPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/store-page');
+                  Navigator.pushNamed(context, '/store-page');
                   setState(() {
                     _currentIndex = 3;
                   });
@@ -3750,7 +3760,7 @@ class _ControlPageState extends State<ControlPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 4,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/profile-page');
+                  Navigator.pushNamed(context, '/profile-page');
                   setState(() {
                     _currentIndex = 4;
                   });

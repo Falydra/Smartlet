@@ -42,15 +42,14 @@ import 'package:swiftlead/pages/service_request_detail_page.dart';
 import 'package:swiftlead/pages/installation_manager_page.dart';
 import 'package:swiftlead/pages/user_manager_page.dart';
 import 'package:swiftlead/pages/reports_page.dart';
+import 'package:swiftlead/pages/forgot_password_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (!kIsWeb) {
     await LocalNotificationHelper().init();
-
-    // Start global foreground timer watcher so expired timers
-    // turn off actuators even when user is on a different page
+    await TimerBackgroundService.initialize();
     TimerBackgroundService.startForegroundTimerWatcher();
   }
   
@@ -88,6 +87,7 @@ class MyApp extends StatelessWidget {
         '/register-page': (context) => RegisterPage(
               controller: TextEditingController(),
             ),
+        '/forgot-password': (context) => const ForgotPasswordPage(),
         '/farmer-setup': (context) => const FarmerSetupPage(),
         '/cage-data': (context) => const CageDataPage(),
         '/cage-selection': (context) => const CageSelectionPage(),

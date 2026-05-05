@@ -6,6 +6,7 @@ class TokenManager {
   static const String _userNameKey = 'user_name';
   static const String _userEmailKey = 'user_email';
   static const String _userRoleKey = 'user_role';
+  static const String _userPhoneKey = 'user_phone';
 
 
   static Future<void> saveAuthData({
@@ -14,6 +15,7 @@ class TokenManager {
     required String userName,
     required String userEmail,
     String? userRole,
+    String? userPhone,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
@@ -22,6 +24,9 @@ class TokenManager {
     await prefs.setString(_userEmailKey, userEmail);
     if (userRole != null) {
       await prefs.setString(_userRoleKey, userRole);
+    }
+    if (userPhone != null) {
+      await prefs.setString(_userPhoneKey, userPhone);
     }
   }
 
@@ -55,6 +60,11 @@ class TokenManager {
     return prefs.getString(_userRoleKey);
   }
 
+  static Future<String?> getUserPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userPhoneKey);
+  }
+
 
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
@@ -69,6 +79,7 @@ class TokenManager {
     await prefs.remove(_userNameKey);
     await prefs.remove(_userEmailKey);
     await prefs.remove(_userRoleKey);
+    await prefs.remove(_userPhoneKey);
   }
 
 

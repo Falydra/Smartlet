@@ -1677,7 +1677,7 @@ class _SalesPageState extends State<SalesPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 0,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/home-page');
+                  Navigator.pushNamed(context, '/home-page');
                   if (mounted) {
                     setState(() {
                       _currentIndex = 0;
@@ -1693,7 +1693,7 @@ class _SalesPageState extends State<SalesPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 1,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/control-page');
+                  Navigator.pushNamed(context, '/control-page');
                   if (mounted) {
                     setState(() {
                       _currentIndex = 1;
@@ -1709,7 +1709,7 @@ class _SalesPageState extends State<SalesPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 2,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/harvest/analysis');
+                  Navigator.pushNamed(context, '/harvest/analysis');
                   if (mounted) {
                     setState(() {
                       _currentIndex = 2;
@@ -1725,7 +1725,7 @@ class _SalesPageState extends State<SalesPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 3,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/store-page');
+                  Navigator.pushNamed(context, '/store-page');
                   if (mounted) {
                     setState(() {
                       _currentIndex = 3;
@@ -1741,7 +1741,7 @@ class _SalesPageState extends State<SalesPage> {
                 currentIndex: _currentIndex,
                 itemIndex: 4,
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, '/profile-page');
+                  Navigator.pushNamed(context, '/profile-page');
                   if (mounted) {
                     setState(() {
                       _currentIndex = 4;

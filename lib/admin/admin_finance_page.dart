@@ -3,6 +3,7 @@ import 'package:swiftlead/services/rbw_service.dart';
 import 'package:swiftlead/services/transaction_service.dart';
 import 'package:swiftlead/utils/token_manager.dart';
 import 'package:intl/intl.dart';
+import 'package:swiftlead/utils/modern_snackbar.dart';
 
 class AdminFinancePage extends StatefulWidget {
   const AdminFinancePage({super.key});
@@ -53,9 +54,7 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
     } catch (e) {
       print('Error loading data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ModernSnackBar.error(context, 'Error: $e');
       }
     } finally {
       setState(() => _isLoading = false);
@@ -132,23 +131,17 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
         
         if (result['success'] == true) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Transaction deleted successfully')),
-            );
+            ModernSnackBar.success(context, 'Transaction deleted successfully');
           }
           await _loadTransactions();
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error: ${result['message']}')),
-            );
+            ModernSnackBar.error(context, 'Error: ${result['message']}');
           }
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+          ModernSnackBar.error(context, 'Error: $e');
         }
       }
     }
